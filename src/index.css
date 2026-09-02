@@ -1,0 +1,100 @@
+/* Hallmark · macrostructure: Marquee Hero · tone: brutalist-editorial · theme: custom (vibe: "futuristic streetwear, black, electric red") · paper oklch(15% 0 0) · accent oklch(62.8% 0.258 29) red · display: Space Grotesk/Archivo · body: Inter
+ * axes: dark paper / grotesk-sans display / warm accent
+ * genre: editorial · nav: N11 mega-menu · footer: Ft6 oversized statement
+ */
+@import "tailwindcss";
+
+@theme {
+  /* colors — OKLCH, 80/15/5 discipline (DESIGN.md §11-12) */
+  --color-ink: oklch(15% 0.01 270);
+  --color-ink-deep: oklch(10% 0.008 270);
+  --color-charcoal: oklch(22% 0.01 270);
+  --color-charcoal-2: oklch(27% 0.01 270);
+  --color-paper: oklch(96% 0.004 270);
+  --color-paper-dim: oklch(88% 0.005 270);
+  --color-accent: oklch(62.8% 0.258 29);
+  --color-accent-hot: oklch(58% 0.26 27);
+  --color-line: oklch(100% 0 0 / 15%);
+  --color-line-strong: oklch(100% 0 0 / 30%);
+
+  /* typography (DESIGN.md §13-15: 1 display + 1 UI, oversized) */
+  --font-display: "Space Grotesk", sans-serif;
+  --font-alt: "Archivo", sans-serif;
+  --font-ui: "Inter", sans-serif;
+
+  /* motion tokens (DESIGN.md §63-64) */
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+  --dur-fast: 200ms;
+  --dur-med: 400ms;
+  --dur-slow: 800ms;
+}
+
+/* base */
+html {
+  overflow-x: clip;
+  scroll-behavior: smooth;
+}
+body {
+  overflow-x: clip;
+  background: var(--color-ink);
+  color: var(--color-paper);
+  font-family: var(--font-ui);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* utility: oversized display type (DESIGN.md §15) */
+.display-xl {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: clamp(64px, 12vw, 220px);
+  line-height: 0.9;
+  letter-spacing: -0.03em;
+  text-transform: uppercase;
+  overflow-wrap: anywhere;
+  min-width: 0;
+}
+.display-l {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: clamp(40px, 7vw, 120px);
+  line-height: 0.92;
+  letter-spacing: -0.02em;
+  text-transform: uppercase;
+  overflow-wrap: anywhere;
+  min-width: 0;
+}
+
+/* marquee (DESIGN.md §32) */
+@keyframes marquee {
+  from { transform: translateX(0); }
+  to { transform: translateX(-50%); }
+}
+.marquee-track {
+  display: flex;
+  width: max-content;
+  animation: marquee 22s linear infinite;
+}
+.marquee-track:hover { animation-play-state: paused; }
+
+/* scroll reveal */
+.reveal {
+  opacity: 0;
+  transform: translateY(24px);
+  transition: opacity 0.7s var(--ease-out), transform 0.7s var(--ease-out);
+}
+.reveal.is-in {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+/* reduced motion (DESIGN.md §65) */
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  .marquee-track { animation: none; }
+  .reveal { opacity: 1; transform: none; transition: opacity 150ms; }
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
