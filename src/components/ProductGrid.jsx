@@ -19,7 +19,7 @@ export function Card({ p, match }) {
       {/* image placeholder — shoe silhouette tinted theo color[0], swap bằng ảnh thật sau */}
       <div
         className="flex flex-1 items-center justify-center overflow-hidden transition-transform duration-300 group-hover:scale-[1.04]"
-        style={{ background: `color-mix(in oklab, ${p.colors[0]} 30%, #16161a)` }}
+        style={{ background: `color-mix(in oklab, ${p.colors[0]} 30%, var(--color-charcoal-2))` }}
       >
         <svg viewBox="0 0 520 220" className="w-[80%] opacity-80" aria-hidden="true">
           <path d="M20 170 Q10 190 40 195 L480 195 Q510 190 505 165 L470 150 L60 150 Q30 155 20 170Z" fill={p.colors[0] === '#e8e6e1' ? '#0a0a0a' : p.colors[0]} />

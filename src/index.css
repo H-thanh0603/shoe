@@ -92,6 +92,18 @@ body {
 body[data-accent="lime"]    { --color-accent: oklch(83% 0.21 128); --color-accent-hot: oklch(78% 0.22 128); }
 body[data-accent="ice"]     { --color-accent: oklch(75% 0.14 240); --color-accent-hot: oklch(70% 0.15 240); }
 body[data-accent="magenta"] { --color-accent: oklch(66% 0.25 330); --color-accent-hot: oklch(61% 0.26 330); }
+/* secret mode (konami / logo 5-tap) — invert theme, accent giữ nguyên */
+body.secret {
+  --color-ink: oklch(94% 0.004 270);
+  --color-ink-deep: oklch(88% 0.005 270);
+  --color-charcoal: oklch(85% 0.005 270);
+  --color-charcoal-2: oklch(80% 0.006 270);
+  --color-paper: oklch(16% 0.01 270);
+  --color-paper-dim: oklch(24% 0.01 270);
+  --color-line: oklch(0% 0 0 / 15%);
+  --color-line-strong: oklch(0% 0 0 / 30%);
+}
+
 /* quiz xong → motion nhanh hơn một nhịp (feedback tức thì) */
 body[data-accent] .reveal { transition-duration: 450ms; }
 

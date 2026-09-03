@@ -11,7 +11,7 @@ function ShoeArt({ colors, large }) {
   return (
     <div
       className={`flex items-center justify-center overflow-hidden ${w}`}
-      style={{ background: `color-mix(in oklab, ${colors[0]} 30%, #16161a)` }}
+      style={{ background: `color-mix(in oklab, ${colors[0]} 30%, var(--color-charcoal-2))` }}
     >
       <svg viewBox="0 0 520 220" className={`${large ? 'w-[92%]' : 'w-[80%]'} opacity-90`} aria-hidden="true">
         <path d="M20 170 Q10 190 40 195 L480 195 Q510 190 505 165 L470 150 L60 150 Q30 155 20 170Z" fill={colors[0] === '#e8e6e1' ? '#0a0a0a' : colors[0]} />

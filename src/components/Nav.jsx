@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useCart } from '../store/CartContext.jsx'
 import { useProfile, topTrait } from '../store/profile.js'
 import AuthModal from './AuthModal.jsx'
@@ -9,13 +9,21 @@ const menu = {
   COLLECTIONS: ['Street Future', 'Night Runner', 'Raw Motion', 'City Heat'],
 }
 
-export default function Nav({ onQuiz }) {
+export default function Nav({ onQuiz, onLogoTap, secret }) {
   const [open, setOpen] = useState(null)
   const [user, setUser] = useState(null)
   const [showAuth, setShowAuth] = useState(false)
   const { cart, open: openCart } = useCart()
   const { profile } = useProfile()
   const shoeId = topTrait(profile) || 'SHOE ID'
+
+  // logo 5 tap trong 2s → secret toggle (mobile path, konami cho desktop)
+  const taps = useRef([])
+  const onLogo = () => {
+    const now = Date.now()
+    taps.current = [...taps.current.filter((t) => now - t < 2000), now]
+    if (taps.current.length >= 5) { taps.current = []; onLogoTap?.() }
+  }
 
   useEffect(() => {
     fetch('/api/v1/auth/me')
@@ -32,7 +40,7 @@ export default function Nav({ onQuiz }) {
   return (
     <header className="fixed top-0 z-50 w-full border-b border-white/10 bg-ink/80 backdrop-blur-md">
       <nav className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 md:px-8">
-        <a href="#" className="font-display text-xl font-bold tracking-tight text-paper">
+        <a href="#" onClick={onLogo} className="font-display text-xl font-bold tracking-tight text-paper">
           KINETIC<span className="text-accent">.</span>
         </a>
 

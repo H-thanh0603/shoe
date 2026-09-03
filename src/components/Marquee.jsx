@@ -1,6 +1,7 @@
 // Marquee (DESIGN.md §32) — infinite, hover pause. CSS animation trong index.css.
-export default function Marquee() {
-  const items = ['MOVE DIFFERENT', 'MOVE DIFFERENT', 'MOVE DIFFERENT', 'MOVE DIFFERENT', 'MOVE DIFFERENT', 'MOVE DIFFERENT']
+export default function Marquee({ secret }) {
+  const text = secret ? 'SECRET MODE UNLOCKED' : 'MOVE DIFFERENT'
+  const items = [text, text, text, text, text, text]
   return (
     <div className="border-y border-white/10 bg-accent py-3 overflow-hidden" aria-hidden="true">
       <div className="marquee-track gap-0">
