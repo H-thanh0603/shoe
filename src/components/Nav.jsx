@@ -41,6 +41,7 @@ export default function Nav({ onQuiz, onLogoTap, secret, onSearch }) {
   const logout = async () => {
     await apiFetch('/auth/logout', { method: 'POST' }).catch(() => {})
     setUser(null)
+    window.dispatchEvent(new CustomEvent('auth-changed')) // wishlist về localStorage
   }
 
   return (
@@ -107,7 +108,11 @@ export default function Nav({ onQuiz, onLogoTap, secret, onSearch }) {
       {showAuth && (
         <AuthModal
           onClose={() => setShowAuth(false)}
-          onAuthed={(u) => { setUser(u); setShowAuth(false) }}
+          onAuthed={(u) => {
+            setUser(u)
+            setShowAuth(false)
+            window.dispatchEvent(new CustomEvent('auth-changed')) // wishlist merge lên server
+          }}
         />
       )}
 

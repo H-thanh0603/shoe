@@ -2,8 +2,11 @@ import { useEffect, useRef, useState } from 'react'
 import { useApi } from '../hooks/useApi.js'
 import { useCart } from '../store/CartContext.jsx'
 import { useProfile } from '../store/profile.js'
+import { useWishlist } from '../hooks/useWishlist.js'
+import { useRecentlyViewed } from '../hooks/useRecentlyViewed.js'
 import { matchScore } from '../lib/match.js'
 import { track } from '../lib/track.js'
+import { RelatedProducts, RecentlyViewed } from './RelatedProducts.jsx'
 import { playTechClick, playSwitch } from '../lib/sound.js'
 
 function ShoeArt({ colors, large }) {
@@ -39,7 +42,16 @@ export default function ProductDetail({ slug, back }) {
 
   useEffect(() => { setSize(null); setMsg(null) }, [slug])
   const tracked = useRef(null)
-  useEffect(() => { if (p && tracked.current !== p.id) { tracked.current = p.id; track('view', p.id) } }, [p])
+  const { wishlist, toggle: toggleWishlist } = useWishlist()
+  const { items: recent, push: pushRecent } = useRecentlyViewed(slug)
+  useEffect(() => {
+    if (p && tracked.current !== p.id) {
+      tracked.current = p.id
+      track('view', p.id)
+      pushRecent({ id: p.id, slug: p.slug, name: p.name, brand: p.brand, price: p.price, price_vnd: p.price_vnd, colors: p.colors, tags: p.tags, tag: p.tag, purpose: p.purpose })
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [p])
 
   if (error) return (
     <main className="flex min-h-[60vh] items-center justify-center px-4">
@@ -315,6 +327,9 @@ export default function ProductDetail({ slug, back }) {
           </div>
         </section>
       )}
+
+      <RelatedProducts current={p} wishlist={wishlist} onWishlist={toggleWishlist} />
+      <RecentlyViewed items={recent} wishlist={wishlist} onWishlist={toggleWishlist} />
 
       {/* Sticky Mobile Bar for quick add */}
       <div className="fixed inset-x-0 bottom-0 z-40 border-t border-white/15 bg-charcoal/95 p-3 backdrop-blur-md md:hidden flex items-center justify-between">
