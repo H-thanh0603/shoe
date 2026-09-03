@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { useApi } from '../hooks/useApi.js'
 
 // Limited drop (DESIGN.md §48-49): event feel, countdown monospaced, no glow spam.
 function useCountdown(target) {
@@ -17,8 +18,9 @@ function useCountdown(target) {
 
 export default function Drop() {
   const ref = useRef(null)
-  // ponytail: target hardcode +72h từ load — backend sẽ cấp deadline thật
-  const [target] = useState(() => Date.now() + 72 * 3600 * 1000)
+  const { data: drop } = useApi('/api/drop')
+  // fallback +72h nếu API chưa lên — tránh countdown đứng
+  const target = drop ? new Date(drop.endsAt).getTime() : Date.now() + 72 * 3600 * 1000
   const { h, m, s } = useCountdown(target)
 
   useEffect(() => {
@@ -63,7 +65,7 @@ export default function Drop() {
             <span className="display-l text-paper">{s}</span>
           </div>
           <p className="font-display text-6xl font-bold leading-none text-paper md:text-8xl">
-            120<span className="text-accent">/</span>ĐÔI
+            {drop?.pairs ?? 120}<span className="text-accent">/</span>ĐÔI
           </p>
         </div>
       </div>

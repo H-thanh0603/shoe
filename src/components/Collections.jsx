@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react'
-import { collections } from '../data/products.js'
+import { useApi } from '../hooks/useApi.js'
 
 // Collections như campaign (DESIGN.md §30-31): mỗi cái 1 mood + block màu riêng.
 const bgMap = {
@@ -13,7 +13,7 @@ function CollectionCard({ c, i }) {
   return (
     <a
       href="#"
-      className={`group relative flex aspect-[4/5] flex-col justify-between overflow-hidden p-6 transition-transform duration-300 hover:-translate-y-1 md:aspect-auto md:min-h-[340px] ${bgMap[c.bg]}`}
+      className={`group relative flex aspect-[4/5] flex-col justify-between overflow-hidden p-6 transition-transform duration-300 hover:-translate-y-1 md:aspect-auto md:min-h-[340px] ${bgMap[c.bg]} ${c.invert ? 'bg-paper text-ink' : ''}`}
     >
       <span className="text-[11px] tracking-widest opacity-60">
         {String(i + 1).padStart(2, '0')} / SS26
@@ -45,6 +45,7 @@ function CollectionCard({ c, i }) {
 
 export default function Collections() {
   const ref = useRef(null)
+  const { data: collections, error } = useApi('/api/collections')
   useEffect(() => {
     const io = new IntersectionObserver(
       ([e]) => e.isIntersecting && e.target.classList.add('is-in'),
@@ -58,9 +59,10 @@ export default function Collections() {
     <section ref={ref} className="reveal border-t border-white/10">
       <div className="mx-auto max-w-7xl px-4 py-20 md:px-8 md:py-28">
         <h2 className="display-l mb-10 text-paper">BỘ SƯU TẬP</h2>
+        {error && <p className="text-sm text-accent">Không tải được collections — kiểm tra server.</p>}
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          {collections.map((c, i) => (
-            <CollectionCard key={c.name} c={c} i={i} />
+          {collections?.map((c, i) => (
+            <CollectionCard key={c.slug} c={c} i={i} />
           ))}
         </div>
       </div>

@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react'
-import { products } from '../data/products.js'
+import { useApi } from '../hooks/useApi.js'
 
 // Editorial asymmetric grid (DESIGN.md §24-27): span variants phá nhịp đều,
 // card tối giản: image / brand / name / price / color dots.
@@ -51,6 +51,7 @@ function Card({ p }) {
 
 export default function ProductGrid() {
   const ref = useRef(null)
+  const { data: products, error } = useApi('/api/products')
   useEffect(() => {
     const io = new IntersectionObserver(
       ([e]) => e.isIntersecting && e.target.classList.add('is-in'),
@@ -69,8 +70,9 @@ export default function ProductGrid() {
         </a>
       </div>
 
+      {error && <p className="text-sm text-accent">Không tải được sản phẩm — kiểm tra server (npm start trong server/).</p>}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-3 md:grid-rows-[repeat(4,minmax(0,220px))]">
-        {products.map((p) => (
+        {products?.map((p) => (
           <Card key={p.id} p={p} />
         ))}
       </div>
