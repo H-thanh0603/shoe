@@ -4,6 +4,7 @@ const express = require('express')
 const crypto = require('node:crypto')
 const pool = require('../db.js')
 const validate = require('../middleware/validate.js')
+const { requireAuth } = require('../middleware/auth.js')
 const { z } = require('zod')
 
 const router = express.Router()
@@ -149,6 +150,18 @@ router.post('/', validate(orderSchema), async (req, res) => {
 })
 
 // tra cứu theo ref code — public nhưng chỉ trả metadata, không trả địa chỉ/email (§IDOR)
+// §38 GET /me/orders — lịch sử đơn của user hiện tại
+router.get('/me/orders', requireAuth, async (req, res) => {
+  const { rows } = await pool.query(
+    `SELECT o.id, o.ref_code, o.status, o.payment_status, o.total_vnd, o.created_at,
+            COUNT(oi.id) AS item_count
+     FROM orders o LEFT JOIN order_items oi ON oi.order_id = o.id
+     WHERE o.user_id = $1 GROUP BY o.id ORDER BY o.created_at DESC`,
+    [req.user.id],
+  )
+  res.json({ success: true, data: rows })
+})
+
 router.get('/ref/:code', async (req, res) => {
   const { rows: [o] } = await pool.query(
     'SELECT id, ref_code, status, total_vnd, payment_status, shipping_fee_vnd, discount_vnd, created_at FROM orders WHERE ref_code = $1',

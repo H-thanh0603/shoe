@@ -36,6 +36,7 @@ Guest: cookie `session_token` tự sinh khi request đầu. User: cart theo `req
 |---|---|---|
 | POST | `/orders` | Checkout. Body: `{customerName, phone, email, address, paymentMethod: cod\|vnpay, couponCode?}`. Header tùy chọn `Idempotency-Key` — trùng key trả order cũ (`duplicate: true`). Trả `{refCode}` (KIN-XXXXXX). |
 | GET | `/orders/ref/:code` | Tra đơn theo refCode — public. |
+| GET | `/orders/me/orders` | Lịch sử đơn của user (login). Kèm `item_count`. |
 
 Lỗi checkout: 400 `CART_EMPTY` / `COUPON_NOT_FOUND` / `COUPON_INACTIVE` / `COUPON_NOT_STARTED` / `COUPON_EXPIRED` / `COUPON_MIN_ORDER` / `COUPON_EXHAUSTED`, 409 `OUT_OF_STOCK` / `PRODUCT_INACTIVE`.
 
@@ -50,6 +51,7 @@ Lỗi checkout: 400 `CART_EMPTY` / `COUPON_NOT_FOUND` / `COUPON_INACTIVE` / `COU
 | POST | `/auth/forgot-password` | `{email}` — luôn trả `ok` (không tiết lộ email tồn tại). Trả `resetToken` trong response (demo — khi có mailer gửi qua email). Rate limit 10/15 phút. |
 | POST | `/auth/reset-password` | `{resetToken, password ≥8}` — token 15m. 401 `INVALID_TOKEN`. Xong clear cookies. |
 | GET | `/auth/me` | User hiện tại. 401 nếu chưa đăng nhập. |
+| PATCH | `/auth/me` | Sửa `{name?, phone?}` — email/password qua flow riêng. |
 
 ## Wishlist (đều cần login)
 

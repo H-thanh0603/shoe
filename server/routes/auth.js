@@ -5,7 +5,7 @@ const bcrypt = require('bcryptjs')
 const jwt = require('jsonwebtoken')
 const pool = require('../db.js')
 const validate = require('../middleware/validate.js')
-const { signAccess, signRefresh, signReset } = require('../middleware/auth.js')
+const { signAccess, signRefresh, signReset, requireAuth } = require('../middleware/auth.js')
 const { z } = require('zod')
 
 const SECRET = process.env.JWT_SECRET || 'dev-secret-đổi-khi-deploy'
@@ -156,6 +156,21 @@ router.get('/me', (req, res) => {
     .then(({ rows: [u] }) => u
       ? res.json({ success: true, data: u })
       : res.status(401).json({ success: false, error: { code: 'UNAUTHORIZED', message: 'Chưa đăng nhập' } }))
+})
+
+// §38 PATCH /me — sửa name/phone (email/password qua flow riêng)
+router.patch('/me', requireAuth, validate(z.object({
+  name: z.string().min(2).max(100).optional(),
+  phone: z.string().regex(/^(0|\+84)\d{8,10}$/).optional(),
+})), async (req, res) => {
+  const fields = Object.keys(req.body)
+  if (!fields.length) return res.status(400).json({ success: false, error: { code: 'VALIDATION_ERROR', message: 'Không có gì để cập nhật' } })
+  const sets = fields.map((f, i) => `${f === 'name' ? 'name' : 'phone'} = $${i + 1}`).join(', ')
+  const { rows: [u] } = await pool.query(
+    `UPDATE users SET ${sets} WHERE id = $${fields.length + 1} RETURNING id, email, name, phone, role, created_at`,
+    [...fields.map((f) => req.body[f]), req.user.id],
+  )
+  res.json({ success: true, data: u })
 })
 
 module.exports = router
