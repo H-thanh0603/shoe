@@ -5,7 +5,7 @@ import { matchScore, sortProducts } from '../lib/match.js'
 
 // Editorial asymmetric grid (DESIGN.md §24-27): span variants phá nhịp đều,
 // card tối giản: image / brand / name / price / color dots.
-function Card({ p, match }) {
+export function Card({ p, match }) {
   const spanCls =
     p.span === 'wide' ? 'md:col-span-2 aspect-[2.2/1]' :
     p.span === 'tall' ? 'md:row-span-2 aspect-[1/2.1]' :

@@ -3,6 +3,7 @@ import { useProfile, applyAccent } from './store/profile.js'
 import Nav from './components/Nav.jsx'
 import Hero from './components/Hero.jsx'
 import Marquee from './components/Marquee.jsx'
+import WeatherStrip from './components/WeatherStrip.jsx'
 import ProductGrid from './components/ProductGrid.jsx'
 import Collections from './components/Collections.jsx'
 import Drop from './components/Drop.jsx'
@@ -40,6 +41,7 @@ export default function App() {
         <main>
           <Hero onQuiz={openQuiz} />
           <Marquee />
+          <WeatherStrip />
           <ProductGrid />
           <Collections />
           <Drop />
