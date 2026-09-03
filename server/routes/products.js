@@ -6,7 +6,7 @@ const pool = require('../db.js')
 const router = express.Router()
 
 const fmtPrice = (vnd) => vnd.toLocaleString('vi-VN') + '₫'
-const mapProduct = (p) => ({ ...p, colors: JSON.parse(p.colors), price: fmtPrice(p.price_vnd) })
+const mapProduct = (p) => ({ ...p, colors: JSON.parse(p.colors), tags: JSON.parse(p.tags || '[]'), price: fmtPrice(p.price_vnd) })
 const ok = (res, data, meta) => res.json({ success: true, data, ...(meta && { meta }) })
 
 router.get('/', async (req, res) => {
