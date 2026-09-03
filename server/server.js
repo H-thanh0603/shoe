@@ -1,13 +1,32 @@
 const express = require('express')
 const cookieParser = require('cookie-parser')
+const helmet = require('helmet')
+const rateLimit = require('express-rate-limit')
 const path = require('node:path')
 
 const app = express()
 const PORT = process.env.PORT || 3000
 
+// CSP: cho phép fetch open-meteo (weather của match engine), styles inline (Tailwind inject)
+app.use(helmet({
+  contentSecurityPolicy: {
+    directives: {
+      ...helmet.contentSecurityPolicy.getDefaultDirectives(),
+      'connect-src': ["'self'", 'https://api.open-meteo.com'],
+      'style-src': ["'self'", "'unsafe-inline'", 'https:'],
+    },
+  },
+}))
 app.use(express.json())
 app.use(cookieParser())
 app.use(require('./middleware/auth.js').attachUser)
+
+// rate-limit (§17): brute force login/register, spam checkout — TRƯỚC routes
+const authLimiter = rateLimit({ windowMs: 15 * 60 * 1000, limit: 10, standardHeaders: true, legacyHeaders: false, message: { success: false, error: { code: 'RATE_LIMITED', message: 'Quá nhiều lần thử — thử lại sau 15 phút' } } })
+const checkoutLimiter = rateLimit({ windowMs: 60 * 1000, limit: 20, standardHeaders: true, legacyHeaders: false, message: { success: false, error: { code: 'RATE_LIMITED', message: 'Quá nhiều request — thử lại sau 1 phút' } } })
+app.use('/api/v1/auth/login', authLimiter)
+app.use('/api/v1/auth/register', authLimiter)
+app.use('/api/v1/orders', checkoutLimiter)
 
 // API v1 (BACKEND.md §59)
 app.use('/api/v1/products', require('./routes/products.js'))

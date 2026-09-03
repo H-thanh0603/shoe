@@ -1,4 +1,5 @@
 import { createContext, useContext, useEffect, useReducer } from 'react'
+import { track } from '../lib/track.js'
 
 // Cart client state — server là source of truth (§17), context chỉ giữ bản hiển thị
 const CartContext = createContext(null)
@@ -31,7 +32,7 @@ export function CartProvider({ children }) {
 
   const actions = {
     add: (variantId, qty = 1) => api('/items', { method: 'POST', body: JSON.stringify({ variantId, qty }) })
-      .then((c) => { dispatch({ type: 'set', cart: { ...c, open: true } }) }),
+      .then((c) => { dispatch({ type: 'set', cart: { ...c, open: true } }); track('cart_add') }),
     setQty: (itemId, qty) => api(`/items/${itemId}`, { method: 'PATCH', body: JSON.stringify({ qty }) })
       .then((c) => dispatch({ type: 'set', cart: { ...c, open: true } })),
     remove: (itemId) => api(`/items/${itemId}`, { method: 'DELETE' })

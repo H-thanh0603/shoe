@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useProfile, applyAccent } from './store/profile.js'
 import { useKonami } from './hooks/useKonami.js'
+import { track } from './lib/track.js'
 import Nav from './components/Nav.jsx'
 import Hero from './components/Hero.jsx'
 import Marquee from './components/Marquee.jsx'
@@ -32,6 +33,7 @@ export default function App() {
   // secret mode — sessionStorage: sống sót hash nav, mất khi đóng tab
   const [secret, setSecret] = useState(() => { try { return sessionStorage.getItem('secret_v1') === '1' } catch { return false } })
   const toggleSecret = () => {
+    track('secret_mode')
     setSecret((s) => {
       const next = !s
       try { next ? sessionStorage.setItem('secret_v1', '1') : sessionStorage.removeItem('secret_v1') } catch {}

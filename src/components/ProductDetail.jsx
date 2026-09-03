@@ -1,8 +1,9 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useApi } from '../hooks/useApi.js'
 import { useCart } from '../store/CartContext.jsx'
 import { useProfile } from '../store/profile.js'
 import { matchScore } from '../lib/match.js'
+import { track } from '../lib/track.js'
 
 // ProductDetail (Bước 4) — dùng shape /api/v1/products/:slug:
 // { ..., variants: [{ id, size, stock }], collection_slug/name }
@@ -31,6 +32,9 @@ export default function ProductDetail({ slug, back }) {
   const [msg, setMsg] = useState(null)
 
   useEffect(() => { setSize(null); setMsg(null) }, [slug])
+  // view event — guard ref chống StrictMode double-mount
+  const tracked = useRef(null)
+  useEffect(() => { if (p && tracked.current !== p.id) { tracked.current = p.id; track('view', p.id) } }, [p])
 
   if (error) return (
     <main className="flex min-h-[60vh] items-center justify-center px-4">
