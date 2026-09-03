@@ -7,6 +7,7 @@ import { useRecentlyViewed } from '../hooks/useRecentlyViewed.js'
 import { matchScore } from '../lib/match.js'
 import { track } from '../lib/track.js'
 import { RelatedProducts, RecentlyViewed } from './RelatedProducts.jsx'
+import Reviews from './Reviews.jsx'
 import { playTechClick, playSwitch } from '../lib/sound.js'
 
 function ShoeArt({ colors, large }) {
@@ -30,7 +31,6 @@ function ShoeArt({ colors, large }) {
 
 export default function ProductDetail({ slug, back }) {
   const { data: p, error } = useApi(`/products/${slug}`)
-  const { data: reviewsData } = useApi(`/products/${slug}/reviews`)
   const { add, open: openCart } = useCart()
   const { profile } = useProfile()
 
@@ -84,8 +84,6 @@ export default function ProductDetail({ slug, back }) {
       setAdding(false)
     }
   }
-
-  const reviews = reviewsData?.reviews || reviewsData || []
 
   return (
     <main className="mx-auto max-w-7xl px-4 pt-24 pb-28 md:px-8 md:pt-32">
@@ -294,39 +292,7 @@ export default function ProductDetail({ slug, back }) {
         </div>
       </div>
 
-      {/* Customer Reviews Section */}
-      {reviews.length > 0 && (
-        <section className="mt-20 border-t border-white/10 pt-12">
-          <div className="flex items-center justify-between mb-8">
-            <h3 className="font-display text-xl font-bold text-paper">
-              ĐÁNH GIÁ TỪ CỘNG ĐỒNG ({reviews.length})
-            </h3>
-            <span className="font-mono text-xs text-accent font-bold">
-              ★ 4.9 / 5.0 (VERIFIED BUYERS)
-            </span>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {reviews.slice(0, 4).map((r) => (
-              <div key={r.id} className="border border-white/10 bg-charcoal p-5 flex flex-col justify-between">
-                <div>
-                  <div className="flex items-center justify-between font-mono text-xs">
-                    <span className="font-bold text-paper">{r.user_name || 'Khách hàng'}</span>
-                    <span className="text-accent">{'★'.repeat(r.rating || 5)}</span>
-                  </div>
-                  <p className="mt-3 text-sm text-paper/70 font-sans leading-relaxed">
-                    &quot;{r.content}&quot;
-                  </p>
-                </div>
-                <div className="mt-4 flex items-center justify-between font-mono text-[10px] text-paper/40 pt-3 border-t border-white/5">
-                  <span className="text-accent font-semibold">✓ ĐÃ XÁC THỰC MUA HÀNG</span>
-                  <span>{new Date(r.created_at).toLocaleDateString('vi-VN')}</span>
-                </div>
-              </div>
-            ))}
-          </div>
-        </section>
-      )}
+      <Reviews slug={slug} />
 
       <RelatedProducts current={p} wishlist={wishlist} onWishlist={toggleWishlist} />
       <RecentlyViewed items={recent} wishlist={wishlist} onWishlist={toggleWishlist} />
