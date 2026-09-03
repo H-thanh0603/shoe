@@ -82,6 +82,14 @@ export function Card({ p, match, onWishlist, isWishlisted, onToggleCompare, isCo
             {p.tag}
           </span>
         )}
+        {variants.length > 0 && (() => {
+          const total = variants.reduce((s, v) => s + v.stock, 0)
+          return total > 0 && total <= 5 ? (
+            <span className="border border-accent bg-ink/85 px-2 py-0.5 font-mono text-[10px] font-bold tracking-widest text-accent">
+              CHỈ CÒN {total} ĐÔI
+            </span>
+          ) : null
+        })()}
       </div>
 
       <div className="absolute top-3 right-3 flex items-center gap-1.5">
@@ -138,20 +146,21 @@ export function Card({ p, match, onWishlist, isWishlisted, onToggleCompare, isCo
           {loadingVariants && <span>ĐANG TẢI...</span>}
         </div>
         <div className="flex flex-wrap gap-1.5">
-          {(variants.length > 0 ? variants : FALLBACK_SIZES).map((v) => (
+          {(variants.length > 0 ? variants.filter((v) => v.stock > 0) : FALLBACK_SIZES).map((v) => (
             <button
               key={v.id}
-              disabled={v.stock <= 0}
               onClick={(e) => handleQuickAdd(v, e)}
-              className={`rounded border px-2 py-1 text-[11px] font-mono font-bold transition-all ${
-                v.stock <= 0
-                  ? 'border-white/10 text-paper/20 cursor-not-allowed line-through'
-                  : 'border-white/20 text-paper hover:border-accent hover:bg-accent hover:text-ink'
-              }`}
+              className="rounded border border-white/20 px-2 py-1 text-[11px] font-mono font-bold text-paper transition-all hover:border-accent hover:bg-accent hover:text-ink"
             >
               {v.size}
+              {v.stock <= 3 && !String(v.id).startsWith('temp-') && (
+                <span className="text-accent"> ·{v.stock}</span>
+              )}
             </button>
           ))}
+          {variants.length > 0 && variants.every((v) => v.stock <= 0) && (
+            <span className="font-mono text-[11px] text-paper/40">HẾT HÀNG — XEM CHI TIẾT ĐỂ NHẬN BÁO KHI CÓ HÀNG</span>
+          )}
         </div>
       </div>
 

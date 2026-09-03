@@ -12,9 +12,11 @@ import CompareDrawer from './components/CompareDrawer.jsx'
 import CommunityFeed from './components/CommunityFeed.jsx'
 import Home from './pages/Home.jsx'
 import ProductPage from './pages/ProductPage.jsx'
+import TrackOrder from './pages/TrackOrder.jsx'
+import Admin from './pages/Admin.jsx'
 
 export default function App() {
-  const slug = useHashRoute()
+  const route = useHashRoute()
   const [quiz, setQuiz] = useState(false)
   const openQuiz = () => setQuiz(true)
   const { profile } = useProfile()
@@ -46,8 +48,12 @@ export default function App() {
         onSearch={() => setShowSearch(true)}
       />
 
-      {slug ? (
-        <ProductPage slug={slug} />
+      {route.name === 'product' ? (
+        <ProductPage slug={route.param} />
+      ) : route.name === 'track' ? (
+        <TrackOrder initialCode={route.param} />
+      ) : route.name === 'admin' ? (
+        <Admin />
       ) : (
         <Home
           onQuiz={openQuiz}

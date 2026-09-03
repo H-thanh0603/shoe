@@ -78,6 +78,14 @@ export default function Nav({ onQuiz, onLogoTap, secret, onSearch }) {
           <button onClick={onQuiz} className={`text-sm font-medium tracking-widest transition-colors duration-200 hover:text-accent focus-visible:text-accent ${profile ? 'text-accent' : 'text-paper/80'}`}>
             {shoeId}
           </button>
+          <a href="#/tra-don" className="hidden text-sm font-medium tracking-widest text-paper/80 transition-colors duration-200 hover:text-accent focus-visible:text-accent sm:inline">
+            TRA ĐƠN
+          </a>
+          {user?.role === 'admin' && (
+            <a href="#/admin" className="hidden text-sm font-medium tracking-widest text-accent transition-colors duration-200 hover:text-accent-hot sm:inline">
+              ADMIN
+            </a>
+          )}
           {user ? (
             <button onClick={logout} className="text-sm font-medium tracking-widest text-paper/80 transition-colors duration-200 hover:text-accent focus-visible:text-accent">
               {(user.name || user.email).split('@')[0].toUpperCase()} · ĐĂNG XUẤT

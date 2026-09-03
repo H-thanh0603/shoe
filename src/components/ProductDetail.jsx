@@ -121,6 +121,12 @@ export default function ProductDetail({ slug, back }) {
             <span className="font-mono text-xs tracking-widest text-accent font-semibold">{p.brand}</span>
             <h1 className="display-l mt-1 text-paper">{p.name}</h1>
             <p className="mt-2 font-display text-2xl font-bold text-accent">{p.price}</p>
+            {(() => {
+              const total = p.variants.reduce((s, v) => s + v.stock, 0)
+              if (total <= 0) return <p className="mt-2 font-mono text-xs font-bold text-paper/60">HẾT HÀNG TẠM THỜI</p>
+              if (total <= 5) return <p className="mt-2 font-mono text-xs font-bold text-accent">🔥 CHỈ CÒN {total} ĐÔI — NHANH TAY</p>
+              return null
+            })()}
           </div>
 
           {/* Colorway Pills */}
@@ -203,7 +209,10 @@ export default function ProductDetail({ slug, back }) {
                 </button>
               ))}
             </div>
-            <p className="font-mono text-[11px] text-paper/40">Gạch ngang = hết hàng.</p>
+            <p className="font-mono text-[11px] text-paper/40">
+              Gạch ngang = hết hàng.
+              {size && size.stock <= 3 && <> Size {size.size} chỉ còn {size.stock} đôi.</>}
+            </p>
           </fieldset>
 
           {/* Add to Bag CTA */}

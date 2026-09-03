@@ -5,12 +5,40 @@ import { apiFetch } from '../lib/api.js'
 const inputCls = 'w-full border border-white/15 bg-ink-deep px-3 py-2.5 text-sm text-paper placeholder:text-paper/30 focus:border-accent focus:outline-none'
 const labelCls = 'mb-1 block text-[10px] font-semibold tracking-widest text-paper/60'
 
+const vnd = (n) => Number(n || 0).toLocaleString('vi-VN') + '₫'
+
 export default function CheckoutForm({ totalVnd, onDone, onBack }) {
   const [form, setForm] = useState({ customerName: '', phone: '', email: '', address: '', couponCode: '' })
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState(null)
   const [ok, setOk] = useState(null)
-  const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }))
+  const [coupon, setCoupon] = useState(null) // { ok, msg, discountVnd, freeShipping, totalVnd }
+  const [checking, setChecking] = useState(false)
+  const set = (k) => (e) => {
+    setForm((f) => ({ ...f, [k]: e.target.value }))
+    if (k === 'couponCode') setCoupon(null) // đổi mã → check lại
+  }
+
+  // Preview giảm giá realtime — server tính bằng cùng logic checkout nên khớp total thật
+  const checkCoupon = async () => {
+    const code = form.couponCode.trim()
+    if (!code) return
+    setChecking(true); setCoupon(null)
+    try {
+      const d = await apiFetch('/coupons/validate', { method: 'POST', body: { code, subtotal: totalVnd } })
+      setCoupon({
+        ok: true,
+        msg: d.freeShipping
+          ? 'MIỄN PHÍ VẬN CHUYỂN'
+          : `ĐÃ GIẢM ${vnd(d.discountVnd)}`,
+        totalVnd: d.totalVnd,
+      })
+    } catch (e) {
+      setCoupon({ ok: false, msg: e.message })
+    } finally {
+      setChecking(false)
+    }
+  }
 
   const submit = async (e) => {
     e.preventDefault()
@@ -39,6 +67,12 @@ export default function CheckoutForm({ totalVnd, onDone, onBack }) {
         {ok.discountVnd > 0 && <> (đã giảm {ok.discountVnd.toLocaleString('vi-VN')}₫)</>}
       </p>
       <p className="max-w-xs text-xs text-paper/40">Thanh toán khi nhận hàng (COD). Dùng mã trên để tra cứu đơn.</p>
+      <a
+        href={`#/tra-don/${ok.refCode}`}
+        className="mt-2 w-full border border-accent bg-transparent py-3 text-center text-sm font-bold tracking-widest text-accent transition-colors hover:bg-accent hover:text-ink"
+      >
+        THEO DÕI ĐƠN NÀY →
+      </a>
       <button onClick={onDone} className="mt-2 w-full bg-paper py-3 text-sm font-bold tracking-widest text-ink transition-colors hover:bg-accent">
         TIẾP TỤC MUA SẮM
       </button>
@@ -69,7 +103,22 @@ export default function CheckoutForm({ totalVnd, onDone, onBack }) {
       </div>
       <div>
         <label className={labelCls} htmlFor="ck-coupon">MÃ GIẢM GIÁ (TÙY CHỌN)</label>
-        <input id="ck-coupon" className={inputCls} value={form.couponCode} onChange={set('couponCode')} placeholder="WELCOME10" />
+        <div className="flex gap-2">
+          <input id="ck-coupon" className={inputCls} value={form.couponCode} onChange={set('couponCode')} placeholder="WELCOME10" />
+          <button
+            type="button"
+            onClick={checkCoupon}
+            disabled={checking || !form.couponCode.trim()}
+            className="shrink-0 border border-accent px-4 font-mono text-xs font-bold text-accent transition-colors hover:bg-accent hover:text-ink disabled:opacity-40"
+          >
+            {checking ? '…' : 'ÁP DỤNG'}
+          </button>
+        </div>
+        {coupon && (
+          <p className={`mt-1.5 font-mono text-xs ${coupon.ok ? 'text-accent' : 'text-paper/50'}`} role="status">
+            {coupon.ok ? `✓ ${coupon.msg} → TẠM TÍNH ${vnd(coupon.totalVnd)}` : `✕ ${coupon.msg}`}
+          </p>
+        )}
       </div>
       <div>
         <label className={labelCls}>PHƯƠNG THỨC</label>
