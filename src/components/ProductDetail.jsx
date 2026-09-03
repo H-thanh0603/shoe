@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react'
 import { useApi } from '../hooks/useApi.js'
 import { useCart } from '../store/CartContext.jsx'
+import { useProfile } from '../store/profile.js'
+import { matchScore } from '../lib/match.js'
 
 // ProductDetail (Bước 4) — dùng shape /api/v1/products/:slug:
 // { ..., variants: [{ id, size, stock }], collection_slug/name }
@@ -23,6 +25,7 @@ function ShoeArt({ colors, large }) {
 export default function ProductDetail({ slug, back }) {
   const { data: p, error } = useApi(`/products/${slug}`)
   const { add, open: openCart } = useCart()
+  const { profile } = useProfile()
   const [size, setSize] = useState(null)
   const [adding, setAdding] = useState(false)
   const [msg, setMsg] = useState(null)
@@ -41,6 +44,7 @@ export default function ProductDetail({ slug, back }) {
   )
 
   const inStock = (v) => v.stock > 0
+  const match = matchScore(profile, p)
 
   const onAdd = async () => {
     if (!size) { setMsg('Chọn size trước.'); return }
@@ -112,6 +116,31 @@ export default function ProductDetail({ slug, back }) {
             </button>
             {msg && <p className="text-xs text-accent" role="alert">{msg}</p>}
           </div>
+
+          {p.perf != null && (
+            <section aria-label="Why this shoe" className="border-t border-white/10 pt-4">
+              <div className="flex items-baseline justify-between">
+                <h2 className="text-xs font-semibold tracking-widest text-paper/70">WHY THIS SHOE?</h2>
+                {match && (
+                  <p className="font-display text-3xl font-bold text-accent">{match.pct}%<span className="ml-1 text-xs font-normal tracking-widest text-paper/50">MATCH</span></p>
+                )}
+              </div>
+              {match?.reasons?.length > 0 && (
+                <ul className="mt-3 flex flex-col gap-1">
+                  {match.reasons.map((r) => <li key={r} className="text-xs text-paper/60">— {r}</li>)}
+                </ul>
+              )}
+              <div className="mt-4 flex flex-col gap-2">
+                {[['PERFORMANCE', p.perf], ['COMFORT', p.comfort], ['FASHION', p.style], ['DURABILITY', p.durability], ['DAILY', p.daily]].map(([label, v]) => (
+                  <div key={label} className="flex items-center gap-3">
+                    <span className="w-20 shrink-0 font-mono text-[10px] tracking-widest text-paper/50">{label}</span>
+                    <span className="h-1.5 flex-1 bg-charcoal-2"><span className="block h-full bg-paper/60" style={{ width: `${v ?? 0}%` }} /></span>
+                    <span className="w-8 text-right font-mono text-[10px] text-paper/40">{v ?? '—'}</span>
+                  </div>
+                ))}
+              </div>
+            </section>
+          )}
 
           <dl className="grid grid-cols-2 gap-x-6 gap-y-2 border-t border-white/10 pt-4 text-xs text-paper/50">
             {p.collection_name && (
