@@ -51,7 +51,7 @@ function Card({ p }) {
 
 export default function ProductGrid() {
   const ref = useRef(null)
-  const { data: products, error } = useApi('/api/products')
+  const { data: products, error } = useApi('/products')
   useEffect(() => {
     const io = new IntersectionObserver(
       ([e]) => e.isIntersecting && e.target.classList.add('is-in'),

@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useCart } from '../store/CartContext.jsx'
 
 const menu = {
   SHOP: ['Running', 'Street', 'Court', 'Lifestyle'],
@@ -8,6 +9,7 @@ const menu = {
 
 export default function Nav() {
   const [open, setOpen] = useState(null)
+  const { cart, open: openCart } = useCart()
 
   return (
     <header className="fixed top-0 z-50 w-full border-b border-white/10 bg-ink/80 backdrop-blur-md">
@@ -36,9 +38,11 @@ export default function Nav() {
           <button aria-label="Tìm kiếm" className="text-sm font-medium tracking-widest text-paper/80 transition-colors duration-200 hover:text-accent focus-visible:text-accent">
             SEARCH
           </button>
-          <button aria-label="Giỏ hàng" className="relative text-sm font-medium tracking-widest text-paper/80 transition-colors duration-200 hover:text-accent focus-visible:text-accent">
+          <button onClick={openCart} aria-label={`Giỏ hàng, ${cart.count} sản phẩm`} className="relative text-sm font-medium tracking-widest text-paper/80 transition-colors duration-200 hover:text-accent focus-visible:text-accent">
             BAG
-            <span className="absolute -top-2 -right-3 flex h-4 w-4 items-center justify-center rounded-full bg-accent text-[10px] font-bold text-ink">0</span>
+            {cart.count > 0 && (
+              <span className="absolute -top-2 -right-3 flex h-4 w-4 items-center justify-center rounded-full bg-accent text-[10px] font-bold text-ink">{cart.count}</span>
+            )}
           </button>
         </div>
       </nav>

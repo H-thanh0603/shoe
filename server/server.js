@@ -1,14 +1,17 @@
 const express = require('express')
+const cookieParser = require('cookie-parser')
 const path = require('node:path')
 
 const app = express()
 const PORT = process.env.PORT || 3000
 
 app.use(express.json())
+app.use(cookieParser())
 
-// API
-app.use('/api/products', require('./routes/products.js'))
-app.use('/api', require('./routes/meta.js'))
+// API v1 (BACKEND.md §59)
+app.use('/api/v1/products', require('./routes/products.js'))
+app.use('/api/v1/cart', require('./routes/cart.js'))
+app.use('/api/v1', require('./routes/meta.js'))
 
 // static frontend (dist/) — build root trước: npm run build
 app.use(express.static(path.join(__dirname, '..', 'dist')))

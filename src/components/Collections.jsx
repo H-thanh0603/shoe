@@ -45,7 +45,7 @@ function CollectionCard({ c, i }) {
 
 export default function Collections() {
   const ref = useRef(null)
-  const { data: collections, error } = useApi('/api/collections')
+  const { data: collections, error } = useApi('/collections')
   useEffect(() => {
     const io = new IntersectionObserver(
       ([e]) => e.isIntersecting && e.target.classList.add('is-in'),
