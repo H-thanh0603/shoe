@@ -176,4 +176,81 @@ router.get('/analytics', async (_req, res) => {
   })
 })
 
+// ——— Coupons: list + tạo + bật/tắt ———
+router.get('/coupons', async (_req, res) => {
+  const { rows } = await pool.query(
+    `SELECT c.*, COUNT(cu.order_id) AS used_count FROM coupons c
+     LEFT JOIN coupon_usages cu ON cu.coupon_id = c.id
+     GROUP BY c.id ORDER BY c.id DESC`)
+  ok(res, rows)
+})
+
+const couponBody = z.object({
+  code: z.string().trim().min(3).max(50),
+  type: z.enum(['PERCENTAGE', 'FIXED', 'FREE_SHIPPING']),
+  value: z.number().int().positive(),
+  minimumOrderVnd: z.number().int().min(0).optional(),
+  usageLimit: z.number().int().positive().nullable().optional(),
+  expiresAt: z.string().datetime().nullable().optional(),
+})
+
+router.post('/coupons', validate(couponBody), async (req, res) => {
+  const b = req.body
+  try {
+    const { rows: [c] } = await pool.query(
+      `INSERT INTO coupons (code, type, value, minimum_order_vnd, usage_limit, expires_at)
+       VALUES ($1,$2,$3,$4,$5,$6) RETURNING *`,
+      [b.code.toUpperCase(), b.type, b.value, b.minimumOrderVnd ?? 0, b.usageLimit ?? null, b.expiresAt ?? null])
+    res.status(201).json({ success: true, data: c })
+  } catch (e) {
+    if (e.code === '23505') return bad(res, 'COUPON_EXISTS', 'Mã này đã tồn tại', 409)
+    throw e
+  }
+})
+
+router.patch('/coupons/:id', validate(z.object({
+  status: z.enum(['active', 'inactive']).optional(),
+  usageLimit: z.number().int().positive().nullable().optional(),
+  expiresAt: z.string().datetime().nullable().optional(),
+})), async (req, res) => {
+  const b = req.body
+  const { rows: [c] } = await pool.query(
+    `UPDATE coupons SET status = COALESCE($2, status), usage_limit = $3, expires_at = $4 WHERE id = $1 RETURNING *`,
+    [req.params.id, b.status, b.usageLimit ?? null, b.expiresAt ?? null])
+  if (!c) return bad(res, 'COUPON_NOT_FOUND', 'Không tìm thấy mã', 404)
+  ok(res, c)
+})
+
+// ——— Variants của 1 product (để admin xem/sửa stock) ———
+router.get('/products/:id/variants', async (req, res) => {
+  const { rows } = await pool.query(
+    'SELECT pv.id, pv.size, pv.stock, p.name FROM product_variants pv JOIN products p ON p.id = pv.product_id WHERE pv.product_id = $1 ORDER BY pv.size',
+    [req.params.id])
+  ok(res, rows)
+})
+
+// ——— Behavioral analytics từ product_events (30 ngày) ———
+router.get('/analytics/events', async (_req, res) => {
+  const { rows: topViews } = await pool.query(
+    `SELECT p.slug, p.name, COUNT(*) AS views,
+            COUNT(*) FILTER (WHERE e.type = 'cart_add') AS carts
+     FROM product_events e LEFT JOIN products p ON p.id = e.product_id
+     WHERE e.created_at > now() - interval '30 days' AND e.product_id IS NOT NULL
+     GROUP BY p.slug, p.name ORDER BY views DESC LIMIT 10`)
+  const { rows: [funnel] } = await pool.query(
+    `SELECT COUNT(*) FILTER (WHERE type = 'view') AS views,
+            COUNT(*) FILTER (WHERE type = 'cart_add') AS carts,
+            COUNT(*) FILTER (WHERE type = 'quiz_complete') AS quizzes,
+            COUNT(DISTINCT session_token) AS sessions
+     FROM product_events WHERE created_at > now() - interval '30 days'`)
+  ok(res, {
+    topViews,
+    funnel: {
+      views: Number(funnel.views), carts: Number(funnel.carts),
+      quizzes: Number(funnel.quizzes), sessions: Number(funnel.sessions),
+      viewToCart: funnel.views > 0 ? Math.round((funnel.carts / funnel.views) * 1000) / 10 : 0,
+    },
+  })
+})
+
 module.exports = router

@@ -18,7 +18,8 @@ app.use(helmet({
     },
   },
 }))
-app.use(express.json())
+// limit 2mb: review kèm ảnh data-URL (tối đa 3 ảnh ~500KB)
+app.use(express.json({ limit: '2mb' }))
 app.use(cookieParser())
 app.use(require('./middleware/auth.js').attachUser)
 
@@ -37,6 +38,7 @@ app.use('/api/v1/orders', require('./routes/orders.js'))
 app.use('/api/v1/auth', require('./routes/auth.js'))
 app.use('/api/v1/wishlist', require('./routes/wishlist.js'))
 app.use('/api/v1/admin', require('./routes/admin.js'))
+app.use('/api/v1/coupons', require('./routes/coupons.js'))
 app.use('/api/v1/events', require('./routes/events.js'))
 app.use('/api/v1', require('./routes/meta.js'))
 

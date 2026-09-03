@@ -102,6 +102,14 @@ async function main() {
     ['admin@kinetic.vn', hash],
   )
 
+  // coupon mẫu để test checkout + validate realtime
+  await pool.query(
+    `INSERT INTO coupons (code, type, value, minimum_order_vnd, usage_limit, expires_at)
+     VALUES ('WELCOME10','PERCENTAGE',10,0,1000, now() + interval '90 days'),
+            ('FREESHIP','FREE_SHIPPING',1,0,1000, now() + interval '90 days')
+     ON CONFLICT (code) DO NOTHING`,
+  )
+
   console.log(`seed ok — ${all.length} products, ${all.length * SIZES.length} variants, admin@kinetic.vn`)
 }
 

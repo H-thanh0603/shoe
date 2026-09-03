@@ -23,15 +23,24 @@ router.get('/:slug', asyncHandler(async (req, res) => {
   ok(res, await products.getProductDetail(req.params.slug))
 }))
 
-// GET reviews theo slug — public, kèm tên reviewer
+// GET reviews theo slug — public, kèm tên reviewer; login thì kèm voted (đã vote chưa)
 router.get('/:slug/reviews', asyncHandler(async (req, res) => {
-  ok(res, await products.listReviews(req.params.slug))
+  ok(res, await products.listReviews(req.params.slug, req.user?.id))
 }))
 
 // POST review theo slug — requireAuth, verified = có order chứa product (§36 Verified Purchase)
-router.post('/:slug/reviews', requireAuth, validate(z.object({ rating: z.number().int().min(1).max(5), content: z.string().max(1000).optional() })), asyncHandler(async (req, res) => {
+router.post('/:slug/reviews', requireAuth, validate(z.object({
+  rating: z.number().int().min(1).max(5),
+  content: z.string().max(1000).optional(),
+  images: z.array(z.string()).max(3).optional(),
+})), asyncHandler(async (req, res) => {
   const r = await products.createReview(req.params.slug, req.user.id, req.body)
   res.status(201).json({ success: true, data: r })
+}))
+
+// POST toggle vote "hữu ích" — requireAuth, mỗi user 1 vote/review
+router.post('/:slug/reviews/:id/helpful', requireAuth, asyncHandler(async (req, res) => {
+  ok(res, await products.toggleHelpful(req.params.id, req.user.id))
 }))
 
 module.exports = router
