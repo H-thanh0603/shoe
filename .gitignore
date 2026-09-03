@@ -3,3 +3,4 @@ dist
 .hallmark
 server/node_modules
 __pycache__/
+agents/.env

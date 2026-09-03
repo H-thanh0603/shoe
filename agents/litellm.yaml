@@ -1,0 +1,11 @@
+# LiteLLM proxy: dịch Messages API (Anthropic format) <-> DeepSeek (OpenAI format).
+# Blueprint gọi Anthropic-format vào proxy, proxy forward sang DeepSeek.
+# Model lấy từ env DEEPSEEK_MODEL (mặc định deepseek-chat = V3, tool-use ổn).
+model_list:
+  - model_name: deepseek-chat
+    litellm_params:
+      model: deepseek/${DEEPSEEK_MODEL:-deepseek-chat}
+      api_key: os.environ/DEEPSEEK_API_KEY
+
+general_settings:
+  master_key: os.environ/LITELLM_MASTER_KEY
