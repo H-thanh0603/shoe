@@ -23,13 +23,14 @@ router.get('/orders', async (req, res) => {
   const limit = Math.min(Number(req.query.limit) || 20, 100)
   const page = Math.max(Number(req.query.page) || 1, 1)
   const status = req.query.status
-  const where = status ? 'WHERE o.status = $3' : ''
   const args = status ? [limit, (page - 1) * limit, status] : [limit, (page - 1) * limit]
+  const where = status ? 'WHERE o.status = $3' : ''
+  const whereCount = status ? 'WHERE o.status = $1' : ''
   const { rows } = await pool.query(
     `SELECT o.id, o.ref_code, o.user_id, o.status, o.payment_status, o.total_vnd, o.customer_name, o.created_at,
             (SELECT count(*) FROM order_items oi WHERE oi.order_id = o.id) AS item_count
      FROM orders o ${where} ORDER BY o.id DESC LIMIT $1 OFFSET $2`, args)
-  const { rows: [{ count }] } = await pool.query(`SELECT COUNT(*) FROM orders o ${where}`, status ? [status] : [])
+  const { rows: [{ count }] } = await pool.query(`SELECT COUNT(*) FROM orders o ${whereCount}`, status ? [status] : [])
   ok(res, rows, { page, limit, total: Number(count), totalPages: Math.ceil(count / limit) })
 })
 
@@ -227,6 +228,28 @@ router.get('/products/:id/variants', async (req, res) => {
     'SELECT pv.id, pv.size, pv.stock, p.name FROM product_variants pv JOIN products p ON p.id = pv.product_id WHERE pv.product_id = $1 ORDER BY pv.size',
     [req.params.id])
   ok(res, rows)
+})
+
+// ——— Series theo ngày (cho merchant agent query_metrics + chart) ———
+router.get('/analytics/series', async (req, res) => {
+  const metric = req.query.metric === 'orders' ? 'orders' : 'revenue'
+  const days = Math.min(Math.max(Number(req.query.days) || 30, 1), 90)
+  const { rows } = await pool.query(
+    `SELECT to_char(d, 'YYYY-MM-DD') AS day,
+            COALESCE(SUM(o.total_vnd) FILTER (WHERE o.status != 'cancelled'), 0) AS revenue,
+            COUNT(o.id) FILTER (WHERE o.status != 'cancelled') AS orders
+     FROM generate_series(now() - ($1 || ' days')::interval, now(), '1 day') d
+     LEFT JOIN orders o ON date_trunc('day', o.created_at) = date_trunc('day', d)
+     GROUP BY d ORDER BY d`,
+    [days],
+  )
+  ok(res, {
+    metric,
+    points: rows.map((r) => ({
+      day: r.day,
+      value: metric === 'orders' ? Number(r.orders) : Number(r.revenue),
+    })),
+  })
 })
 
 // ——— Behavioral analytics từ product_events (30 ngày) ———
