@@ -1,0 +1,3 @@
+# Adapter chỉ cần 2 package này (+ 3 package của blueprint cài từ local clone).
+pydantic>=2
+requests>=2
