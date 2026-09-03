@@ -57,8 +57,15 @@ const write = (v) => {
   listeners.forEach((fn) => fn())
 }
 
-export const saveProfile = (p) => write(p)
-export const clearProfile = () => write(null)
+export const saveProfile = (p) => { write(p); applyAccent(p) }
+export const clearProfile = () => { write(null); applyAccent(null) }
+
+// accent cá nhân hóa — set body[data-accent], CSS override --color-accent (index.css)
+export const applyAccent = (p) => {
+  const key = p?.accent
+  if (key) document.body.dataset.accent = key
+  else delete document.body.dataset.accent
+}
 
 export function useProfile() {
   const profile = useSyncExternalStore(

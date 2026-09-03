@@ -88,6 +88,13 @@ body {
   transform: translateY(0);
 }
 
+/* personal accent — preset OKLCH, chọn từ quiz (§44-45); không free hex */
+body[data-accent="lime"]    { --color-accent: oklch(83% 0.21 128); --color-accent-hot: oklch(78% 0.22 128); }
+body[data-accent="ice"]     { --color-accent: oklch(75% 0.14 240); --color-accent-hot: oklch(70% 0.15 240); }
+body[data-accent="magenta"] { --color-accent: oklch(66% 0.25 330); --color-accent-hot: oklch(61% 0.26 330); }
+/* quiz xong → motion nhanh hơn một nhịp (feedback tức thì) */
+body[data-accent] .reveal { transition-duration: 450ms; }
+
 /* reduced motion (DESIGN.md §65) */
 @media (prefers-reduced-motion: reduce) {
   html { scroll-behavior: auto; }

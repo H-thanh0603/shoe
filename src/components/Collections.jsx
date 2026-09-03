@@ -1,5 +1,7 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useMemo, useRef } from 'react'
 import { useApi } from '../hooks/useApi.js'
+import { useProfile } from '../store/profile.js'
+import { matchScore } from '../lib/match.js'
 
 // Collections như campaign (DESIGN.md §30-31): mỗi cái 1 mood + block màu riêng.
 const bgMap = {
@@ -46,6 +48,17 @@ function CollectionCard({ c, i }) {
 export default function Collections() {
   const ref = useRef(null)
   const { data: collections, error } = useApi('/collections')
+  const { profile } = useProfile()
+  const { data: products } = useApi('/products?limit=100')
+  // avg match sp thuộc collection → sort collection "dành cho bạn" lên trước
+  const sorted = useMemo(() => {
+    if (!profile || !collections || !products) return collections
+    const avg = (col) => {
+      const items = products.filter((p) => p.collection_id === col.id).map((p) => matchScore(profile, p)?.pct ?? 0)
+      return items.length ? items.reduce((a, b) => a + b, 0) / items.length : -1
+    }
+    return [...collections].sort((a, b) => avg(b) - avg(a))
+  }, [profile, collections, products])
   useEffect(() => {
     const io = new IntersectionObserver(
       ([e]) => e.isIntersecting && e.target.classList.add('is-in'),
@@ -61,7 +74,7 @@ export default function Collections() {
         <h2 className="display-l mb-10 text-paper">BỘ SƯU TẬP</h2>
         {error && <p className="text-sm text-accent">Không tải được collections — kiểm tra server.</p>}
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          {collections?.map((c, i) => (
+          {sorted?.map((c, i) => (
             <CollectionCard key={c.slug} c={c} i={i} />
           ))}
         </div>

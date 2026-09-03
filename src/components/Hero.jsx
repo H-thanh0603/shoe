@@ -1,10 +1,28 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { useApi } from '../hooks/useApi.js'
+import { useProfile } from '../store/profile.js'
+import { matchScore, sortProducts } from '../lib/match.js'
+import { timeContext } from '../lib/time.js'
+
+const HEADLINE = {
+  running: ['RUN', 'YOUR CITY'],
+  street: ['WALK', 'LOUDER'],
+  court: ['OWN', 'THE COURT'],
+  daily: ['MOVE', 'ALL DAY'],
+  trail: ['RUN', 'WILD'],
+}
 
 // Hero (DESIGN.md §16-20): massive typography + shoe protagonist + parallax + cursor tilt.
 // Shoe = CSS art silhouette (Tier A) — không cần asset 3D cho homepage đầu.
 export default function Hero({ onQuiz }) {
   const ref = useRef(null)
   const [tilt, setTilt] = useState({ x: 0, y: 0 })
+  const { profile } = useProfile()
+  const { data: products } = useApi('/products?limit=100')
+  const { greeting } = useMemo(() => timeContext(), [])
+  // sp match cao nhất → tint SVG sole + overlay theo colorway
+  const top = useMemo(() => sortProducts(profile, products || [])[0], [profile, products])
+  const headline = profile && HEADLINE[profile.purpose]
 
   useEffect(() => {
     const el = ref.current
@@ -42,12 +60,13 @@ export default function Hero({ onQuiz }) {
 
       {/* foreground: split type, shoe between (DESIGN.md §17) */}
       <div className="relative z-10 mx-auto flex w-full max-w-7xl flex-1 flex-col items-center justify-center px-4">
-        <h1 className="display-xl text-center">
-          MOVE<br />
-          <span className="text-accent">DIFFERENT</span>
+        <p className="text-xs font-semibold tracking-widest text-paper/50">{greeting}</p>
+        <h1 className="display-xl mt-4 text-center">
+          {(headline || ['MOVE', 'DIFFERENT'])[0]}<br />
+          <span className="text-accent">{(headline || ['MOVE', 'DIFFERENT'])[1]}</span>
         </h1>
 
-        {/* shoe silhouette — CSS art, tilts theo cursor */}
+        {/* shoe silhouette — CSS art, tilts theo cursor; tint theo top-match sp */}
         <div
           className="mt-8 w-[min(70vw,520px)]"
           style={{
@@ -55,9 +74,9 @@ export default function Hero({ onQuiz }) {
             transition: 'transform 400ms var(--ease-out)',
           }}
         >
-          <svg viewBox="0 0 520 220" className="w-full drop-shadow-[0_20px_60px_rgba(0,0,0,0.6)]" role="img" aria-label="Air Vector 01 sneaker">
+          <svg viewBox="0 0 520 220" className="w-full drop-shadow-[0_20px_60px_rgba(0,0,0,0.6)]" role="img" aria-label={top ? top.name : 'Air Vector 01 sneaker'}>
             {/* sole */}
-            <path d="M20 170 Q10 190 40 195 L480 195 Q510 190 505 165 L470 150 L60 150 Q30 155 20 170Z" fill="#d43a2a"/>
+            <path d="M20 170 Q10 190 40 195 L480 195 Q510 190 505 165 L470 150 L60 150 Q30 155 20 170Z" fill={top?.colors?.[0] || '#d43a2a'}/>
             {/* upper */}
             <path d="M60 150 Q80 60 200 55 Q300 50 350 90 L420 80 Q470 90 470 150 L60 150Z" fill="#e8e6e1"/>
             {/* overlays */}
@@ -70,9 +89,16 @@ export default function Hero({ onQuiz }) {
           </svg>
         </div>
 
-        <p className="mt-6 max-w-md text-center text-sm text-paper/60">
-          Sneaker không phải phụ kiện. Là cách bạn di chuyển trong thành phố.
-        </p>
+        {top && (
+          <p className="mt-6 max-w-md text-center text-sm text-paper/60">
+            {matchScore(profile, top)?.pct}% MATCH — <a href={`#/san-pham/${top.slug}`} className="text-accent hover:underline">{top.name}</a> dành cho bạn.
+          </p>
+        )}
+        {!top && (
+          <p className="mt-6 max-w-md text-center text-sm text-paper/60">
+            Sneaker không phải phụ kiện. Là cách bạn di chuyển trong thành phố.
+          </p>
+        )}
       </div>
 
       {/* bottom meta row */}

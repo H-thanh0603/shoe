@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { useProfile, applyAccent } from './store/profile.js'
 import Nav from './components/Nav.jsx'
 import Hero from './components/Hero.jsx'
 import Marquee from './components/Marquee.jsx'
@@ -25,6 +26,10 @@ export default function App() {
   const slug = useHashRoute()
   const [quiz, setQuiz] = useState(false)
   const openQuiz = () => setQuiz(true)
+  const { profile } = useProfile()
+
+  // áp accent cá nhân hóa từ profile đã lưu (quiz save cũng gọi applyAccent)
+  useEffect(() => { applyAccent(profile) }, [profile])
 
   return (
     <>

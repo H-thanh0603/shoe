@@ -73,7 +73,7 @@ export default function ProductGrid() {
   return (
     <section ref={ref} className="reveal mx-auto max-w-7xl px-4 py-20 md:px-8 md:py-28">
       <div className="mb-10 flex flex-col justify-between gap-4 md:flex-row md:items-end">
-        <h2 className="display-l text-paper">MỚI VỀ</h2>
+        <h2 className="display-l text-paper">{profile ? 'DÀNH CHO BẠN' : 'MỚI VỀ'}</h2>
         <a href="#" className="text-sm font-medium tracking-widest text-paper/60 transition-colors duration-200 hover:text-accent">
           XEM TẤT CẢ →
         </a>
