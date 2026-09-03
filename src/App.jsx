@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react'
 import Nav from './components/Nav.jsx'
 import Hero from './components/Hero.jsx'
 import Marquee from './components/Marquee.jsx'
@@ -6,18 +7,36 @@ import Collections from './components/Collections.jsx'
 import Drop from './components/Drop.jsx'
 import Footer from './components/Footer.jsx'
 import CartDrawer from './components/CartDrawer.jsx'
+import ProductDetail from './components/ProductDetail.jsx'
+
+// ponytail: hash router 1 dòng — đổi react-router khi có >3 trang thật
+const useHashRoute = () => {
+  const [route, setRoute] = useState(location.hash)
+  useEffect(() => {
+    const fn = () => { setRoute(location.hash); window.scrollTo(0, 0) }
+    addEventListener('hashchange', fn)
+    return () => removeEventListener('hashchange', fn)
+  }, [])
+  return route.match(/^#\/san-pham\/(.+)/)?.[1] || null
+}
 
 export default function App() {
+  const slug = useHashRoute()
+
   return (
     <>
       <Nav />
-      <main>
-        <Hero />
-        <Marquee />
-        <ProductGrid />
-        <Collections />
-        <Drop />
-      </main>
+      {slug ? (
+        <ProductDetail slug={slug} back={() => { location.hash = '' }} />
+      ) : (
+        <main>
+          <Hero />
+          <Marquee />
+          <ProductGrid />
+          <Collections />
+          <Drop />
+        </main>
+      )}
       <Footer />
       <CartDrawer />
     </>

@@ -11,7 +11,7 @@ function Card({ p }) {
 
   return (
     <a
-      href="#"
+      href={`#/san-pham/${p.slug}`}
       className={`group relative flex flex-col border border-white/10 bg-charcoal transition-colors duration-300 hover:border-accent ${spanCls} min-w-0 overflow-hidden`}
     >
       {/* image placeholder — shoe silhouette tinted theo color[0], swap bằng ảnh thật sau */}
