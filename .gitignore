@@ -1,5 +1,4 @@
 node_modules
 dist
 .hallmark
-server/dev.db
 server/node_modules
