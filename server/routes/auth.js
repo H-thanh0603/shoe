@@ -2,13 +2,23 @@
 // Login merge guest cart (session_token) vào user cart (§17).
 const express = require('express')
 const bcrypt = require('bcryptjs')
+const jwt = require('jsonwebtoken')
 const pool = require('../db.js')
 const validate = require('../middleware/validate.js')
-const { sign } = require('../middleware/auth.js')
+const { signAccess, signRefresh } = require('../middleware/auth.js')
 const { z } = require('zod')
+
+const SECRET = process.env.JWT_SECRET || 'dev-secret-đổi-khi-deploy'
 
 const router = express.Router()
 const COOKIE_OPTS = { httpOnly: true, sameSite: 'lax', maxAge: 7 * 24 * 3600 * 1000 }
+const ACCESS_OPTS = { httpOnly: true, sameSite: 'lax', maxAge: 3600 * 1000 }
+
+// set access (1h) + refresh (7d) cookies
+function setAuthCookies(res, user) {
+  res.cookie('token', signAccess(user), ACCESS_OPTS)
+  res.cookie('refresh_token', signRefresh(user), COOKIE_OPTS)
+}
 
 const credentials = z.object({
   email: z.string().email(),
@@ -51,7 +61,7 @@ router.post('/register', validate(z.object({
     'INSERT INTO users (email, password_hash, name, phone) VALUES ($1,$2,$3,$4) RETURNING id, email, name, role',
     [email, hash, name, phone || null],
   )
-  res.cookie('token', sign(user), COOKIE_OPTS)
+  setAuthCookies(res, user)
   res.status(201).json({ success: true, data: user })
 })
 
@@ -77,12 +87,32 @@ router.post('/login', validate(credentials), async (req, res) => {
   }
 
   const { password_hash, ...safe } = user
-  res.cookie('token', sign(user), COOKIE_OPTS)
+  setAuthCookies(res, user)
   res.json({ success: true, data: safe })
+})
+
+// §37: refresh — đổi refresh_token 7d lấy access token 1h mới
+router.post('/refresh', async (req, res) => {
+  const rt = req.cookies?.refresh_token
+  if (!rt) return res.status(401).json({ success: false, error: { code: 'UNAUTHORIZED', message: 'Không có refresh token' } })
+  try {
+    const payload = jwt.verify(rt, SECRET)
+    if (payload.typ !== 'refresh') throw new Error('sai loại token')
+    // user còn sống không (bị xóa thì từ chối)
+    const { rows: [user] } = await pool.query('SELECT id, role FROM users WHERE id = $1', [payload.sub])
+    if (!user) throw new Error('user không tồn tại')
+    res.cookie('token', signAccess(user), ACCESS_OPTS)
+    res.json({ success: true, data: { ok: true } })
+  } catch {
+    res.clearCookie('token')
+    res.clearCookie('refresh_token')
+    res.status(401).json({ success: false, error: { code: 'UNAUTHORIZED', message: 'Refresh token hết hạn — đăng nhập lại' } })
+  }
 })
 
 router.post('/logout', (_req, res) => {
   res.clearCookie('token')
+  res.clearCookie('refresh_token')
   res.json({ success: true, data: { ok: true } })
 })
 

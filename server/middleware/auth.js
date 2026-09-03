@@ -1,8 +1,12 @@
-// JWT auth middleware (§06-07) — token trong httpOnly cookie `token`
+// JWT auth middleware (§06-07) — access token 1h trong cookie `token`,
+// refresh token 7d trong cookie `refresh_token` (§37 POST /auth/refresh)
 const jwt = require('jsonwebtoken')
 const SECRET = process.env.JWT_SECRET || 'dev-secret-đổi-khi-deploy'
 
-const sign = (user) => jwt.sign({ sub: user.id, role: user.role }, SECRET, { expiresIn: '7d' })
+const signAccess = (user) => jwt.sign({ sub: user.id, role: user.role }, SECRET, { expiresIn: '1h' })
+const signRefresh = (user) => jwt.sign({ sub: user.id, typ: 'refresh' }, SECRET, { expiresIn: '7d' })
+// ponytail: giữ tên `sign` cho access — 2 caller cũ (login/register) không cần đổi
+const sign = signAccess
 
 // gắn req.user nếu token hợp lệ — không fail request khi thiếu (route tự quyết)
 function attachUser(req, _res, next) {
@@ -10,6 +14,7 @@ function attachUser(req, _res, next) {
   if (!token) return next()
   try {
     const payload = jwt.verify(token, SECRET)
+    if (payload.typ === 'refresh') return next() // refresh token không phải access
     req.user = { id: payload.sub, role: payload.role }
   } catch { /* token hết hạn/sai — coi như guest */ }
   next()
@@ -26,4 +31,4 @@ const requireRole = (...roles) => (req, res, next) => {
   next()
 }
 
-module.exports = { sign, attachUser, requireAuth, requireRole }
+module.exports = { sign, signAccess, signRefresh, attachUser, requireAuth, requireRole }
