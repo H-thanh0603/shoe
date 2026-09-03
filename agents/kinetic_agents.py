@@ -705,33 +705,120 @@ class KineticMerchant(MerchantBackend):
 
 
 # ---------------------------------------------------------------------------
-# Ready-made agent configs (import shopping_agent.config / merchant_agent.config)
+# LLM client — Anthropic trực tiếp hoặc DeepSeek/gateway tương thích
 # ---------------------------------------------------------------------------
+#
+# Blueprint gọi Messages API qua `anthropic` SDK. DeepSeek (api.deepseek.com) dùng
+# format OpenAI nên KHÔNG đấu thẳng được — cần 1 proxy dịch Anthropic<->OpenAI
+# (vd LiteLLM) hoặc gateway tương thích Anthropic. Cả 2 đi qua cùng 2 biến:
+#   KINETIC_LLM_BASE_URL=https://llm-gateway.internal.example  (bỏ trống = api.anthropic.com)
+#   KINETIC_LLM_API_KEY=...  (hoặc ANTHROPIC_API_KEY)
+# Model đi theo provider: KINETIC_SHOPPING_MODEL / KINETIC_MERCHANT_MODEL,
+# vd deepseek-chat khi qua proxy DeepSeek, claude-sonnet-5 khi trực tiếp.
+
+def make_llm_client():
+    from anthropic import AsyncAnthropic
+    base_url = os.environ.get("KINETIC_LLM_BASE_URL") or os.environ.get("ANTHROPIC_BASE_URL")
+    api_key = (os.environ.get("KINETIC_LLM_API_KEY")
+               or os.environ.get("ANTHROPIC_API_KEY", ""))
+    kw = {"api_key": api_key} if not base_url else {"base_url": base_url, "api_key": api_key}
+    # Hỗ trợ cả AsyncAnthropic(base_url=..., api_key=...) lẫn (auth_token=...):
+    try:
+        return AsyncAnthropic(**kw)
+    except TypeError:
+        return AsyncAnthropic(base_url=base_url, auth_token=api_key)
+
+
+# ---------------------------------------------------------------------------
+# Ready-made agent configs (full fields — không ăn default mù)
+# ---------------------------------------------------------------------------
+
+# Lexicon tiếng Việt nối vào grounding terms mặc định (EN) của blueprint.
+# Khách/operator nói tiếng Việt mà thiếu các cụm này thì gate không trigger.
+VI_POLICY_TERMS = ("đổi size", "đổi trả", "trả hàng", "hoàn tiền", "bảo hành",
+                   "phí ship", "vận chuyển", "giao hàng", "thanh toán", "cod",
+                   "mã giảm", "coupon", "khuyến mãi", "mã đơn", "chính sách")
+VI_POLICY_CUES = ("bao nhiêu", "thế nào", "được không", "ở đâu", "mất bao lâu")
+VI_ORDER_TERMS = ("đơn", "đơn hàng", "mã đơn", "tra cứu", "theo dõi đơn",
+                  "giao hàng", "vận chuyển", "kiện hàng", "bưu", "đơn tôi")
+VI_ORDER_CUES = ("ở đâu", "khi nào", "bao giờ", "trạng thái", "hủy", "đổi", "trả",
+                 "chậm", "tới chưa", "thất lạc", "hỏng", "chưa nhận", "tới nơi")
+VI_METRICS_TERMS = ("doanh thu", "doanh số", "đơn hàng", "tồn kho", "hết hàng",
+                    "sắp hết", "bán chạy", "bán chậm", "lợi nhuận", "giảm giá",
+                    "khuyến mãi", "giá", "hiệu suất", "tăng trưởng", "xu hướng",
+                    "báo cáo")
+VI_METRICS_CUES = ("bao nhiêu", "thế nào", "tại sao", "cho xem", "so sánh",
+                   "tóm tắt", "báo cáo", "tuần này", "tuần trước", "tháng này",
+                   "tháng trước", "hôm qua", "hôm nay")
+VI_CHANGE_TERMS = ("giá", "tăng giá", "giảm giá", "nhập hàng", "nhập kho",
+                   "ẩn", "hiện", "khuyến mãi", "coupon", "mã giảm", "mô tả",
+                   "tiêu đề", "sản phẩm")
+VI_CHANGE_CUES = ("giảm", "tăng", "đổi", "sửa", "cập nhật", "thêm", "tạo",
+                  "nhập", "ẩn", "hiện", "áp dụng")
+VI_APPLY_PHRASES = ("duyệt", "đồng ý", "chốt", "áp dụng", "cho chạy")
+
 
 def kinetic_shopping_config():
     from shopping_agent.config import ShoppingAgentConfig
+    base = ShoppingAgentConfig()
     return ShoppingAgentConfig(
         brand_name="KINETIC",
         assistant_name="trợ lý mua giày KINETIC",
         brand_voice="thẳng thắn, ngắn gọn, nói tiếng Việt",
+        model=os.environ.get("KINETIC_SHOPPING_MODEL", base.model),
+        memory_model=os.environ.get("KINETIC_MEMORY_MODEL", base.memory_model),
+        thinking_effort="low",
+        max_tokens=2048,
         domain_search_notes=("Size là số EU 39–44, mỗi size tồn kho riêng; "
                              "purpose: running/street/court/daily/trail. "
-                             "Tìm kiếm text chỉ khớp tên/thương hiệu."),
+                             "Tìm kiếm text chỉ khớp tên/thương hiệu — hỏi thêm "
+                             "mục đích + ngân sách để thu hẹp."),
         enable_cart=True,
         enable_orders=True,  # tra cứu theo mã KIN-XXXXXX qua get_order
         enable_policies=True,
         enable_fulfillment=True,
-        max_quantity_per_item=10,  # khớp validation cart API
+        max_quantity_per_item=10,  # khớp validation cart API (zod max 10)
+        max_cart_lines=100,
+        policy_grounding_gate=True,
+        policy_intent_terms=tuple(base.policy_intent_terms) + VI_POLICY_TERMS,
+        policy_intent_cues=tuple(base.policy_intent_cues) + VI_POLICY_CUES,
+        order_grounding_gate=True,
+        order_intent_terms=tuple(base.order_intent_terms) + VI_ORDER_TERMS,
+        order_intent_cues=tuple(base.order_intent_cues) + VI_ORDER_CUES,
+        catalog_grounding_gate=True,
+        product_id_patterns=tuple(base.product_id_patterns) + (r"\bKIN-[A-Z2-9]{6}\b",),
     )
 
 
 def kinetic_merchant_config():
     from merchant_agent.config import MerchantAgentConfig
+    base = MerchantAgentConfig()
     return MerchantAgentConfig(
         brand_name="KINETIC",
         assistant_name="trợ lý vận hành KINETIC",
+        brand_voice="nói tiếng Việt, số liệu trước, ngắn gọn",
+        model=os.environ.get("KINETIC_MERCHANT_MODEL", base.model),
+        memory_model=os.environ.get("KINETIC_MEMORY_MODEL", base.memory_model),
+        thinking_effort="low",
+        enable_analysis=False,  # chưa có SQL analysis backend
+        enable_listing_edits=True,
+        enable_inventory=True,
+        enable_pricing=True,
+        enable_campaigns=True,  # stage được, apply campaign từ chối (chưa có hệ thống)
+        max_items_per_change=25,
         max_price_delta_pct=PRICE_DELTA_CAP_PCT,
         max_promotion_discount_pct=PROMO_DISCOUNT_CAP_PCT,
         max_restock_quantity=MAX_RESTOCK,
+        max_campaign_budget=10_000.0,
         require_host_approval=True,  # mọi apply qua mặt duyệt của host
+        approval_surface="trang Admin (#/admin) hoặc nút duyệt của host",
+        stage_shows_preview=True,
+        metrics_grounding_gate=True,
+        metrics_intent_terms=tuple(base.metrics_intent_terms) + VI_METRICS_TERMS,
+        metrics_intent_cues=tuple(base.metrics_intent_cues) + VI_METRICS_CUES,
+        staging_followthrough_gate=True,
+        change_intent_terms=tuple(base.change_intent_terms) + VI_CHANGE_TERMS,
+        change_intent_cues=tuple(base.change_intent_cues) + VI_CHANGE_CUES,
+        queue_grounding_gate=True,
+        apply_intent_phrases=tuple(base.apply_intent_phrases) + VI_APPLY_PHRASES,
     )

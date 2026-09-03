@@ -1,3 +1,6 @@
-# Adapter chỉ cần 2 package này (+ 3 package của blueprint cài từ local clone).
+# Smoke test (không cần key): pydantic + requests.
+# Demo chat (cần key): thêm anthropic + pyyaml.
 pydantic>=2
 requests>=2
+anthropic>=0.91
+pyyaml>=6

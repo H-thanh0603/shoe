@@ -12,19 +12,20 @@ adapter — chỉ cần khi chạy agent thật với model.
 git clone --depth 1 https://github.com/anthropics/commerce-agents.git /tmp/commerce-agents
 uv venv /tmp/kinetic-agents/.venv
 /tmp/kinetic-agents/.venv/bin/pip install -r agents/requirements.txt
-# (pip thường cũng được nếu có)
 
 # 2. DB + server KINETIC
 npm run db:migrate --prefix server
 PORT=3100 node server/server.js   # 3000 hay bị project khác chiếm
 
 # 3. Smoke test (29 checks, không gọi model, không tốn tiền)
-KINETIC_API=http://localhost:3100 \
-KINETIC_ADMIN_PASSWORD=<mật khẩu admin> \
+set -a; source agents/.env; set +a
 ./agents/run_smoke.sh
+
+# 4. Chat demo (cần key — Anthropic hoặc proxy, xem dưới)
+/tmp/kinetic-agents/.venv/bin/python agents/run_demo.py [--merchant]
 ```
 
-Biến môi trường (`agents/.env.example` không có — tự export):
+Biến môi trường: copy `agents/.env.example` thành `agents/.env` (không commit).
 
 | Biến | Mặc định | Dùng cho |
 |---|---|---|
@@ -34,23 +35,31 @@ Biến môi trường (`agents/.env.example` không có — tự export):
 | `KINETIC_ADMIN_PASSWORD` | (bắt buộc) | merchant login |
 | `BLUEPRINT_DIR` | `/tmp/commerce-agents` | `run_smoke.sh` dựng PYTHONPATH |
 
-## Chạy agent thật (cần ANTHROPIC_API_KEY)
+## Chạy agent thật — Anthropic hoặc DeepSeek
 
-```python
-from pathlib import Path
-from shopping_agent_runtime import ShoppingAgent
-from kinetic_agents import KineticStorefront, kinetic_shopping_config
+`agents/run_demo.py` dựng sẵn agent + console chat. Key và model lấy từ `.env`:
 
-agent = ShoppingAgent(backend=KineticStorefront(),
-                      skills_dir=Path("/tmp/commerce-agents/shopping-agent/skills"),
-                      config=kinetic_shopping_config())
-async for event in agent.stream_turn(messages, session, state):
-    ...  # text_delta, tool_call, ui, cart_update, turn_complete
-```
+- **Anthropic trực tiếp:** `ANTHROPIC_API_KEY=sk-ant-...`, model mặc định
+  blueprint (`claude-sonnet-5` shopping / `claude-opus-5` merchant, đổi qua
+  `KINETIC_SHOPPING_MODEL` / `KINETIC_MERCHANT_MODEL` nếu cần).
+- **DeepSeek:** API DeepSeek là format OpenAI nên **không đấu thẳng** vào
+  blueprint được (nó gọi Messages API format Anthropic). Cách làm: chạy 1
+  proxy dịch (vd [LiteLLM](https://docs.litellm.ai/) —
+  `litellm --model deepseek/deepseek-chat`), rồi trỏ agent vào proxy:
+  `KINETIC_LLM_BASE_URL=http://localhost:4000/v1`,
+  `KINETIC_LLM_API_KEY=...`,
+  `KINETIC_SHOPPING_MODEL=deepseek-chat`,
+  `KINETIC_MERCHANT_MODEL=deepseek-chat`.
+  Mọi gateway tương thích Anthropic (`/v1/messages` + SSE) đều đi đường này.
+  Lưu ý: tool-use qua proxy đôi khi kém hơn API gốc — test kỹ trước khi
+  production; merchant `enable_analysis` vẫn tắt vì ta chưa có SQL backend.
 
-Merchant tương tự với `MerchantAgent`, `KineticMerchant()`,
-`kinetic_merchant_config()` — mọi ghi (`apply_change`) đều qua
-`require_host_approval`, operator duyệt trên UI của host.
+Config (`kinetic_shopping_config` / `kinetic_merchant_config`) set full field:
+caps khớp backend (cart tối đa 10/món, giá ±20%, promo ≤50%, nhập kho ≤500),
+`require_host_approval=True`, và **lexicon tiếng Việt** nối vào grounding
+terms (`đổi size`, `tra cứu`, `doanh thu`, `duyệt`...) để gate trigger đúng
+khi khách/operator nói tiếng Việt. Merchant tương tự với `KineticMerchant()`,
+`kinetic_merchant_config()` — mọi ghi (`apply_change`) đều qua mặt duyệt host.
 
 ## Ánh xạ & giới hạn đã biết
 
