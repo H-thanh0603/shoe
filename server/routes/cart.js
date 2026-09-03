@@ -1,4 +1,5 @@
-// Cart API (§33) — guest cart qua cookie `session_token`, giá luôn tính từ DB (§17)
+// Cart API (§33) — guest cart qua cookie `session_token`, user cart theo req.user
+// (login merge guest vào user cart — routes/auth.js), giá luôn tính từ DB (§17)
 const express = require('express')
 const crypto = require('node:crypto')
 const pool = require('../db.js')
@@ -10,6 +11,14 @@ const COOKIE = 'session_token'
 
 // middleware: đảm bảo cart tồn tại (tạo lần đầu), gắn req.cartId
 async function ensureCart(req, res, next) {
+  // user đã login → cart theo user_id (merge đã làm lúc login)
+  if (req.user) {
+    const { rows } = await pool.query('SELECT id FROM carts WHERE user_id = $1', [req.user.id])
+    if (rows[0]) { req.cartId = rows[0].id; return next() }
+    const { rows: created } = await pool.query('INSERT INTO carts (user_id, session_token) VALUES ($1, $2) RETURNING id', [req.user.id, crypto.randomUUID()])
+    req.cartId = created[0].id
+    return next()
+  }
   let token = req.cookies?.[COOKIE]
   if (token) {
     const { rows } = await pool.query('SELECT id FROM carts WHERE session_token = $1', [token])

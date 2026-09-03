@@ -7,11 +7,13 @@ const PORT = process.env.PORT || 3000
 
 app.use(express.json())
 app.use(cookieParser())
+app.use(require('./middleware/auth.js').attachUser)
 
 // API v1 (BACKEND.md §59)
 app.use('/api/v1/products', require('./routes/products.js'))
 app.use('/api/v1/cart', require('./routes/cart.js'))
 app.use('/api/v1/orders', require('./routes/orders.js'))
+app.use('/api/v1/auth', require('./routes/auth.js'))
 app.use('/api/v1', require('./routes/meta.js'))
 
 // static frontend (dist/) — build root trước: npm run build

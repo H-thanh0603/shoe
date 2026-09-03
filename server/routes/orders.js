@@ -26,7 +26,13 @@ const refCode = () => {
   return 'KIN-' + Array.from(crypto.randomBytes(6), (b) => alphabet[b % 32]).join('')
 }
 
-async function getCartByToken(token) {
+async function getCartId(req) {
+  if (req.user) {
+    const { rows } = await pool.query('SELECT id FROM carts WHERE user_id = $1', [req.user.id])
+    if (rows[0]) return rows[0].id
+  }
+  const token = req.cookies?.[COOKIE]
+  if (!token) return null
   const { rows } = await pool.query('SELECT id FROM carts WHERE session_token = $1', [token])
   return rows[0]?.id
 }
@@ -48,8 +54,7 @@ function couponDiscount(coupon, subtotal) {
 const err = (e) => ({ status: e.status || 500, body: { success: false, error: { code: e.code || 'INTERNAL', message: e.message } } })
 
 router.post('/', validate(orderSchema), async (req, res) => {
-  const token = req.cookies?.[COOKIE]
-  const cartId = token && (await getCartByToken(token))
+  const cartId = await getCartId(req)
   if (!cartId) return res.status(400).json({ success: false, error: { code: 'CART_EMPTY', message: 'Giỏ hàng trống' } })
 
   // §26 Idempotency-Key: cùng key → trả order cũ, chống double submit
@@ -105,11 +110,11 @@ router.post('/', validate(orderSchema), async (req, res) => {
     // insert order
     const ref = refCode()
     const { rows: [order] } = await client.query(
-      `INSERT INTO orders (ref_code, status, total_vnd, customer_name, customer_phone, customer_email,
+      `INSERT INTO orders (ref_code, user_id, status, total_vnd, customer_name, customer_phone, customer_email,
         shipping_address, payment_method, payment_status, shipping_fee_vnd, discount_vnd, coupon_id, idempotency_key)
-       VALUES ($1,'pending',$2,$3,$4,$5,$6,$7,'unpaid',$8,$9,$10,$11) RETURNING id`,
+       VALUES ($1,$12,'pending',$2,$3,$4,$5,$6,$7,'unpaid',$8,$9,$10,$11) RETURNING id`,
       [ref, total, req.body.customerName, req.body.phone, req.body.email, req.body.address,
-        req.body.paymentMethod, shippingFee, discount, couponId, idemKey],
+        req.body.paymentMethod, shippingFee, discount, couponId, idemKey, req.user?.id || null],
     )
 
     for (const it of items) {

@@ -20,7 +20,7 @@ export default function Drop() {
   const ref = useRef(null)
   const { data: drop } = useApi('/drop')
   // fallback +72h nếu API chưa lên — tránh countdown đứng
-  const target = drop ? new Date(drop.endsAt).getTime() : Date.now() + 72 * 3600 * 1000
+  const target = drop ? new Date(drop.ends_at).getTime() : Date.now() + 72 * 3600 * 1000
   const { h, m, s } = useCountdown(target)
 
   useEffect(() => {

@@ -1,5 +1,6 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useCart } from '../store/CartContext.jsx'
+import AuthModal from './AuthModal.jsx'
 
 const menu = {
   SHOP: ['Running', 'Street', 'Court', 'Lifestyle'],
@@ -9,7 +10,21 @@ const menu = {
 
 export default function Nav() {
   const [open, setOpen] = useState(null)
+  const [user, setUser] = useState(null)
+  const [showAuth, setShowAuth] = useState(false)
   const { cart, open: openCart } = useCart()
+
+  useEffect(() => {
+    fetch('/api/v1/auth/me')
+      .then((r) => (r.ok ? r.json() : Promise.reject()))
+      .then((b) => setUser(b.data))
+      .catch(() => {})
+  }, [])
+
+  const logout = async () => {
+    await fetch('/api/v1/auth/logout', { method: 'POST' })
+    setUser(null)
+  }
 
   return (
     <header className="fixed top-0 z-50 w-full border-b border-white/10 bg-ink/80 backdrop-blur-md">
@@ -38,6 +53,15 @@ export default function Nav() {
           <button aria-label="Tìm kiếm" className="text-sm font-medium tracking-widest text-paper/80 transition-colors duration-200 hover:text-accent focus-visible:text-accent">
             SEARCH
           </button>
+          {user ? (
+            <button onClick={logout} className="text-sm font-medium tracking-widest text-paper/80 transition-colors duration-200 hover:text-accent focus-visible:text-accent">
+              {(user.name || user.email).split('@')[0].toUpperCase()} · ĐĂNG XUẤT
+            </button>
+          ) : (
+            <button onClick={() => setShowAuth(true)} className="text-sm font-medium tracking-widest text-paper/80 transition-colors duration-200 hover:text-accent focus-visible:text-accent">
+              ACCOUNT
+            </button>
+          )}
           <button onClick={openCart} aria-label={`Giỏ hàng, ${cart.count} sản phẩm`} className="relative text-sm font-medium tracking-widest text-paper/80 transition-colors duration-200 hover:text-accent focus-visible:text-accent">
             BAG
             {cart.count > 0 && (
@@ -46,6 +70,13 @@ export default function Nav() {
           </button>
         </div>
       </nav>
+
+      {showAuth && (
+        <AuthModal
+          onClose={() => setShowAuth(false)}
+          onAuthed={(u) => { setUser(u); setShowAuth(false) }}
+        />
+      )}
 
       {/* mega menu (N11) — hover mở, categories + visual */}
       {open && (
