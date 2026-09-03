@@ -5,12 +5,11 @@ const crypto = require('node:crypto')
 const pool = require('../db.js')
 const validate = require('../middleware/validate.js')
 const { requireAuth } = require('../middleware/auth.js')
+const { couponDiscount, shippingFee } = require('../services/pricing.js')
 const { z } = require('zod')
 
 const router = express.Router()
 const COOKIE = 'session_token'
-const FREE_SHIPPING_MIN = 2_000_000
-const SHIPPING_FEE = 30_000
 
 const orderSchema = z.object({
   customerName: z.string().min(2).max(100),
@@ -36,20 +35,6 @@ async function getCartId(req) {
   if (!token) return null
   const { rows } = await pool.query('SELECT id FROM carts WHERE session_token = $1', [token])
   return rows[0]?.id
-}
-
-// tính discount từ coupon record + subtotal. Trả {discount, freeShipping} hoặc throw lý do.
-function couponDiscount(coupon, subtotal) {
-  if (coupon.status !== 'active') throw Object.assign(new Error('Mã giảm giá không còn hiệu lực'), { status: 400, code: 'COUPON_INACTIVE' })
-  const now = new Date()
-  if (coupon.starts_at > now) throw Object.assign(new Error('Mã chưa bắt đầu'), { status: 400, code: 'COUPON_NOT_STARTED' })
-  if (coupon.expires_at && coupon.expires_at < now) throw Object.assign(new Error('Mã đã hết hạn'), { status: 400, code: 'COUPON_EXPIRED' })
-  if (coupon.minimum_order_vnd > subtotal) throw Object.assign(new Error(`Mã áp dụng đơn từ ${coupon.minimum_order_vnd.toLocaleString('vi-VN')}₫`), { status: 400, code: 'COUPON_MIN_ORDER' })
-  if (coupon.usage_limit !== null && Number(coupon.used_count) >= coupon.usage_limit) throw Object.assign(new Error('Mã đã hết lượt dùng'), { status: 400, code: 'COUPON_EXHAUSTED' })
-
-  if (coupon.type === 'FREE_SHIPPING') return { discount: 0, freeShipping: true }
-  if (coupon.type === 'PERCENTAGE') return { discount: Math.floor((subtotal * coupon.value) / 100), freeShipping: false }
-  return { discount: Math.min(coupon.value, subtotal), freeShipping: false } // FIXED
 }
 
 const err = (e) => ({ status: e.status || 500, body: { success: false, error: { code: e.code || 'INTERNAL', message: e.message } } })
@@ -105,8 +90,8 @@ router.post('/', validate(orderSchema), async (req, res) => {
       couponId = c.id
     }
 
-    const shippingFee = freeShipping || subtotal >= FREE_SHIPPING_MIN ? 0 : SHIPPING_FEE
-    const total = Math.max(subtotal - discount + shippingFee, 0)
+    const shippingFeeVnd = shippingFee(subtotal, freeShipping)
+    const total = Math.max(subtotal - discount + shippingFeeVnd, 0)
 
     // insert order
     const ref = refCode()
@@ -115,7 +100,7 @@ router.post('/', validate(orderSchema), async (req, res) => {
         shipping_address, payment_method, payment_status, shipping_fee_vnd, discount_vnd, coupon_id, idempotency_key)
        VALUES ($1,$12,'pending',$2,$3,$4,$5,$6,$7,'unpaid',$8,$9,$10,$11) RETURNING id`,
       [ref, total, req.body.customerName, req.body.phone, req.body.email, req.body.address,
-        req.body.paymentMethod, shippingFee, discount, couponId, idemKey, req.user?.id || null],
+        req.body.paymentMethod, shippingFeeVnd, discount, couponId, idemKey, req.user?.id || null],
     )
 
     for (const it of items) {
@@ -139,7 +124,7 @@ router.post('/', validate(orderSchema), async (req, res) => {
     await client.query('DELETE FROM cart_items WHERE cart_id = $1', [cartId])
     await client.query('COMMIT')
 
-    res.status(201).json({ success: true, data: { refCode: ref, totalVnd: total, shippingFeeVnd: shippingFee, discountVnd: discount, subtotalVnd: subtotal } })
+    res.status(201).json({ success: true, data: { refCode: ref, totalVnd: total, shippingFeeVnd, discountVnd: discount, subtotalVnd: subtotal } })
   } catch (e) {
     await client.query('ROLLBACK').catch(() => {})
     const { status, body } = err(e)

@@ -3,9 +3,10 @@ const cookieParser = require('cookie-parser')
 const helmet = require('helmet')
 const rateLimit = require('express-rate-limit')
 const path = require('node:path')
+const { port: PORT } = require('./config.js')
+const { apiNotFound, errorHandler } = require('./middleware/errorHandler.js')
 
 const app = express()
-const PORT = process.env.PORT || 3000
 
 // CSP: cho phép fetch open-meteo (weather của match engine), styles inline (Tailwind inject)
 app.use(helmet({
@@ -39,10 +40,18 @@ app.use('/api/v1/admin', require('./routes/admin.js'))
 app.use('/api/v1/events', require('./routes/events.js'))
 app.use('/api/v1', require('./routes/meta.js'))
 
+// 404 JSON cho /api/* lạ + error handler tập trung (envelope) — TRƯỚC static
+app.use(apiNotFound)
+app.use(errorHandler)
+
 // static frontend (dist/) — build root trước: npm run build
 app.use(express.static(path.join(__dirname, '..', 'dist')))
 app.get(/^\/(?!api).*/, (_req, res) => {
   res.sendFile(path.join(__dirname, '..', 'dist', 'index.html'))
 })
 
-app.listen(PORT, () => console.log(`server: http://localhost:${PORT}`))
+if (require.main === module) {
+  app.listen(PORT, () => console.log(`server: http://localhost:${PORT}`))
+}
+
+module.exports = app

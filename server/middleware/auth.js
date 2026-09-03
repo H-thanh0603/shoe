@@ -1,7 +1,7 @@
 // JWT auth middleware (§06-07) — access token 1h trong cookie `token`,
 // refresh token 7d trong cookie `refresh_token` (§37 POST /auth/refresh)
 const jwt = require('jsonwebtoken')
-const SECRET = process.env.JWT_SECRET || 'dev-secret-đổi-khi-deploy'
+const { jwtSecret: SECRET } = require('../config.js')
 
 const signAccess = (user) => jwt.sign({ sub: user.id, role: user.role }, SECRET, { expiresIn: '1h' })
 const signRefresh = (user) => jwt.sign({ sub: user.id, typ: 'refresh' }, SECRET, { expiresIn: '7d' })

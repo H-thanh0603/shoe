@@ -4,6 +4,7 @@ import tailwindcss from '@tailwindcss/vite'
 
 export default defineConfig({
   plugins: [react(), tailwindcss()],
-  // ponytail: proxy dev tới 3100 vì 3000 bị project khác chiếm — prod serve static từ Express
-  server: { proxy: { '/api': 'http://localhost:3100' } },
+  // proxy tới API backend (mặc định 3000 = server/config.js) — đổi khi PORT khác:
+  // VITE_API_TARGET=http://localhost:3100 npm run dev
+  server: { proxy: { '/api': process.env.VITE_API_TARGET || 'http://localhost:3000' } },
 })

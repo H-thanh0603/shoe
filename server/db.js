@@ -1,8 +1,9 @@
-// Pool PostgreSQL — DATABASE_URL từ env, default local kinetic.
+// Pool PostgreSQL — connection string lấy từ config.js
 const { Pool } = require('pg')
+const { databaseUrl } = require('./config.js')
 
 const pool = new Pool({
-  connectionString: process.env.DATABASE_URL || 'postgresql://kinetic:kinetic@localhost:5432/kinetic',
+  connectionString: databaseUrl,
   max: 10,
 })
 
