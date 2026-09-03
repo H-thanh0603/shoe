@@ -47,6 +47,8 @@ Lỗi checkout: 400 `CART_EMPTY` / `COUPON_NOT_FOUND` / `COUPON_INACTIVE` / `COU
 | POST | `/auth/login` | `{email, password}`. Set 2 cookies + merge guest cart. 401 `INVALID_CREDENTIALS`. |
 | POST | `/auth/refresh` | Đổi `refresh_token` (7d) lấy `token` access mới (1h). Hết hạn → 401 + clear cookies. |
 | POST | `/auth/logout` | Clear 2 cookies. |
+| POST | `/auth/forgot-password` | `{email}` — luôn trả `ok` (không tiết lộ email tồn tại). Trả `resetToken` trong response (demo — khi có mailer gửi qua email). Rate limit 10/15 phút. |
+| POST | `/auth/reset-password` | `{resetToken, password ≥8}` — token 15m. 401 `INVALID_TOKEN`. Xong clear cookies. |
 | GET | `/auth/me` | User hiện tại. 401 nếu chưa đăng nhập. |
 
 ## Wishlist (đều cần login)

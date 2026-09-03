@@ -18,6 +18,12 @@ Cả 3: `httpOnly: true, sameSite: 'lax'` — JS client không đọc được.
 4. Refresh hết hạn (7d): 401, clear cả 2 cookies — đăng nhập lại.
 5. `POST /auth/logout`: clear `token` + `refresh_token`.
 
+## Quên mật khẩu
+
+`POST /auth/forgot-password {email}` → JWT `{sub, typ:'reset'}` TTL 15m. Không có mailer nên token trả thẳng trong response (demo). Response giống nhau cho email tồn tại/không — không dò được.
+
+`POST /auth/reset-password {resetToken, password}` → bcrypt hash mới. Token dùng lại được nhiều lần trong 15m (JWT stateless, không bảng revoked) — cần 1-lần-dùng thì thêm bảng `password_resets` đánh dấu used. Reset xong clear cookies (thu hồi session).
+
 ## Bảo vệ chống lạm dụng token
 
 - Refresh token không dùng được làm access: `attachUser` bỏ qua payload `typ === 'refresh'`.

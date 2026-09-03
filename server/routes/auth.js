@@ -5,7 +5,7 @@ const bcrypt = require('bcryptjs')
 const jwt = require('jsonwebtoken')
 const pool = require('../db.js')
 const validate = require('../middleware/validate.js')
-const { signAccess, signRefresh } = require('../middleware/auth.js')
+const { signAccess, signRefresh, signReset } = require('../middleware/auth.js')
 const { z } = require('zod')
 
 const SECRET = process.env.JWT_SECRET || 'dev-secret-đổi-khi-deploy'
@@ -114,6 +114,40 @@ router.post('/logout', (_req, res) => {
   res.clearCookie('token')
   res.clearCookie('refresh_token')
   res.json({ success: true, data: { ok: true } })
+})
+
+// §37 forgot-password — không có mailer (plan bỏ email) nên trả resetToken trong response
+// để flow demo chạy được. Khi có mailer: gửi qua email, bỏ field này.
+router.post('/forgot-password', validate(z.object({ email: z.string().email() })), async (req, res) => {
+  const { rows: [user] } = await pool.query('SELECT id FROM users WHERE email = $1', [req.body.email])
+  // không tiết lộ email tồn tại hay không — response giống nhau
+  const resetToken = user ? signReset(user) : null
+  res.json({ success: true, data: { ok: true, ...(resetToken && { resetToken }) } })
+})
+
+// §37 reset-password — token 15m. ponytail: JWT stateless nên token dùng lại được
+// trong 15m (không có bảng revoked) — cần 1-lần-dùng thật thì thêm bảng password_resets
+// lưu hash token + đánh dấu used.
+router.post('/reset-password', validate(z.object({
+  resetToken: z.string().min(20),
+  password: z.string().min(8, 'Tối thiểu 8 ký tự').max(72),
+})), async (req, res) => {
+  try {
+    const payload = jwt.verify(req.body.resetToken, SECRET)
+    if (payload.typ !== 'reset') throw new Error('sai loại token')
+    const hash = await bcrypt.hash(req.body.password, 10)
+    const { rowCount } = await pool.query('UPDATE users SET password_hash = $1 WHERE id = $2', [hash, payload.sub])
+    if (!rowCount) throw new Error('user không tồn tại')
+    // đổi pass xong thu hồi session cũ
+    res.clearCookie('token')
+    res.clearCookie('refresh_token')
+    res.json({ success: true, data: { ok: true } })
+  } catch (e) {
+    if (e.message === 'sai loại token' || e.name === 'TokenExpiredError' || e.name === 'JsonWebTokenError') {
+      return res.status(401).json({ success: false, error: { code: 'INVALID_TOKEN', message: 'Link đặt lại không hợp lệ hoặc đã hết hạn' } })
+    }
+    throw e
+  }
 })
 
 router.get('/me', (req, res) => {

@@ -5,6 +5,8 @@ const SECRET = process.env.JWT_SECRET || 'dev-secret-đổi-khi-deploy'
 
 const signAccess = (user) => jwt.sign({ sub: user.id, role: user.role }, SECRET, { expiresIn: '1h' })
 const signRefresh = (user) => jwt.sign({ sub: user.id, typ: 'refresh' }, SECRET, { expiresIn: '7d' })
+// §37 reset password: token 1 lần dùng, 15 phút
+const signReset = (user) => jwt.sign({ sub: user.id, typ: 'reset' }, SECRET, { expiresIn: '15m' })
 // ponytail: giữ tên `sign` cho access — 2 caller cũ (login/register) không cần đổi
 const sign = signAccess
 
@@ -31,4 +33,4 @@ const requireRole = (...roles) => (req, res, next) => {
   next()
 }
 
-module.exports = { sign, signAccess, signRefresh, attachUser, requireAuth, requireRole }
+module.exports = { sign, signAccess, signRefresh, signReset, attachUser, requireAuth, requireRole }
