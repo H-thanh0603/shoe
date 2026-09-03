@@ -9,7 +9,7 @@ const menu = {
   COLLECTIONS: ['Street Future', 'Night Runner', 'Raw Motion', 'City Heat'],
 }
 
-export default function Nav({ onQuiz, onLogoTap, secret }) {
+export default function Nav({ onQuiz, onLogoTap, secret, onSearch }) {
   const [open, setOpen] = useState(null)
   const [user, setUser] = useState(null)
   const [showAuth, setShowAuth] = useState(false)
@@ -26,8 +26,17 @@ export default function Nav({ onQuiz, onLogoTap, secret }) {
   }
 
   useEffect(() => {
-    fetch('/api/v1/auth/me')
-      .then((r) => (r.ok ? r.json() : Promise.reject()))
+    // access hết hạn (1h) → đổi refresh_token (7d) lấy access mới rồi fetch lại
+    const me = (retried) =>
+      fetch('/api/v1/auth/me')
+        .then(async (r) => {
+          if (r.status === 401 && !retried) {
+            const rf = await fetch('/api/v1/auth/refresh', { method: 'POST' })
+            if (rf.ok) return me(true)
+          }
+          return r.ok ? r.json() : Promise.reject()
+        })
+    me(false)
       .then((b) => setUser(b.data))
       .catch(() => {})
   }, [])
@@ -61,8 +70,13 @@ export default function Nav({ onQuiz, onLogoTap, secret }) {
         </ul>
 
         <div className="flex items-center gap-5">
-          <button aria-label="Tìm kiếm" className="text-sm font-medium tracking-widest text-paper/80 transition-colors duration-200 hover:text-accent focus-visible:text-accent">
+          <button
+            onClick={onSearch}
+            aria-label="Tìm kiếm (Cmd+K)"
+            className="flex items-center gap-1.5 text-sm font-medium tracking-widest text-paper/80 transition-colors duration-200 hover:text-accent focus-visible:text-accent"
+          >
             SEARCH
+            <span className="hidden lg:inline-block font-mono text-[9px] text-paper/40 border border-white/15 px-1 rounded">⌘K</span>
           </button>
           <button onClick={onQuiz} className={`text-sm font-medium tracking-widest transition-colors duration-200 hover:text-accent focus-visible:text-accent ${profile ? 'text-accent' : 'text-paper/80'}`}>
             {shoeId}

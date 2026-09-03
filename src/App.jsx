@@ -6,15 +6,20 @@ import Nav from './components/Nav.jsx'
 import Hero from './components/Hero.jsx'
 import Marquee from './components/Marquee.jsx'
 import WeatherStrip from './components/WeatherStrip.jsx'
+import TechLab from './components/TechLab.jsx'
 import ProductGrid from './components/ProductGrid.jsx'
+import Lookbook from './components/Lookbook.jsx'
 import Collections from './components/Collections.jsx'
 import Drop from './components/Drop.jsx'
 import Footer from './components/Footer.jsx'
 import CartDrawer from './components/CartDrawer.jsx'
 import ProductDetail from './components/ProductDetail.jsx'
 import Quiz from './components/Quiz.jsx'
+import SearchPalette from './components/SearchPalette.jsx'
+import CompareDrawer from './components/CompareDrawer.jsx'
+import CommunityFeed from './components/CommunityFeed.jsx'
 
-// ponytail: hash router 1 dòng — đổi react-router khi có >3 trang thật
+// hash router 1 dòng
 const useHashRoute = () => {
   const [route, setRoute] = useState(location.hash)
   useEffect(() => {
@@ -30,8 +35,50 @@ export default function App() {
   const [quiz, setQuiz] = useState(false)
   const openQuiz = () => setQuiz(true)
   const { profile } = useProfile()
+
+  // Search Palette state & Cmd+K handler
+  const [showSearch, setShowSearch] = useState(false)
+  useEffect(() => {
+    const onKey = (e) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault()
+        setShowSearch((s) => !s)
+      }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [])
+
+  // Compare Drawer state
+  const [compareItems, setCompareItems] = useState([])
+  const [showCompare, setShowCompare] = useState(false)
+
+  const handleToggleCompare = (product) => {
+    setCompareItems((prev) => {
+      const exists = prev.some((x) => x.id === product.id)
+      if (exists) {
+        return prev.filter((x) => x.id !== product.id)
+      }
+      if (prev.length >= 3) {
+        return [...prev.slice(1), product]
+      }
+      return [...prev, product]
+    })
+  }
+
+  const handleRemoveCompare = (id) => {
+    setCompareItems((prev) => prev.filter((x) => x.id !== id))
+  }
+
+  const handleClearCompare = () => {
+    setCompareItems([])
+    setShowCompare(false)
+  }
+
   // secret mode — sessionStorage: sống sót hash nav, mất khi đóng tab
-  const [secret, setSecret] = useState(() => { try { return sessionStorage.getItem('secret_v1') === '1' } catch { return false } })
+  const [secret, setSecret] = useState(() => {
+    try { return sessionStorage.getItem('secret_v1') === '1' } catch { return false }
+  })
   const toggleSecret = () => {
     track('secret_mode')
     setSecret((s) => {
@@ -50,7 +97,13 @@ export default function App() {
 
   return (
     <>
-      <Nav onQuiz={openQuiz} onLogoTap={toggleSecret} secret={secret} />
+      <Nav
+        onQuiz={openQuiz}
+        onLogoTap={toggleSecret}
+        secret={secret}
+        onSearch={() => setShowSearch(true)}
+      />
+
       {slug ? (
         <ProductDetail slug={slug} back={() => { location.hash = '' }} />
       ) : (
@@ -58,14 +111,29 @@ export default function App() {
           <Hero onQuiz={openQuiz} />
           <Marquee secret={secret} />
           <WeatherStrip />
-          <ProductGrid />
+          <ProductGrid
+            onToggleCompare={handleToggleCompare}
+            compareIds={compareItems.map((x) => x.id)}
+          />
+          <TechLab />
           <Collections />
+          <Lookbook />
           <Drop />
         </main>
       )}
+
       <Footer />
       <CartDrawer />
       {quiz && <Quiz onClose={() => setQuiz(false)} />}
+      <SearchPalette open={showSearch} onClose={() => setShowSearch(false)} />
+      <CompareDrawer
+        items={compareItems}
+        open={showCompare}
+        setOpen={setShowCompare}
+        onRemove={handleRemoveCompare}
+        onClear={handleClearCompare}
+      />
+      <CommunityFeed />
     </>
   )
 }

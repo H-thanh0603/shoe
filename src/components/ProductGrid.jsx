@@ -8,7 +8,7 @@ import { playTechClick } from '../lib/sound.js'
 // Cache variants tránh fetch lặp lại khi hover nhiều lần
 const variantCache = new Map()
 
-export function Card({ p, match, onWishlist, isWishlisted }) {
+export function Card({ p, match, onWishlist, isWishlisted, onToggleCompare, isCompared }) {
   const { add, open: openCart } = useCart()
   const [showQuickAdd, setShowQuickAdd] = useState(false)
   const [variants, setVariants] = useState([])
@@ -109,12 +109,29 @@ export function Card({ p, match, onWishlist, isWishlisted }) {
         )}
       </div>
 
-      <div className="absolute top-3 right-3 flex items-center gap-2">
+      <div className="absolute top-3 right-3 flex items-center gap-1.5">
         {match != null && (
           <span className="border border-accent/60 bg-ink/85 px-2 py-0.5 font-mono text-[10px] tracking-widest text-accent backdrop-blur-sm">
             {match}% MATCH
           </span>
         )}
+        <button
+          onClick={(e) => {
+            e.preventDefault()
+            e.stopPropagation()
+            onToggleCompare?.(p)
+            playTechClick()
+          }}
+          aria-label={isCompared ? 'Bỏ so sánh' : 'So sánh thông số'}
+          title={isCompared ? 'Bỏ so sánh' : 'So sánh thông số'}
+          className={`flex h-7 px-2 items-center justify-center rounded-full border backdrop-blur-md text-[10px] font-mono transition-all ${
+            isCompared
+              ? 'border-accent bg-accent text-ink font-bold'
+              : 'border-white/20 bg-ink/60 text-paper/70 hover:border-white hover:text-paper'
+          }`}
+        >
+          {isCompared ? '✓ SO SÁNH' : '+ SO SÁNH'}
+        </button>
         <button
           onClick={(e) => {
             e.preventDefault()
@@ -207,7 +224,7 @@ const PURPOSES = [
   { id: 'trail', label: 'TRAIL / NÚI' },
 ]
 
-export default function ProductGrid() {
+export default function ProductGrid({ onToggleCompare, compareIds = [] }) {
   const ref = useRef(null)
   const { data: products, error } = useApi('/products?limit=100')
   const { profile } = useProfile()
@@ -350,6 +367,8 @@ export default function ProductGrid() {
             match={profile && matchScore(profile, p)?.pct}
             onWishlist={toggleWishlist}
             isWishlisted={wishlist.includes(p.id)}
+            onToggleCompare={onToggleCompare}
+            isCompared={compareIds.includes(p.id)}
           />
         ))}
       </div>
