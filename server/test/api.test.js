@@ -14,8 +14,13 @@ async function api(j, method, path, body, extraHeaders = {}) {
     headers: { ...(body ? { 'Content-Type': 'application/json' } : {}), ...(j.cookie ? { cookie: j.cookie } : {}), ...extraHeaders },
     body: body ? JSON.stringify(body) : undefined,
   })
-  const setC = r.headers.get('set-cookie')
-  if (setC && !j.cookie) j.cookie = setC.split(';')[0]
+  // accumulate mọi cookie (token + session_token)
+  for (const c of (r.headers.getSetCookie?.() || [])) {
+    const kv = c.split(';')[0]
+    const name = kv.split('=')[0]
+    j.cookies = { ...(j.cookies || {}), [name]: kv }
+  }
+  if (j.cookies) j.cookie = Object.values(j.cookies).join('; ')
   return { status: r.status, body: await r.json() }
 }
 
@@ -38,6 +43,15 @@ before(async () => {
     for (const { vid, slug } of old) await cleanupVariant(vid, slug)
     await c.query("DELETE FROM coupons WHERE code IN ('TESTRACE10', 'TESTRACEFREE')")
     await c.query("DELETE FROM orders WHERE id NOT IN (SELECT DISTINCT order_id FROM order_items)")
+    // users test cũ (nếu cleanup giữa chừng không chạy do assert fail)
+    await c.query("DELETE FROM reviews WHERE user_id IN (SELECT id FROM users WHERE email LIKE '%@test.vn')")
+    await c.query("DELETE FROM wishlist_items WHERE user_id IN (SELECT id FROM users WHERE email LIKE '%@test.vn')")
+    await c.query("DELETE FROM cart_items WHERE cart_id IN (SELECT id FROM carts WHERE user_id IN (SELECT id FROM users WHERE email LIKE '%@test.vn'))")
+    await c.query("DELETE FROM carts WHERE user_id IN (SELECT id FROM users WHERE email LIKE '%@test.vn')")
+    await c.query("DELETE FROM coupon_usages WHERE order_id IN (SELECT id FROM orders WHERE user_id IN (SELECT id FROM users WHERE email LIKE '%@test.vn'))")
+    await c.query("DELETE FROM order_items WHERE order_id IN (SELECT id FROM orders WHERE user_id IN (SELECT id FROM users WHERE email LIKE '%@test.vn'))")
+    await c.query("DELETE FROM orders WHERE user_id IN (SELECT id FROM users WHERE email LIKE '%@test.vn')")
+    await c.query("DELETE FROM users WHERE email LIKE '%@test.vn'")
 
     const { rows: [p] } = await c.query(`INSERT INTO products (slug, name, brand, tag, colors, price_vnd, description, is_active)
       VALUES ('test-race-shoe', 'TEST RACE SHOE', 'KINETIC', 'NEW', '["white"]', 3000000, 'test', true) RETURNING id`)
@@ -155,4 +169,50 @@ test('idempotency: cùng key → trả order cũ duplicate=true', async () => {
   assert.equal(r2.body.data.refCode, r1.body.data.refCode)
   assert.equal(r2.body.data.duplicate, true)
   await cleanupVariant(idemVariant, 'test-idem')
+})
+
+test('review: mua rồi → verified=true; chưa mua → verified=false', async () => {
+  // product riêng: 2 variant, user test mua variant 1
+  const c = await pool.connect()
+  let revVariant, revSlug
+  try {
+    const { rows: [p] } = await c.query(`INSERT INTO products (slug, name, brand, tag, colors, price_vnd, description, is_active)
+      VALUES ('test-review', 'TEST REVIEW', 'KINETIC', 'NEW', '["gray"]', 1800000, 'test', true) RETURNING id, slug`)
+    const { rows: [v] } = await c.query('INSERT INTO product_variants (product_id, size, stock) VALUES ($1, 45, 3) RETURNING id', [p.id])
+    revVariant = v.id; revSlug = p.slug
+  } finally { c.release() }
+
+  // đăng ký user test (cookie jar riêng)
+  const u = jar()
+  const email = `rev${Date.now()}@test.vn`
+  const reg = await api(u, 'POST', '/api/v1/auth/register', { email, password: 'matkhau123', name: 'Rev Tester' })
+  assert.equal(reg.body.success, true)
+  const userId = reg.body.data.id
+
+  // mua
+  await api(u, 'POST', '/api/v1/cart/items', { variantId: revVariant, qty: 1 })
+  const order = await api(u, 'POST', '/api/v1/orders', checkoutBody())
+  assert.equal(order.body.success, true)
+
+  // review sau khi mua → verified
+  const rv = await api(u, 'POST', `/api/v1/products/${revSlug}/reviews`, { rating: 5, content: 'ok' })
+  assert.equal(rv.body.success, true)
+  assert.equal(rv.body.data.verified, true)
+
+  // wishlist: add product đã mua + verify không lỗi
+  const wl = await api(u, 'POST', `/api/v1/wishlist/1`)
+  assert.equal(wl.body.success, true)
+  const wlGet = await api(u, 'GET', '/api/v1/wishlist')
+  assert.equal(wlGet.body.data.length, 1)
+
+  // dọn: reviews, wishlist, user, order, variant
+  await pool.query('DELETE FROM reviews WHERE product_id IN (SELECT id FROM products WHERE slug = $1)', [revSlug])
+  await pool.query('DELETE FROM wishlist_items WHERE user_id = $1', [userId])
+  await pool.query('DELETE FROM coupon_usages WHERE order_id IN (SELECT id FROM orders WHERE user_id = $1)', [userId])
+  await pool.query('DELETE FROM order_items WHERE order_id IN (SELECT id FROM orders WHERE user_id = $1)', [userId])
+  await pool.query('DELETE FROM orders WHERE user_id = $1', [userId])
+  await pool.query('DELETE FROM cart_items WHERE cart_id IN (SELECT id FROM carts WHERE user_id = $1)', [userId])
+  await pool.query('DELETE FROM carts WHERE user_id = $1', [userId])
+  await pool.query('DELETE FROM users WHERE id = $1', [userId])
+  await cleanupVariant(revVariant, revSlug)
 })

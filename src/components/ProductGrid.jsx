@@ -1,9 +1,11 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useMemo, useRef } from 'react'
 import { useApi } from '../hooks/useApi.js'
+import { useProfile } from '../store/profile.js'
+import { matchScore, sortProducts } from '../lib/match.js'
 
 // Editorial asymmetric grid (DESIGN.md §24-27): span variants phá nhịp đều,
 // card tối giản: image / brand / name / price / color dots.
-function Card({ p }) {
+function Card({ p, match }) {
   const spanCls =
     p.span === 'wide' ? 'md:col-span-2 aspect-[2.2/1]' :
     p.span === 'tall' ? 'md:row-span-2 aspect-[1/2.1]' :
@@ -31,6 +33,11 @@ function Card({ p }) {
           {p.tag}
         </span>
       )}
+      {match != null && (
+        <span className="absolute top-3 right-3 border border-accent/60 bg-ink/80 px-2 py-0.5 font-mono text-[10px] tracking-widest text-accent">
+          {match}% MATCH
+        </span>
+      )}
 
       {/* info row */}
       <div className="flex items-end justify-between gap-3 border-t border-white/10 px-4 py-3">
@@ -52,6 +59,8 @@ function Card({ p }) {
 export default function ProductGrid() {
   const ref = useRef(null)
   const { data: products, error } = useApi('/products?limit=100')
+  const { profile } = useProfile()
+  const sorted = useMemo(() => sortProducts(profile, products || []), [profile, products])
   useEffect(() => {
     const io = new IntersectionObserver(
       ([e]) => e.isIntersecting && e.target.classList.add('is-in'),
@@ -72,8 +81,8 @@ export default function ProductGrid() {
 
       {error && <p className="text-sm text-accent">Không tải được sản phẩm — kiểm tra server (npm start trong server/).</p>}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-3 md:grid-rows-[repeat(4,minmax(0,220px))]">
-        {products?.map((p) => (
-          <Card key={p.id} p={p} />
+        {sorted.map((p) => (
+          <Card key={p.id} p={p} match={profile && matchScore(profile, p)?.pct} />
         ))}
       </div>
     </section>
