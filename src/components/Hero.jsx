@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 
 // Hero (DESIGN.md §16-20): massive typography + shoe protagonist + parallax + cursor tilt.
 // Shoe = CSS art silhouette (Tier A) — không cần asset 3D cho homepage đầu.
-export default function Hero() {
+export default function Hero({ onQuiz }) {
   const ref = useRef(null)
   const [tilt, setTilt] = useState({ x: 0, y: 0 })
 
@@ -78,13 +78,21 @@ export default function Hero() {
       {/* bottom meta row */}
       <div className="relative z-10 mx-auto flex w-full max-w-7xl items-end justify-between px-4 pb-8 text-[11px] tracking-widest text-paper/50 md:px-8">
         <span>DROP 004 — LIVE</span>
-        <a
-          href="#drop"
-          className="group flex items-center gap-2 border border-accent bg-accent px-8 py-4 text-sm font-semibold tracking-widest text-ink transition-colors duration-200 hover:bg-transparent hover:text-accent focus-visible:bg-transparent focus-visible:text-accent"
-        >
-          XEM DROP
-          <span className="transition-transform duration-200 group-hover:translate-x-1">→</span>
-        </a>
+        <div className="flex items-center gap-3">
+          <button
+            onClick={onQuiz}
+            className="border border-white/15 px-5 py-4 text-sm font-medium tracking-widest text-paper/70 transition-colors duration-200 hover:border-accent hover:text-accent focus-visible:border-accent focus-visible:text-accent"
+          >
+            DISCOVER YOUR STYLE →
+          </button>
+          <a
+            href="#drop"
+            className="group flex items-center gap-2 border border-accent bg-accent px-8 py-4 text-sm font-semibold tracking-widest text-ink transition-colors duration-200 hover:bg-transparent hover:text-accent focus-visible:bg-transparent focus-visible:text-accent"
+          >
+            XEM DROP
+            <span className="transition-transform duration-200 group-hover:translate-x-1">→</span>
+          </a>
+        </div>
         <span>SS26</span>
       </div>
     </section>

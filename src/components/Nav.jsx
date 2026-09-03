@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useCart } from '../store/CartContext.jsx'
+import { useProfile, topTrait } from '../store/profile.js'
 import AuthModal from './AuthModal.jsx'
 
 const menu = {
@@ -8,11 +9,13 @@ const menu = {
   COLLECTIONS: ['Street Future', 'Night Runner', 'Raw Motion', 'City Heat'],
 }
 
-export default function Nav() {
+export default function Nav({ onQuiz }) {
   const [open, setOpen] = useState(null)
   const [user, setUser] = useState(null)
   const [showAuth, setShowAuth] = useState(false)
   const { cart, open: openCart } = useCart()
+  const { profile } = useProfile()
+  const shoeId = topTrait(profile) || 'SHOE ID'
 
   useEffect(() => {
     fetch('/api/v1/auth/me')
@@ -52,6 +55,9 @@ export default function Nav() {
         <div className="flex items-center gap-5">
           <button aria-label="Tìm kiếm" className="text-sm font-medium tracking-widest text-paper/80 transition-colors duration-200 hover:text-accent focus-visible:text-accent">
             SEARCH
+          </button>
+          <button onClick={onQuiz} className={`text-sm font-medium tracking-widest transition-colors duration-200 hover:text-accent focus-visible:text-accent ${profile ? 'text-accent' : 'text-paper/80'}`}>
+            {shoeId}
           </button>
           {user ? (
             <button onClick={logout} className="text-sm font-medium tracking-widest text-paper/80 transition-colors duration-200 hover:text-accent focus-visible:text-accent">

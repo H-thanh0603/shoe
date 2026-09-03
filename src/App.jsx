@@ -8,6 +8,7 @@ import Drop from './components/Drop.jsx'
 import Footer from './components/Footer.jsx'
 import CartDrawer from './components/CartDrawer.jsx'
 import ProductDetail from './components/ProductDetail.jsx'
+import Quiz from './components/Quiz.jsx'
 
 // ponytail: hash router 1 dòng — đổi react-router khi có >3 trang thật
 const useHashRoute = () => {
@@ -22,15 +23,17 @@ const useHashRoute = () => {
 
 export default function App() {
   const slug = useHashRoute()
+  const [quiz, setQuiz] = useState(false)
+  const openQuiz = () => setQuiz(true)
 
   return (
     <>
-      <Nav />
+      <Nav onQuiz={openQuiz} />
       {slug ? (
         <ProductDetail slug={slug} back={() => { location.hash = '' }} />
       ) : (
         <main>
-          <Hero />
+          <Hero onQuiz={openQuiz} />
           <Marquee />
           <ProductGrid />
           <Collections />
@@ -39,6 +42,7 @@ export default function App() {
       )}
       <Footer />
       <CartDrawer />
+      {quiz && <Quiz onClose={() => setQuiz(false)} />}
     </>
   )
 }
