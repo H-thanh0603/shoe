@@ -11,13 +11,18 @@ const COOKIE = 'session_token'
 
 // middleware: đảm bảo cart tồn tại (tạo lần đầu), gắn req.cartId
 async function ensureCart(req, res, next) {
-  // user đã login → cart theo user_id (merge đã làm lúc login)
+  // user đã login → cart theo user_id (merge đã làm lúc login).
+  // Token cũ nhưng user đã bị xóa → coi như guest (tránh FK violation)
   if (req.user) {
-    const { rows } = await pool.query('SELECT id FROM carts WHERE user_id = $1', [req.user.id])
-    if (rows[0]) { req.cartId = rows[0].id; return next() }
-    const { rows: created } = await pool.query('INSERT INTO carts (user_id, session_token) VALUES ($1, $2) RETURNING id', [req.user.id, crypto.randomUUID()])
-    req.cartId = created[0].id
-    return next()
+    const { rows: [u] } = await pool.query('SELECT id FROM users WHERE id = $1', [req.user.id])
+    if (!u) { delete req.user; res.clearCookie('token') }
+    else {
+      const { rows } = await pool.query('SELECT id FROM carts WHERE user_id = $1', [req.user.id])
+      if (rows[0]) { req.cartId = rows[0].id; return next() }
+      const { rows: created } = await pool.query('INSERT INTO carts (user_id, session_token) VALUES ($1, $2) RETURNING id', [req.user.id, crypto.randomUUID()])
+      req.cartId = created[0].id
+      return next()
+    }
   }
   let token = req.cookies?.[COOKIE]
   if (token) {
