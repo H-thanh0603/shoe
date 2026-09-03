@@ -2,3 +2,4 @@ node_modules
 dist
 .hallmark
 server/node_modules
+__pycache__/
