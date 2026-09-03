@@ -1,8 +1,12 @@
+import { useEffect, useState } from 'react'
 import { useCart } from '../store/CartContext.jsx'
+import CheckoutForm from './CheckoutForm.jsx'
 
 // Slide-over cart (DESIGN.md cùng visual language: ink/paper/accent, display font)
 export default function CartDrawer() {
-  const { cart, setQty, remove, close } = useCart()
+  const { cart, setQty, remove, clear, close } = useCart()
+  const [checkout, setCheckout] = useState(false)
+  useEffect(() => { if (!cart.open) setCheckout(false) }, [cart.open])
   if (!cart.open) return null
 
   return (
@@ -10,13 +14,23 @@ export default function CartDrawer() {
       <button aria-label="Đóng giỏ hàng" className="absolute inset-0 bg-ink/70 backdrop-blur-sm" onClick={close} />
       <aside className="absolute top-0 right-0 flex h-full w-full max-w-md flex-col border-l border-white/10 bg-charcoal">
         <header className="flex items-center justify-between border-b border-white/10 p-6">
-          <h2 className="font-display text-2xl font-bold tracking-tight text-paper">BAG<span className="text-accent">.</span> {cart.count}</h2>
+          <h2 className="font-display text-2xl font-bold tracking-tight text-paper">
+            {checkout ? 'CHECKOUT' : <>BAG<span className="text-accent">.</span> {cart.count}</>}
+          </h2>
           <button onClick={close} aria-label="Đóng" className="text-sm tracking-widest text-paper/70 transition-colors hover:text-accent">
             ĐÓNG ✕
           </button>
         </header>
 
-        <div className="flex-1 overflow-y-auto p-6">
+        {checkout && (
+          <CheckoutForm
+            totalVnd={cart.totalVnd}
+            onDone={() => { clear(); close() }}
+            onBack={() => setCheckout(false)}
+          />
+        )}
+
+        <div className={`flex-1 overflow-y-auto p-6 ${checkout ? 'hidden' : ''}`}>
           {cart.items.length === 0 ? (
             <p className="py-16 text-center text-sm tracking-widest text-paper/50">GIỎ TRỐNG</p>
           ) : (
@@ -43,7 +57,7 @@ export default function CartDrawer() {
           )}
         </div>
 
-        {cart.items.length > 0 && (
+        {cart.items.length > 0 && !checkout && (
           <footer className="border-t border-white/10 p-6">
             <div className="mb-4 flex items-center justify-between">
               <span className="text-sm tracking-widest text-paper/70">TỔNG</span>
@@ -51,7 +65,7 @@ export default function CartDrawer() {
                 {cart.totalVnd.toLocaleString('vi-VN')}₫
               </span>
             </div>
-            <button className="w-full bg-accent py-4 font-display text-sm font-bold tracking-widest text-ink transition-opacity hover:opacity-90">
+            <button onClick={() => setCheckout(true)} className="w-full bg-accent py-4 font-display text-sm font-bold tracking-widest text-ink transition-opacity hover:opacity-90">
               THANH TOÁN
             </button>
           </footer>
