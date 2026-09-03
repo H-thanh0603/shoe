@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { apiFetch } from '../lib/api.js'
 
 // Checkout step trong CartDrawer (Bước 5) — POST /api/v1/orders, Idempotency-Key chống double submit
 const inputCls = 'w-full border border-white/15 bg-ink-deep px-3 py-2.5 text-sm text-paper placeholder:text-paper/30 focus:border-accent focus:outline-none'
@@ -15,14 +16,12 @@ export default function CheckoutForm({ totalVnd, onDone, onBack }) {
     e.preventDefault()
     setBusy(true); setErr(null)
     try {
-      const r = await fetch('/api/v1/orders', {
+      const data = await apiFetch('/orders', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Idempotency-Key': crypto.randomUUID() },
-        body: JSON.stringify({ ...form, couponCode: form.couponCode || undefined, paymentMethod: 'cod' }),
+        body: { ...form, couponCode: form.couponCode || undefined, paymentMethod: 'cod' },
       })
-      const body = await r.json()
-      if (!r.ok || !body.success) throw new Error(body?.error?.message || `HTTP ${r.status}`)
-      setOk(body.data)
+      setOk(data)
     } catch (e2) {
       setErr(e2.message)
     } finally {

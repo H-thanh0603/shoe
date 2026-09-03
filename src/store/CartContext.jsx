@@ -1,5 +1,6 @@
 import { createContext, useContext, useEffect, useReducer } from 'react'
 import { track } from '../lib/track.js'
+import { apiFetch } from '../lib/api.js'
 
 // Cart client state — server là source of truth (§17), context chỉ giữ bản hiển thị
 const CartContext = createContext(null)
@@ -13,15 +14,7 @@ function reducer(state, action) {
   }
 }
 
-async function api(path, opts) {
-  const r = await fetch(`/api/v1/cart${path}`, {
-    headers: { 'Content-Type': 'application/json' },
-    ...opts,
-  })
-  const body = await r.json()
-  if (!r.ok || !body.success) throw new Error(body?.error?.message || `HTTP ${r.status}`)
-  return body.data
-}
+const api = (path, opts) => apiFetch(`/cart${path}`, opts)
 
 export function CartProvider({ children }) {
   const [cart, dispatch] = useReducer(reducer, { items: [], count: 0, totalVnd: 0, open: false })

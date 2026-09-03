@@ -1,5 +1,7 @@
 // Event tracking client (Bước 7.7) — queue + batch flush.
 // fire-and-forget: mọi lỗi nuốt im lặng, không bao giờ vỡ app.
+import { apiSendBeacon } from './api.js'
+
 let queue = []
 let timer = null
 
@@ -9,12 +11,7 @@ const flush = () => {
   if (!queue.length) return
   const events = queue
   queue = []
-  fetch('/api/v1/events', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ events }),
-    keepalive: true,
-  }).catch(() => {}) // nuốt — tracking không critical
+  apiSendBeacon('/events', { events }) // nuốt — tracking không critical
 }
 
 export const track = (type, productId, meta) => {

@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useCart } from '../store/CartContext.jsx'
 import { useProfile, topTrait } from '../store/profile.js'
+import { apiFetch } from '../lib/api.js'
 import AuthModal from './AuthModal.jsx'
 
 const menu = {
@@ -28,21 +29,17 @@ export default function Nav({ onQuiz, onLogoTap, secret, onSearch }) {
   useEffect(() => {
     // access hết hạn (1h) → đổi refresh_token (7d) lấy access mới rồi fetch lại
     const me = (retried) =>
-      fetch('/api/v1/auth/me')
-        .then(async (r) => {
-          if (r.status === 401 && !retried) {
-            const rf = await fetch('/api/v1/auth/refresh', { method: 'POST' })
-            if (rf.ok) return me(true)
-          }
-          return r.ok ? r.json() : Promise.reject()
-        })
-    me(false)
-      .then((b) => setUser(b.data))
-      .catch(() => {})
+      apiFetch('/auth/me').catch(async (e) => {
+        if (!retried && e.status === 401) {
+          try { await apiFetch('/auth/refresh', { method: 'POST' }); return me(true) } catch { /* hết phiên */ }
+        }
+        return Promise.reject(e)
+      })
+    me(false).then(setUser).catch(() => {})
   }, [])
 
   const logout = async () => {
-    await fetch('/api/v1/auth/logout', { method: 'POST' })
+    await apiFetch('/auth/logout', { method: 'POST' }).catch(() => {})
     setUser(null)
   }
 

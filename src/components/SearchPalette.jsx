@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { apiGet } from '../lib/api.js'
 import { playTechClick } from '../lib/sound.js'
 
 const QUICK_TAGS = [
@@ -61,12 +62,9 @@ export default function SearchPalette({ open, onClose }) {
     setLoading(true)
     const timer = setTimeout(async () => {
       try {
-        const res = await fetch(`/api/v1/products?q=${encodeURIComponent(query.trim())}&limit=8`)
-        const data = await res.json()
-        if (data.success) {
-          setResults(data.data || [])
-          setActiveIndex(0)
-        }
+        const data = await apiGet(`/products?q=${encodeURIComponent(query.trim())}&limit=8`)
+        setResults(data || [])
+        setActiveIndex(0)
       } catch {
         setResults([])
       } finally {

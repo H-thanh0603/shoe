@@ -1,19 +1,11 @@
 import { useState } from 'react'
+import { apiFetch } from '../lib/api.js'
 
 // Login/Register modal (Bước 6) — JWT httpOnly cookie, server quản session
 const inputCls = 'w-full border border-white/15 bg-ink-deep px-3 py-2.5 text-sm text-paper placeholder:text-paper/30 focus:border-accent focus:outline-none'
 const labelCls = 'mb-1 block text-[10px] font-semibold tracking-widest text-paper/60'
 
-async function api(path, body) {
-  const r = await fetch(`/api/v1/auth${path}`, {
-    method: body ? 'POST' : 'GET',
-    headers: body ? { 'Content-Type': 'application/json' } : undefined,
-    body: body ? JSON.stringify(body) : undefined,
-  })
-  const data = await r.json()
-  if (!r.ok || !data.success) throw new Error(data?.error?.message || `HTTP ${r.status}`)
-  return data.data
-}
+const api = (path, body) => apiFetch(`/auth${path}`, body ? { method: 'POST', body } : undefined)
 
 export default function AuthModal({ onClose, onAuthed }) {
   const [mode, setMode] = useState('login')
