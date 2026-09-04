@@ -6,6 +6,7 @@ const jwt = require('jsonwebtoken')
 const pool = require('../db.js')
 const validate = require('../middleware/validate.js')
 const { signAccess, signRefresh, signReset, requireAuth } = require('../middleware/auth.js')
+const cache = require('../services/cache.js')
 const { z } = require('zod')
 
 const { jwtSecret: SECRET } = require('../config.js')
@@ -16,10 +17,19 @@ const SECURE = process.env.NODE_ENV === 'production'
 const COOKIE_OPTS = { httpOnly: true, sameSite: 'lax', secure: SECURE, maxAge: 7 * 24 * 3600 * 1000 }
 const ACCESS_OPTS = { httpOnly: true, sameSite: 'lax', secure: SECURE, maxAge: 3600 * 1000 }
 
-// set access (1h) + refresh (7d) cookies
-function setAuthCookies(res, user) {
-  res.cookie('token', signAccess(user), ACCESS_OPTS)
-  res.cookie('refresh_token', signRefresh(user), COOKIE_OPTS)
+// Tạo session DB + cookie. sign* tự sinh jti — decode lại refresh jti để lưu DB khớp 100%.
+async function createSession(req, res, user) {
+  const sid = require('node:crypto').randomUUID()
+  const at = signAccess(user, sid)
+  const rt = signRefresh(user, sid)
+  const rtJti = jwt.decode(rt).jti
+  await pool.query(
+    `INSERT INTO auth_sessions (sid, user_id, refresh_jti, expires_at, ip, ua)
+     VALUES ($1, $2, $3, now() + interval '7 days', $4, $5)`,
+    [sid, user.id, rtJti, req.ip || null, (req.get('user-agent') || '').slice(0, 200)],
+  )
+  res.cookie('token', at, ACCESS_OPTS)
+  res.cookie('refresh_token', rt, COOKIE_OPTS)
 }
 
 const credentials = z.object({
@@ -63,7 +73,7 @@ router.post('/register', validate(z.object({
     'INSERT INTO users (email, password_hash, name, phone) VALUES ($1,$2,$3,$4) RETURNING id, email, name, role',
     [email, hash, name, phone || null],
   )
-  setAuthCookies(res, user)
+  await createSession(req, res, user)
   res.status(201).json({ success: true, data: user })
 })
 
@@ -89,30 +99,76 @@ router.post('/login', validate(credentials), async (req, res) => {
   }
 
   const { password_hash, ...safe } = user
-  setAuthCookies(res, user)
+  await createSession(req, res, user)
   res.json({ success: true, data: safe })
 })
 
-// §37: refresh — đổi refresh_token 7d lấy access token 1h mới
+// §37: refresh — rotation: mỗi lần dùng cấp refresh mới, jti cũ hết giá trị.
+// Dùng lại jti cũ (reuse) = nghi token bị đánh cắp → revoke cả session.
 router.post('/refresh', async (req, res) => {
   const rt = req.cookies?.refresh_token
   if (!rt) return res.status(401).json({ success: false, error: { code: 'UNAUTHORIZED', message: 'Không có refresh token' } })
-  try {
-    const payload = jwt.verify(rt, SECRET)
-    if (payload.typ !== 'refresh') throw new Error('sai loại token')
-    // user còn sống không (bị xóa thì từ chối)
-    const { rows: [user] } = await pool.query('SELECT id, role FROM users WHERE id = $1', [payload.sub])
-    if (!user) throw new Error('user không tồn tại')
-    res.cookie('token', signAccess(user), ACCESS_OPTS)
-    res.json({ success: true, data: { ok: true } })
-  } catch {
+  const dead = () => {
     res.clearCookie('token')
     res.clearCookie('refresh_token')
-    res.status(401).json({ success: false, error: { code: 'UNAUTHORIZED', message: 'Refresh token hết hạn — đăng nhập lại' } })
+    res.status(401).json({ success: false, error: { code: 'UNAUTHORIZED', message: 'Phiên hết hạn — đăng nhập lại' } })
+  }
+  try {
+    const payload = jwt.verify(rt, SECRET)
+    if (payload.typ !== 'refresh' || !payload.sid || !payload.jti) throw new Error('sai loại token')
+    const { rows: [s] } = await pool.query(
+      'SELECT sid, user_id, refresh_jti, revoked_at, expires_at FROM auth_sessions WHERE sid = $1', [payload.sid])
+    if (!s || s.revoked_at || new Date(s.expires_at) < new Date()) return dead()
+    if (s.refresh_jti !== payload.jti) {
+      // reuse: refresh cũ đã xoay vòng mà vẫn bị dùng lại → khóa session, buộc login lại
+      await pool.query('UPDATE auth_sessions SET revoked_at = now() WHERE sid = $1', [payload.sid])
+      return dead()
+    }
+    const { rows: [user] } = await pool.query('SELECT id, role FROM users WHERE id = $1', [payload.sub])
+    if (!user) return dead()
+    const at = signAccess(user, payload.sid)
+    const newRt = signRefresh(user, payload.sid)
+    await pool.query(
+      'UPDATE auth_sessions SET refresh_jti = $2, last_used_at = now() WHERE sid = $1',
+      [payload.sid, jwt.decode(newRt).jti])
+    res.cookie('token', at, ACCESS_OPTS)
+    res.cookie('refresh_token', newRt, COOKIE_OPTS)
+    res.json({ success: true, data: { ok: true } })
+  } catch {
+    return dead()
   }
 })
 
-router.post('/logout', (_req, res) => {
+// Thu hồi access hiện tại (blacklist jti tới khi nó tự hết hạn) + revoke refresh session.
+async function killAccess(jti, exp) {
+  if (!jti) return
+  const ttl = Math.max(1, (exp || 0) - Math.floor(Date.now() / 1000))
+  await cache.set(`bl:${jti}`, 1, Math.min(ttl, 3600)).catch(() => {})
+}
+
+router.post('/logout', async (req, res) => {
+  try {
+    const at = req.cookies?.token
+    if (at) {
+      const p = jwt.decode(at)
+      await killAccess(p?.jti, p?.exp)
+    }
+    const rt = req.cookies?.refresh_token
+    if (rt) {
+      const p = jwt.decode(rt)
+      if (p?.sid) await pool.query('UPDATE auth_sessions SET revoked_at = now() WHERE sid = $1', [p.sid])
+    }
+  } catch { /* logout luôn thành công phía client */ }
+  res.clearCookie('token', { ...ACCESS_OPTS, maxAge: undefined })
+  res.clearCookie('refresh_token', { ...COOKIE_OPTS, maxAge: undefined })
+  res.json({ success: true, data: { ok: true } })
+})
+
+// Đăng xuất mọi thiết bị: access cũ chết ngay (mốc uav), refresh sessions revoke hết.
+router.post('/logout-all', requireAuth, async (req, res) => {
+  await pool.query('UPDATE auth_sessions SET revoked_at = now() WHERE user_id = $1 AND revoked_at IS NULL', [req.user.id])
+  if (req.user.jti) await killAccess(req.user.jti, Math.floor(Date.now() / 1000) + 3600)
+  await cache.set(`uav:${req.user.id}`, Math.floor(Date.now() / 1000)).catch(() => {})
   res.clearCookie('token', { ...ACCESS_OPTS, maxAge: undefined })
   res.clearCookie('refresh_token', { ...COOKIE_OPTS, maxAge: undefined })
   res.json({ success: true, data: { ok: true } })
@@ -127,26 +183,28 @@ router.post('/forgot-password', validate(z.object({ email: z.string().email() })
   res.json({ success: true, data: { ok: true, ...(resetToken && { resetToken }) } })
 })
 
-// §37 reset-password — token 15m. ponytail: JWT stateless nên token dùng lại được
-// trong 15m (không có bảng revoked) — cần 1-lần-dùng thật thì thêm bảng password_resets
-// lưu hash token + đánh dấu used.
+// §37 reset-password — token 15m, 1-lần-dùng thật (jti bị blacklist ngay khi dùng).
+// Đổi pass xong đá mọi session cũ (mốc uav + revoke sessions) — kẻ cầm pass cũ/token cũ hết cửa.
 router.post('/reset-password', validate(z.object({
   resetToken: z.string().min(20),
   password: z.string().min(8, 'Tối thiểu 8 ký tự').max(72),
 })), async (req, res) => {
   try {
     const payload = jwt.verify(req.body.resetToken, SECRET)
-    if (payload.typ !== 'reset') throw new Error('sai loại token')
+    if (payload.typ !== 'reset' || !payload.jti) throw new Error('sai loại token')
+    if (await cache.get(`bl:${payload.jti}`).catch(() => null)) throw new Error('token đã dùng')
     const hash = await bcrypt.hash(req.body.password, 10)
     const { rowCount } = await pool.query('UPDATE users SET password_hash = $1 WHERE id = $2', [hash, payload.sub])
     if (!rowCount) throw new Error('user không tồn tại')
-    // đổi pass xong thu hồi session cũ
+    await cache.set(`bl:${payload.jti}`, 1, 900).catch(() => {}) // reset link dùng 1 lần
+    await pool.query('UPDATE auth_sessions SET revoked_at = now() WHERE user_id = $1 AND revoked_at IS NULL', [payload.sub])
+    await cache.set(`uav:${payload.sub}`, Math.floor(Date.now() / 1000)).catch(() => {})
     res.clearCookie('token')
     res.clearCookie('refresh_token')
     res.json({ success: true, data: { ok: true } })
   } catch (e) {
-    if (e.message === 'sai loại token' || e.name === 'TokenExpiredError' || e.name === 'JsonWebTokenError') {
-      return res.status(401).json({ success: false, error: { code: 'INVALID_TOKEN', message: 'Link đặt lại không hợp lệ hoặc đã hết hạn' } })
+    if (['sai loại token', 'token đã dùng', 'user không tồn tại'].includes(e.message) || e.name === 'TokenExpiredError' || e.name === 'JsonWebTokenError') {
+      return res.status(401).json({ success: false, error: { code: 'INVALID_TOKEN', message: 'Link đặt lại không hợp lệ, đã dùng hoặc đã hết hạn' } })
     }
     throw e
   }
