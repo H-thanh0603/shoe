@@ -40,6 +40,11 @@ async function getCartId(req) {
 const err = (e) => ({ status: e.status || 500, body: { success: false, error: { code: e.code || 'INTERNAL', message: e.message } } })
 
 router.post('/', validate(orderSchema), async (req, res) => {
+  // VNPay chưa tích hợp (không có pay.js/verify) — từ chối rõ thay vì tạo
+  // đơn unpaid mà không có link thanh toán
+  if (req.body.paymentMethod === 'vnpay') {
+    return res.status(400).json({ success: false, error: { code: 'PAYMENT_UNAVAILABLE', message: 'VNPay đang tích hợp — vui lòng chọn COD' } })
+  }
   const cartId = await getCartId(req)
   if (!cartId) return res.status(400).json({ success: false, error: { code: 'CART_EMPTY', message: 'Giỏ hàng trống' } })
 

@@ -16,4 +16,5 @@ fi
 : "${LITELLM_MASTER_KEY:?Chưa có LITELLM_MASTER_KEY — điền vào agents/.env}"
 VENV="${AGENTS_VENV:-$HOME/.venvs/kinetic-agents}"
 VENV=$(eval echo "${VENV}")
-exec "$VENV/bin/litellm" --config "$HERE/litellm.yaml" --port 4000
+# bind loopback: proxy giữ DeepSeek key, không lộ ra LAN
+exec "$VENV/bin/litellm" --config "$HERE/litellm.yaml" --host 127.0.0.1 --port 4000

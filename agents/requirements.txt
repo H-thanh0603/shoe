@@ -7,3 +7,4 @@ anthropic>=0.91
 pyyaml>=6
 fastapi>=0.100
 uvicorn>=0.20
+litellm[proxy]>=1.0

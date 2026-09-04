@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { apiFetch } from '../lib/api.js'
 
 // Checkout step trong CartDrawer (Bước 5) — POST /api/v1/orders, Idempotency-Key chống double submit
@@ -14,6 +14,8 @@ export default function CheckoutForm({ totalVnd, onDone, onBack }) {
   const [ok, setOk] = useState(null)
   const [coupon, setCoupon] = useState(null) // { ok, msg, discountVnd, freeShipping, totalVnd }
   const [checking, setChecking] = useState(false)
+  // Key cố định theo phiên form: retry sau lỗi mạng trả về đơn cũ thay vì tạo trùng
+  const idemKey = useRef(crypto.randomUUID())
   const set = (k) => (e) => {
     setForm((f) => ({ ...f, [k]: e.target.value }))
     if (k === 'couponCode') setCoupon(null) // đổi mã → check lại
@@ -46,7 +48,7 @@ export default function CheckoutForm({ totalVnd, onDone, onBack }) {
     try {
       const data = await apiFetch('/orders', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Idempotency-Key': crypto.randomUUID() },
+        headers: { 'Content-Type': 'application/json', 'Idempotency-Key': idemKey.current },
         body: { ...form, couponCode: form.couponCode || undefined, paymentMethod: 'cod' },
       })
       setOk(data)
