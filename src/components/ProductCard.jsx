@@ -55,8 +55,8 @@ export function Card({ p, match, onWishlist, isWishlisted, onToggleCompare, isCo
         {/* Subtle grid background */}
         <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(#ffffff0a_1px,transparent_1px)] bg-[size:1rem_1rem]" />
 
-        {/* Ảnh thật — lỗi thì rơi về SVG vẽ tay bên dưới */}
-        {photo && imgOk && (
+        {/* Ảnh thật — có ảnh thì SVG cũ không render để khỏi che */}
+        {photo && imgOk ? (
           <img
             src={photo}
             alt={p.name}
@@ -64,8 +64,7 @@ export function Card({ p, match, onWishlist, isWishlisted, onToggleCompare, isCo
             onError={() => setImgOk(false)}
             className="absolute inset-0 h-full w-full object-cover"
           />
-        )}
-
+        ) : (
         <svg viewBox="0 0 520 220" className="w-[82%] drop-shadow-[0_15px_25px_rgba(0,0,0,0.6)]" aria-hidden="true">
           {/* Sole */}
           <path
@@ -79,6 +78,7 @@ export function Card({ p, match, onWishlist, isWishlisted, onToggleCompare, isCo
           {/* Midsole line detail */}
           <path d="M120 160 Q260 140 440 160" stroke="#18181b" strokeWidth="3" fill="none" opacity="0.4" />
         </svg>
+        )}
 
         {/* Quick Added Notification Banner */}
         {addedMsg && (

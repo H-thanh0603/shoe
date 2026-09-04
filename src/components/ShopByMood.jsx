@@ -44,17 +44,26 @@ export default function ShopByMood() {
       <div className="grid grid-cols-2 gap-3 md:grid-cols-5">
         {MOODS.map((m) => {
           const p = picks[m.id]
+          const photo = p?.images?.[0]
           const inner = (
             <>
-              <span className="text-3xl" aria-hidden="true">{m.emoji}</span>
-              <span className="mt-auto text-left">
+              {/* ảnh thật phủ nền + gradient giữ chữ đọc được */}
+              {photo ? (
+                <img src={photo} alt="" loading="lazy" aria-hidden="true"
+                  onError={(e) => { e.currentTarget.style.display = 'none' }}
+                  className="absolute inset-0 h-full w-full object-cover" />
+              ) : (
+                <span className="absolute inset-0 flex items-center justify-center text-5xl" aria-hidden="true">{m.emoji}</span>
+              )}
+              <span className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/70 via-black/10 to-transparent" aria-hidden="true" />
+              <span className="relative mt-auto text-left">
+                <span className="block font-mono text-[10px] tracking-wider text-white/70">{m.desc}</span>
                 <span className="block font-display text-lg font-bold text-white drop-shadow">{m.label}</span>
-                <span className="block font-mono text-[10px] tracking-wider text-white/80">{m.desc}</span>
                 {p && <span className="mt-1 block truncate font-mono text-[10px] text-white/90 underline underline-offset-2">{p.name}</span>}
               </span>
             </>
           )
-          const cls = `group flex min-h-[190px] flex-col justify-between rounded-2xl bg-gradient-to-br p-4 text-left shadow-lg transition-transform duration-300 hover:-translate-y-1.5 hover:shadow-2xl ${m.bg}`
+          const cls = `group relative flex min-h-[190px] flex-col justify-between overflow-hidden rounded-2xl bg-gradient-to-br p-4 text-left shadow-lg transition-transform duration-300 hover:-translate-y-1.5 hover:shadow-2xl ${m.bg}`
           return p ? (
             <a key={m.id} data-anime href={`#/san-pham/${p.slug}`} className={cls}>{inner}</a>
           ) : (
