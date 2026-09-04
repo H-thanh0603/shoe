@@ -66,6 +66,20 @@ services:
       JWT_SECRET: ${JWT_SECRET:?đặt JWT_SECRET trong .env khi deploy}
       WORKER_ONLY: "true"
 
+  # Cron định kỳ (mỗi 6h): enqueue dọn events + quét tồn — việc thật do worker(s) nhận.
+  # Tách khỏi process API để tắt API/worker vẫn còn lịch (worker dev local vẫn tự lịch fallback).
+  cron:
+    build: .
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://kinetic:kinetic@postgres:5432/kinetic
+      JWT_SECRET: ${JWT_SECRET:?đặt JWT_SECRET trong .env khi deploy}
+      JOBS_ENABLED: "false"
+    command: ["sh", "-c", "while true; do node cron.js; sleep 21600; done"]
+
 volumes:
   pgdata:
   redisdata:
