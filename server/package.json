@@ -7,9 +7,11 @@
     "dev": "node --watch server.js",
     "db:migrate": "node migrate.js",
     "db:seed": "node seed.js",
-    "test": "node --test test/pricing.test.js",
+    "test": "node --test test/pricing.test.js test/cache.test.js",
     "test:api": "node --test test/api.test.js",
-    "test:auth": "node --test test/auth.test.js"
+    "test:auth": "node --test test/auth.test.js",
+    "test:jobs": "node --test test/jobs.test.js",
+    "test:search": "node --test test/search.test.js"
   },
   "keywords": [],
   "type": "commonjs",
