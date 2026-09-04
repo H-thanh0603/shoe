@@ -2,6 +2,7 @@
 // Merchant chat yêu cầu admin; session_id do client tạo (1 tab = 1 phiên).
 // v1: non-streaming (bridge gom text_delta). Timeout 120s vì turn gọi nhiều tools.
 const express = require('express')
+const rateLimit = require('express-rate-limit')
 const { requireRole } = require('../middleware/auth.js')
 const validate = require('../middleware/validate.js')
 const { asyncHandler, httpError } = require('../middleware/errorHandler.js')
@@ -11,6 +12,18 @@ const router = express.Router()
 
 const BRIDGE_URL = process.env.BRIDGE_URL || 'http://127.0.0.1:4001'
 const BRIDGE_SECRET = process.env.BRIDGE_SECRET || ''
+
+// Mỗi turn đốt tiền LLM + DB — giới hạn theo admin user (không theo IP vì
+// cùng mạng nội bộ): 30 turn/10 phút. Vượt → 429, UI báo thử lại sau.
+const agentLimiter = rateLimit({
+  windowMs: 10 * 60 * 1000,
+  limit: 30,
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req) => `agent:${req.user?.id ?? req.ip}`,
+  message: { success: false, error: { code: 'RATE_LIMITED', message: 'Bạn chat agent quá nhanh — thử lại sau 10 phút' } },
+})
+router.use(agentLimiter)
 
 router.post('/chat',
   requireRole('admin'),

@@ -6,6 +6,8 @@ model_list:
     litellm_params:
       model: deepseek/${DEEPSEEK_MODEL:-deepseek-chat}
       api_key: os.environ/DEEPSEEK_API_KEY
+      num_retries: 3
+      timeout: 90
 
 general_settings:
   master_key: os.environ/LITELLM_MASTER_KEY

@@ -19,7 +19,19 @@ from pydantic import BaseModel
 SECRET = os.environ.get("BRIDGE_SECRET", "")
 
 app = FastAPI(title="kinetic-agent-bridge")
+
+# Chống DoS/RAM: tối đa phiên + lock chống 2 turn cùng lúc phá state +
+# trần turn/phiên (context phình + tốn tiền).
+MAX_SESSIONS = 50
+MAX_TURNS = 30
 _sessions: dict = {}
+_locks: dict = {}
+
+
+def _evict_if_full():
+    while len(_sessions) >= MAX_SESSIONS:
+        _sessions.pop(next(iter(_sessions)))
+        _locks.pop(next(iter(_locks)), None)
 
 
 class ChatIn(BaseModel):
@@ -85,12 +97,19 @@ async def _run_turn(agent, session, state, message):
 
 
 def _get_or_build(body: ChatIn):
+    import asyncio
     key = (body.role, body.session_id)
     if key not in _sessions:
+        _evict_if_full()
         agent, state_cls = _build(body.role)
         _sessions[key] = [agent, _ctx(body.role, body.session_id, body.operator),
-                          state_cls()]
-    return _sessions[key]
+                          state_cls(), 0]  # [.., turn_count]
+        _locks[key] = asyncio.Lock()
+    entry = _sessions[key]
+    if entry[3] >= MAX_TURNS:
+        raise RuntimeError("Phiên chat đã quá 30 lượt — tải lại trang để bắt đầu phiên mới (gọn context, rẻ hơn).")
+    entry[3] += 1
+    return entry[0], entry[1], entry[2], _locks[key]
 
 
 def _check(body: ChatIn, secret: str):
@@ -105,14 +124,15 @@ def _check(body: ChatIn, secret: str):
 @app.post("/chat")
 async def chat(body: ChatIn, x_bridge_secret: str = Header(default="")):
     _check(body, x_bridge_secret)
-    text, tools, error = "", [], False
+    text, tools = "", []
     try:
-        agent, session, state = _get_or_build(body)
-        async for kind, payload in _run_turn(agent, session, state, body.message):
-            if kind == "text":
-                text += payload
-            elif kind == "tool":
-                tools.append(payload)
+        agent, session, state, lock = _get_or_build(body)
+        async with lock:  # 1 turn/phiên tại 1 thời điểm — chống race state
+            async for kind, payload in _run_turn(agent, session, state, body.message):
+                if kind == "text":
+                    text += payload
+                elif kind == "tool":
+                    tools.append(payload)
     except Exception as e:
         return {"text": f"Lỗi agent: {e}", "tools": tools, "error": True}
     return {"text": text.strip(), "tools": tools}
@@ -126,9 +146,10 @@ async def chat_stream(body: ChatIn, x_bridge_secret: str = Header(default="")):
 
     async def gen():
         try:
-            agent, session, state = _get_or_build(body)
-            async for kind, payload in _run_turn(agent, session, state, body.message):
-                yield f"data: {_json.dumps({'kind': kind, 'payload': payload})}\n\n"
+            agent, session, state, lock = _get_or_build(body)
+            async with lock:
+                async for kind, payload in _run_turn(agent, session, state, body.message):
+                    yield f"data: {_json.dumps({'kind': kind, 'payload': payload})}\n\n"
         except Exception as e:
             yield f"data: {_json.dumps({'kind': 'error', 'payload': str(e)})}\n\n"
 
