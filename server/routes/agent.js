@@ -4,7 +4,7 @@
 const express = require('express')
 const rateLimit = require('express-rate-limit')
 const { ipKeyGenerator } = require('express-rate-limit')
-const { requireRole } = require('../middleware/auth.js')
+const { requireAuth, loadPerms, requirePerm } = require('../middleware/auth.js')
 const validate = require('../middleware/validate.js')
 const { asyncHandler, httpError } = require('../middleware/errorHandler.js')
 const { z } = require('zod')
@@ -27,7 +27,7 @@ const agentLimiter = rateLimit({
 router.use(agentLimiter)
 
 router.post('/chat',
-  requireRole('admin'),
+  requireAuth, loadPerms, requirePerm('agent:use'),
   validate(z.object({
     message: z.string().trim().min(1).max(2000),
     sessionId: z.string().trim().min(1).max(100),
@@ -65,7 +65,7 @@ router.post('/chat',
 // POST /api/v1/agent/chat/stream — SSE pipe từ bridge (text live từng token)
 // Client đọc bằng fetch + ReadableStream (EventSource không POST được).
 router.post('/chat/stream',
-  requireRole('admin'),
+  requireAuth, loadPerms, requirePerm('agent:use'),
   validate(z.object({
     message: z.string().trim().min(1).max(2000),
     sessionId: z.string().trim().min(1).max(100),

@@ -12,7 +12,8 @@
     "test:api": "node --test test/api.test.js",
     "test:auth": "node --test test/auth.test.js",
     "test:jobs": "node --test test/jobs.test.js",
-    "test:search": "node --test test/search.test.js"
+    "test:search": "node --test test/search.test.js",
+    "test:rbac": "node --test test/rbac.test.js"
   },
   "keywords": [],
   "type": "commonjs",
