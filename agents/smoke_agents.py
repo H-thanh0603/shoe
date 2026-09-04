@@ -83,6 +83,23 @@ async def main():
         except Unavailable as e:
             check("add out-of-stock → Unavailable", True, f"({e})")
 
+    # -- cart share: giỏ agent → link → gộp vào giỏ user (MOVE) --
+    if var:
+        from kinetic_agents import KineticClient
+        agent2, user2 = KineticStorefront(), KineticClient()
+        s2 = ShoppingSessionContext(session_id="smoke-share", user_id="guest-share",
+                                    timezone="Asia/Ho_Chi_Minh")
+        await agent2.add_to_cart(s2, var.product_id, 1)
+        token = agent2.api.share_token
+        check("share token", bool(token))
+        claimed = user2.post("/api/v1/cart/claim", {"token": token})
+        check("claim merged", claimed.get("merged", 0) == 1
+              and any(i["variantId"] for i in claimed["items"]),
+              f"(giỏ user {claimed['count']} món)")
+        check("claim MOVE nguồn", (await agent2.get_cart(s2)).item_count == 0)
+        # dọn giỏ user sau test
+        user2.delete("/api/v1/cart")
+
     # -- orders --
     check("get_orders guest → []", await shop.get_orders(s) == [])
     check("get_order unknown → None", await shop.get_order(s, "KIN-XXXXXX") is None)

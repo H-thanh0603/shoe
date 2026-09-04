@@ -123,4 +123,64 @@ router.delete('/', async (req, res) => {
   res.json({ success: true, data: await cartPayload(req.cartId) })
 })
 
+// GET /cart/share — lấy token chia sẻ giỏ hiện tại (chính là session_token).
+// Agent đưa token này cho khách dưới dạng link web/#/gio-hang/:token.
+router.get('/share', async (req, res) => {
+  const { rows: [c] } = await pool.query('SELECT session_token FROM carts WHERE id = $1', [req.cartId])
+  if (!c?.session_token) return res.status(404).json({ success: false, error: { code: 'CART_EMPTY', message: 'Giỏ trống, không có gì để chia sẻ' } })
+  const { rows: [{ count }] } = await pool.query('SELECT COUNT(*) FROM cart_items WHERE cart_id = $1', [req.cartId])
+  if (Number(count) === 0) return res.status(404).json({ success: false, error: { code: 'CART_EMPTY', message: 'Giỏ trống, không có gì để chia sẻ' } })
+  res.json({ success: true, data: { token: c.session_token } })
+})
+
+// POST /cart/claim {token} — nhận giỏ được chia sẻ: gộp vào giỏ mình (MOVE,
+// xóa nguồn để khỏi mua trùng), số lượng vượt stock thì cắt xuống mức còn hàng.
+router.post('/claim', validate(z.object({ token: z.string().trim().min(1).max(100) })), async (req, res) => {
+  const client = await pool.connect()
+  try {
+    await client.query('BEGIN')
+    const { rows: [src] } = await client.query(
+      'SELECT id FROM carts WHERE session_token = $1 FOR UPDATE', [req.body.token])
+    if (!src) {
+      await client.query('ROLLBACK')
+      return res.status(404).json({ success: false, error: { code: 'SHARE_NOT_FOUND', message: 'Link nhận giỏ hết hạn hoặc đã dùng' } })
+    }
+    if (src.id === req.cartId) {
+      await client.query('ROLLBACK')
+      return res.json({ success: true, data: await cartPayload(req.cartId) })
+    }
+    const { rows: items } = await client.query(
+      `SELECT ci.variant_id, ci.qty, pv.stock FROM cart_items ci
+       JOIN product_variants pv ON pv.id = ci.variant_id
+       JOIN products p ON p.id = pv.product_id
+       WHERE ci.cart_id = $1 AND p.is_active AND pv.stock > 0`,
+      [src.id],
+    )
+    for (const it of items) {
+      const qty = Math.min(it.qty, it.stock, 10)
+      const { rows: [ex] } = await client.query(
+        'SELECT id, qty FROM cart_items WHERE cart_id = $1 AND variant_id = $2',
+        [req.cartId, it.variant_id],
+      )
+      if (ex) {
+        const { rows: [{ stock }] } = await client.query(
+          'SELECT stock FROM product_variants WHERE id = $1', [it.variant_id])
+        await client.query('UPDATE cart_items SET qty = $1 WHERE id = $2',
+          [Math.min(ex.qty + qty, stock, 10), ex.id])
+      } else {
+        await client.query('INSERT INTO cart_items (cart_id, variant_id, qty) VALUES ($1,$2,$3)',
+          [req.cartId, it.variant_id, qty])
+      }
+    }
+    await client.query('DELETE FROM cart_items WHERE cart_id = $1', [src.id])
+    await client.query('COMMIT')
+    res.json({ success: true, data: { ...(await cartPayload(req.cartId)), merged: items.length } })
+  } catch (e) {
+    await client.query('ROLLBACK').catch(() => {})
+    res.status(500).json({ success: false, error: { code: 'INTERNAL', message: 'Lỗi server' } })
+  } finally {
+    client.release()
+  }
+})
+
 module.exports = router

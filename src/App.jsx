@@ -14,6 +14,7 @@ import Home from './pages/Home.jsx'
 import ProductPage from './pages/ProductPage.jsx'
 import TrackOrder from './pages/TrackOrder.jsx'
 import MyOrders from './pages/MyOrders.jsx'
+import ClaimCart from './pages/ClaimCart.jsx'
 import Admin from './pages/Admin.jsx'
 
 export default function App() {
@@ -55,6 +56,8 @@ export default function App() {
         <TrackOrder initialCode={route.param} />
       ) : route.name === 'myorders' ? (
         <MyOrders />
+      ) : route.name === 'claim' ? (
+        <ClaimCart token={route.param} />
       ) : route.name === 'admin' ? (
         <Admin />
       ) : (
