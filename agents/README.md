@@ -9,9 +9,9 @@ adapter — chỉ cần khi chạy agent thật với model.
 
 ```bash
 # 1. Blueprint (đọc + cài packages, không sửa gì trong đó)
-git clone --depth 1 https://github.com/anthropics/commerce-agents.git /tmp/commerce-agents
-uv venv /tmp/kinetic-agents/.venv
-/tmp/kinetic-agents/.venv/bin/pip install -r agents/requirements.txt
+git clone --depth 1 https://github.com/anthropics/commerce-agents.git ~/commerce-agents
+uv venv ~/.venvs/kinetic-agents
+~/.venvs/kinetic-agents/bin/pip install -r agents/requirements.txt
 
 # 2. DB + server KINETIC
 npm run db:migrate --prefix server
@@ -22,7 +22,7 @@ set -a; source agents/.env; set +a
 ./agents/run_smoke.sh
 
 # 4. Chat demo (cần key — Anthropic hoặc proxy, xem dưới)
-/tmp/kinetic-agents/.venv/bin/python agents/run_demo.py [--merchant]
+~/.venvs/kinetic-agents/bin/python agents/run_demo.py [--merchant]
 ```
 
 Biến môi trường: copy `agents/.env.example` thành `agents/.env` (không commit).
@@ -33,7 +33,7 @@ Biến môi trường: copy `agents/.env.example` thành `agents/.env` (không c
 | `KINETIC_WEB_URL` | `http://localhost:3000` | link handoff checkout + tracking đơn |
 | `KINETIC_ADMIN_EMAIL` | `admin@kinetic.vn` | merchant login |
 | `KINETIC_ADMIN_PASSWORD` | (bắt buộc) | merchant login |
-| `BLUEPRINT_DIR` | `/tmp/commerce-agents` | `run_smoke.sh` dựng PYTHONPATH |
+| `BLUEPRINT_DIR` | `~/commerce-agents` | `run_smoke.sh` dựng PYTHONPATH |
 
 ## Chạy agent thật — Anthropic hoặc DeepSeek
 
@@ -58,8 +58,18 @@ Config (`kinetic_shopping_config` / `kinetic_merchant_config`) set full field:
 caps khớp backend (cart tối đa 10/món, giá ±20%, promo ≤50%, nhập kho ≤500),
 `require_host_approval=True`, và **lexicon tiếng Việt** nối vào grounding
 terms (`đổi size`, `tra cứu`, `doanh thu`, `duyệt`...) để gate trigger đúng
-khi khách/operator nói tiếng Việt. Merchant tương tự với `KineticMerchant()`,
-`kinetic_merchant_config()` — mọi ghi (`apply_change`) đều qua mặt duyệt host.
+khi khách/operator nói tiếng Việt. Provider chọn bằng 1 biến
+`ASSISTANT_PROVIDER=deepseek|anthropic`; model `deepseek-reasoner` bị chặn
+ngay ở config vì tool-use kém. HTTP client retry GET 429/5xx (không retry
+POST/PATCH/DELETE để tránh tạo đơn trùng).
+
+## Ngưỡng tốt nghiệp khỏi LiteLLM
+
+LiteLLM ở đây chỉ là lớp dịch protocol + retry, đủ cho pilot vì loop ta gọi
+tuần tự, không ảnh, không billing. Migrate khi gặp 1 trong các dấu hiệu:
+parallel tool calls bị serialize sai, cần streaming token-level về UI,
+cần ảnh đầu vào, hoặc cần usage/billing chính xác — lúc đó thay đúng lớp
+dịch, giữ nguyên adapters, configs và toàn bộ method backend.
 
 ## Ánh xạ & giới hạn đã biết
 

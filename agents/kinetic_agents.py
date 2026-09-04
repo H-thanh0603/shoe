@@ -85,13 +85,28 @@ class KineticError(Exception):
         self.code = code
 
 
+def _retrying_session() -> requests.Session:
+    # Retry lỗi thoáng qua (429/5xx) cho GET — adapter gọi nhiều request nối
+    # tiếp nên 1 timeout đơn lẻ không được làm sập cả turn. POST/PATCH/DELETE
+    # KHÔNG retry: POST /orders hay /cart/items retry mù sẽ tạo đơn trùng/
+    # cộng giỏ 2 lần (fail fast để executor báo unavailable).
+    from requests.adapters import HTTPAdapter
+    from urllib3.util.retry import Retry
+    retry = Retry(total=3, backoff_factor=0.5,
+                  status_forcelist=(429, 500, 502, 503, 504))
+    s = requests.Session()
+    s.mount("http://", HTTPAdapter(max_retries=retry))
+    s.mount("https://", HTTPAdapter(max_retries=retry))
+    return s
+
+
 class KineticClient:
     """requests.Session + envelope unwrap. One instance per agent session
     (shopper) so guest carts don't leak across sessions."""
 
     def __init__(self, base: str = API):
         self.base = base.rstrip("/")
-        self.session = requests.Session()
+        self.session = _retrying_session()
         self._admin = False
 
     def call(self, method: str, path: str, **kw):
@@ -708,25 +723,35 @@ class KineticMerchant(MerchantBackend):
 # LLM client — Anthropic trực tiếp hoặc DeepSeek/gateway tương thích
 # ---------------------------------------------------------------------------
 #
-# Blueprint gọi Messages API qua `anthropic` SDK. DeepSeek (api.deepseek.com) dùng
-# format OpenAI nên KHÔNG đấu thẳng được — cần 1 proxy dịch Anthropic<->OpenAI
-# (vd LiteLLM) hoặc gateway tương thích Anthropic. Cả 2 đi qua cùng 2 biến:
-#   KINETIC_LLM_BASE_URL=https://llm-gateway.internal.example  (bỏ trống = api.anthropic.com)
-#   KINETIC_LLM_API_KEY=...  (hoặc ANTHROPIC_API_KEY)
-# Model đi theo provider: KINETIC_SHOPPING_MODEL / KINETIC_MERCHANT_MODEL,
-# vd deepseek-chat khi qua proxy DeepSeek, claude-sonnet-5 khi trực tiếp.
+# Blueprint gọi Messages API qua `anthropic` SDK. Chọn provider bằng 1 biến:
+#   ASSISTANT_PROVIDER=deepseek   (mặc định) → LiteLLM proxy :4000 + DeepSeek
+#   ASSISTANT_PROVIDER=anthropic  → api.anthropic.com + ANTHROPIC_API_KEY
+# DeepSeek (api.deepseek.com) dùng format OpenAI nên KHÔNG đấu thẳng được —
+# bắt buộc qua proxy dịch Anthropic<->OpenAI (agents/run_proxy.sh).
+# Model theo provider: deepseek-* chặn reasoner (tool-use kém, phá agent loop).
+
+def _provider() -> str:
+    return os.environ.get("ASSISTANT_PROVIDER", "deepseek").lower()
+
+
+def _guard_model(name: str, default: str) -> str:
+    model = os.environ.get(name, default)
+    if "reasoner" in model.lower():
+        raise ValueError(
+            f"{name}={model}: dòng reasoner không gọi tool ổn định — "
+            "dùng deepseek-chat (hoặc model chat khác) cho agent loop")
+    return model
+
 
 def make_llm_client():
     from anthropic import AsyncAnthropic
-    base_url = os.environ.get("KINETIC_LLM_BASE_URL") or os.environ.get("ANTHROPIC_BASE_URL")
-    api_key = (os.environ.get("KINETIC_LLM_API_KEY")
-               or os.environ.get("ANTHROPIC_API_KEY", ""))
-    kw = {"api_key": api_key} if not base_url else {"base_url": base_url, "api_key": api_key}
-    # Hỗ trợ cả AsyncAnthropic(base_url=..., api_key=...) lẫn (auth_token=...):
-    try:
-        return AsyncAnthropic(**kw)
-    except TypeError:
-        return AsyncAnthropic(base_url=base_url, auth_token=api_key)
+    if _provider() == "anthropic":
+        return AsyncAnthropic(api_key=os.environ.get("ANTHROPIC_API_KEY", ""))
+    base_url = os.environ.get("KINETIC_LLM_BASE_URL", "http://localhost:4000/v1")
+    api_key = os.environ.get("KINETIC_LLM_API_KEY", "")
+    if not api_key:
+        raise ValueError("Thiếu KINETIC_LLM_API_KEY (master key của proxy :4000)")
+    return AsyncAnthropic(base_url=base_url, api_key=api_key)
 
 
 # ---------------------------------------------------------------------------
@@ -761,12 +786,15 @@ VI_APPLY_PHRASES = ("duyệt", "đồng ý", "chốt", "áp dụng", "cho chạy
 def kinetic_shopping_config():
     from shopping_agent.config import ShoppingAgentConfig
     base = ShoppingAgentConfig()
+    deepseek = _provider() == "deepseek"
     return ShoppingAgentConfig(
         brand_name="KINETIC",
         assistant_name="trợ lý mua giày KINETIC",
         brand_voice="thẳng thắn, ngắn gọn, nói tiếng Việt",
-        model=os.environ.get("KINETIC_SHOPPING_MODEL", base.model),
-        memory_model=os.environ.get("KINETIC_MEMORY_MODEL", base.memory_model),
+        model=_guard_model("KINETIC_SHOPPING_MODEL",
+                           "deepseek-chat" if deepseek else base.model),
+        memory_model=_guard_model("KINETIC_MEMORY_MODEL",
+                                  "deepseek-chat" if deepseek else base.memory_model),
         thinking_effort="low",
         max_tokens=2048,
         domain_search_notes=("Size là số EU 39–44, mỗi size tồn kho riêng; "
@@ -793,12 +821,15 @@ def kinetic_shopping_config():
 def kinetic_merchant_config():
     from merchant_agent.config import MerchantAgentConfig
     base = MerchantAgentConfig()
+    deepseek = _provider() == "deepseek"
     return MerchantAgentConfig(
         brand_name="KINETIC",
         assistant_name="trợ lý vận hành KINETIC",
         brand_voice="nói tiếng Việt, số liệu trước, ngắn gọn",
-        model=os.environ.get("KINETIC_MERCHANT_MODEL", base.model),
-        memory_model=os.environ.get("KINETIC_MEMORY_MODEL", base.memory_model),
+        model=_guard_model("KINETIC_MERCHANT_MODEL",
+                           "deepseek-chat" if deepseek else base.model),
+        memory_model=_guard_model("KINETIC_MEMORY_MODEL",
+                                  "deepseek-chat" if deepseek else base.memory_model),
         thinking_effort="low",
         enable_analysis=False,  # chưa có SQL analysis backend
         enable_listing_edits=True,

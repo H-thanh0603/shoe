@@ -36,7 +36,7 @@ _load_dotenv()
 
 def build(role: str):
     from pathlib import Path
-    blueprint = Path(os.environ.get("BLUEPRINT_DIR", "/tmp/commerce-agents"))
+    blueprint = Path(os.path.expanduser(os.environ.get("BLUEPRINT_DIR", "~/commerce-agents")))
     for sub in ("commerce-common", "shopping-agent/core", "merchant-agent/core",
                 "shopping-agent/runtime-messages-api", "merchant-agent/runtime-messages-api"):
         sys.path.insert(0, str(blueprint / sub))
