@@ -425,6 +425,22 @@ router.post('/jobs/:id/retry', requirePerm('ops:manage'), async (req, res) => {
   ok(res, j)
 })
 
+// Quyền của chính mình — frontend dùng để hiện/ẩn tab (requireAuth, không cần perm nào).
+// Admin trả '*' để UI bật hết.
+router.get('/me/permissions', async (req, res) => {
+  if (!req.user) return res.status(401).json({ success: false, error: { code: 'UNAUTHORIZED', message: 'Chưa đăng nhập' } })
+  if (req.user.role === 'admin') {
+    const { rows } = await pool.query('SELECT key FROM permissions ORDER BY key')
+    return ok(res, { role: 'admin', permissions: rows.map((r) => r.key) })
+  }
+  const { rows } = await pool.query(
+    `SELECT DISTINCT p.key FROM permissions p
+     JOIN role_permissions rp ON rp.permission_id = p.id
+     JOIN user_roles ur ON ur.role_id = rp.role_id
+     WHERE ur.user_id = $1 ORDER BY 1`, [req.user.id])
+  ok(res, { role: req.user.role, permissions: rows.map((r) => r.key) })
+})
+
 // ——— RBAC: roles, gán vai trò, audit log (015) ———
 // Danh sách roles kèm permissions + số thành viên
 router.get('/roles', requirePerm('users:manage'), async (_req, res) => {

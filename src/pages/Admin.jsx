@@ -406,24 +406,265 @@ function ChangeApprovals() {
   )
 }
 
-const TABS = [['dash', 'TỔNG QUAN'], ['orders', 'ĐƠN HÀNG'], ['products', 'SẢN PHẨM'], ['coupons', 'MÃ GIẢM GIÁ'], ['changes', 'DUYỆT CHANGE'], ['chat', 'TRỢ LÝ']]
+function Roles() {
+  const [roles, setRoles] = useState([])
+  const [allPerms, setAllPerms] = useState([])
+  const [users, setUsers] = useState([])
+  const [q, setQ] = useState('')
+  const [sel, setSel] = useState(null) // role id đang sửa quyền
+  const [checked, setChecked] = useState(new Set())
+  const [saving, setSaving] = useState(false)
+  const [creating, setCreating] = useState({ name: '', description: '' })
+  const [userRoles, setUserRoles] = useState({}) // userId -> string[] (bản nháp)
+
+  const load = useCallback(() => {
+    apiGet('/admin/roles').then(setRoles).catch((e) => alert(e.message))
+    apiGet('/admin/permissions').then(setAllPerms).catch(() => {})
+  }, [])
+  useEffect(load, [load])
+  const loadUsers = useCallback(() => {
+    apiGet(`/admin/users?limit=20${q.trim() ? `&q=${encodeURIComponent(q.trim())}` : ''}`)
+      .then((d) => {
+        setUsers(d.items || d)
+        const draft = {}
+        for (const u of (d.items || d)) draft[u.id] = u.roles || []
+        setUserRoles(draft)
+      })
+      .catch(() => {})
+  }, [q])
+  useEffect(loadUsers, [loadUsers])
+
+  const permDesc = Object.fromEntries(allPerms.map((p) => [p.key, p.description || p.key]))
+  const selRole = roles.find((r) => r.id === sel)
+  useEffect(() => {
+    setChecked(new Set(selRole?.permissions || []))
+  }, [sel]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const togglePerm = (key) => setChecked((s) => {
+    const n = new Set(s)
+    if (n.has(key)) n.delete(key)
+    else n.add(key)
+    return n
+  })
+
+  const savePerms = async () => {
+    if (!selRole) return
+    setSaving(true)
+    try {
+      await apiFetch(`/admin/roles/${selRole.id}/permissions`, { method: 'PUT', body: { permissionKeys: [...checked] } })
+      playTechClick(); load()
+    } catch (e) { alert(e.message) } finally { setSaving(false) }
+  }
+
+  const createRole = async (e) => {
+    e.preventDefault()
+    try {
+      await apiFetch('/admin/roles', { method: 'POST', body: { name: creating.name.trim().toLowerCase(), description: creating.description.trim() } })
+      setCreating({ name: '', description: '' }); playTechClick(); load()
+    } catch (err) { alert(err.message) }
+  }
+
+  const deleteRole = async (r) => {
+    if (!confirm(`Xóa role "${r.name}"? (chỉ xóa được khi hết member)`)) return
+    try {
+      await apiFetch(`/admin/roles/${r.id}`, { method: 'DELETE' })
+      if (sel === r.id) setSel(null)
+      playTechClick(); load()
+    } catch (e) { alert(e.message) }
+  }
+
+  const toggleUserRole = (uid, roleName) => setUserRoles((m) => {
+    const cur = new Set(m[uid] || [])
+    if (cur.has(roleName)) cur.delete(roleName)
+    else cur.add(roleName)
+    return { ...m, [uid]: [...cur] }
+  })
+
+  const saveUserRoles = async (u) => {
+    try {
+      await apiFetch(`/admin/users/${u.id}/roles`, { method: 'POST', body: { roleNames: userRoles[u.id] || [] } })
+      playTechClick(); loadUsers()
+    } catch (e) { alert(e.message) }
+  }
+
+  // nhóm quyền theo tiền tố (orders, products, ...) cho dễ nhìn
+  const groups = {}
+  for (const p of allPerms) {
+    const [ns] = p.key.split(':')
+    ;(groups[ns] ??= []).push(p)
+  }
+
+  return (
+    <div className="flex flex-col gap-6">
+      <div className="border border-white/10 bg-charcoal p-4">
+        <p className="font-mono text-[10px] tracking-widest text-paper/50">VAI TRÒ ({roles.length})</p>
+        <form onSubmit={createRole} className="mt-3 flex flex-wrap items-end gap-2">
+          <label className="flex flex-col gap-1 font-mono text-[10px] text-paper/50">TÊN* (slug)<input value={creating.name} onChange={(e) => setCreating((c) => ({ ...c, name: e.target.value }))} required pattern="[a-z0-9-]+" placeholder="kho-hcm" className={`${inputCls} w-36`} /></label>
+          <label className="flex flex-col gap-1 font-mono text-[10px] text-paper/50">MÔ TẢ<input value={creating.description} onChange={(e) => setCreating((c) => ({ ...c, description: e.target.value }))} placeholder="Thủ kho chi nhánh HCM" className={`${inputCls} w-64`} /></label>
+          <button type="submit" className="border border-accent bg-accent px-4 py-1.5 font-mono text-xs font-bold text-ink hover:bg-transparent hover:text-accent">+ TẠO ROLE</button>
+        </form>
+        <table className="mt-3 w-full border-collapse">
+          <thead><tr className="border-b border-white/10"><th className={th}>ROLE</th><th className={th}>MEMBER</th><th className={th}>QUYỀN</th><th className={th}></th></tr></thead>
+          <tbody>
+            {roles.map((r) => (
+              <tr key={r.id} className={`border-b border-white/5 ${sel === r.id ? 'bg-accent/5' : ''}`}>
+                <td className={td}><span className="font-mono font-bold text-paper">{r.name}</span> <span className="text-[11px] text-paper/40">{r.description}</span></td>
+                <td className={td}>{Number(r.members)}</td>
+                <td className={td}><span className="font-mono text-[11px] text-paper/60">{(r.permissions || []).join(', ') || '—'}</span></td>
+                <td className={td}>
+                  <span className="flex gap-1.5">
+                    <button onClick={() => setSel(r.id)} className={btn}>SỬA QUYỀN</button>
+                    <button onClick={() => deleteRole(r)} className={btn}>XÓA</button>
+                  </span>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      {selRole && (
+        <div className="border border-accent/40 bg-charcoal p-4">
+          <p className="font-mono text-xs font-bold tracking-widest text-paper">QUYỀN — {selRole.name} <span className="font-normal text-paper/40">({checked.size} đã chọn)</span></p>
+          <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-2">
+            {Object.entries(groups).map(([ns, list]) => (
+              <div key={ns} className="border border-white/10 p-3">
+                <p className="font-mono text-[10px] tracking-widest text-accent">{ns.toUpperCase()}</p>
+                {list.map((p) => (
+                  <label key={p.key} className="mt-1.5 flex cursor-pointer items-start gap-2 text-sm text-paper/80 hover:text-paper">
+                    <input type="checkbox" checked={checked.has(p.key)} onChange={() => togglePerm(p.key)} className="mt-1 accent-[#d43a2a]" />
+                    <span><span className="font-mono text-xs font-bold">{p.key}</span> <span className="text-xs text-paper/50">— {p.description}</span></span>
+                  </label>
+                ))}
+              </div>
+            ))}
+          </div>
+          <div className="mt-3 flex gap-2">
+            <button onClick={savePerms} disabled={saving} className="border border-accent bg-accent px-4 py-1.5 font-mono text-xs font-bold text-ink hover:bg-transparent hover:text-accent disabled:opacity-40">LƯU QUYỀN</button>
+            <button onClick={() => setSel(null)} className={btn}>ĐÓNG</button>
+          </div>
+        </div>
+      )}
+
+      <div className="border border-white/10 bg-charcoal p-4">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <p className="font-mono text-[10px] tracking-widest text-paper/50">GÁN VAI TRÒ CHO USER</p>
+          <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Tìm email/tên…" className={`${inputCls} w-56`} />
+        </div>
+        <table className="mt-3 w-full border-collapse">
+          <thead><tr className="border-b border-white/10"><th className={th}>USER</th><th className={th}>VAI TRÒ</th><th className={th}></th></tr></thead>
+          <tbody>
+            {users.map((u) => (
+              <tr key={u.id} className="border-b border-white/5">
+                <td className={td}><span className="font-bold text-paper">{u.email}</span> <span className="text-[11px] text-paper/40">{u.name} · {u.role}</span></td>
+                <td className={td}>
+                  <span className="flex flex-wrap gap-2">
+                    {roles.map((r) => (
+                      <label key={r.id} className="flex cursor-pointer items-center gap-1 font-mono text-[11px] text-paper/70 hover:text-paper">
+                        <input type="checkbox" checked={(userRoles[u.id] || []).includes(r.name)} onChange={() => toggleUserRole(u.id, r.name)} className="accent-[#d43a2a]" />
+                        {r.name}
+                      </label>
+                    ))}
+                  </span>
+                </td>
+                <td className={td}><button onClick={() => saveUserRoles(u)} className={btn}>LƯU</button></td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  )
+}
+
+function AuditLog() {
+  const [rows, setRows] = useState([])
+  const [meta, setMeta] = useState({ page: 1, totalPages: 1 })
+  const [f, setF] = useState({ action: '', entity: '', actorId: '' })
+  const [page, setPage] = useState(1)
+  const load = useCallback(async () => {
+    const qs = new URLSearchParams({ limit: 20, page })
+    if (f.action.trim()) qs.set('action', f.action.trim())
+    if (f.entity.trim()) qs.set('entity', f.entity.trim())
+    if (f.actorId.trim()) qs.set('actorId', f.actorId.trim())
+    try {
+      const d = await apiFetch(`/admin/audit-logs?${qs}`, { method: 'GET' })
+      setRows(d.items || d)
+      setMeta({ page: d.meta?.page || 1, totalPages: d.meta?.totalPages || 1 })
+    } catch (e) { alert(e.message) }
+  }, [f.action, f.entity, f.actorId, page])
+  useEffect(load, [load])
+
+  return (
+    <div className="flex flex-col gap-4">
+      <div className="flex flex-wrap items-end gap-2 border border-white/10 bg-charcoal p-4">
+        <label className="flex flex-col gap-1 font-mono text-[10px] text-paper/50">ACTION<input value={f.action} onChange={(e) => setF((s) => ({ ...s, action: e.target.value }))} placeholder="user.roles" className={`${inputCls} w-40`} /></label>
+        <label className="flex flex-col gap-1 font-mono text-[10px] text-paper/50">ENTITY<input value={f.entity} onChange={(e) => setF((s) => ({ ...s, entity: e.target.value }))} placeholder="order" className={`${inputCls} w-32`} /></label>
+        <label className="flex flex-col gap-1 font-mono text-[10px] text-paper/50">ACTOR ID<input value={f.actorId} onChange={(e) => setF((s) => ({ ...s, actorId: e.target.value }))} inputMode="numeric" className={`${inputCls} w-24`} /></label>
+        <button onClick={() => { setPage(1); load() }} className="border border-accent bg-accent px-4 py-1.5 font-mono text-xs font-bold text-ink hover:bg-transparent hover:text-accent">LỌC</button>
+      </div>
+      <div className="overflow-x-auto border border-white/10">
+        <table className="w-full border-collapse bg-charcoal">
+          <thead><tr className="border-b border-white/10"><th className={th}>THỜI GIAN</th><th className={th}>AI</th><th className={th}>ACTION</th><th className={th}>ĐỐI TƯỢNG</th><th className={th}>CHI TIẾT</th></tr></thead>
+          <tbody>
+            {rows.map((a) => (
+              <tr key={a.id} className="border-b border-white/5">
+                <td className={`${td} font-mono text-[11px]`}>{new Date(a.created_at).toLocaleString('vi-VN')}</td>
+                <td className={td}>{a.actor_email || `#${a.actor_id ?? '?'}`}</td>
+                <td className={`${td} font-mono text-xs text-accent`}>{a.action}</td>
+                <td className={td}>{a.entity}{a.entity_id ? `:${a.entity_id}` : ''}</td>
+                <td className={`${td} max-w-xs truncate font-mono text-[11px] text-paper/50`} title={JSON.stringify(a.meta)}>{JSON.stringify(a.meta)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <div className="flex items-center gap-3">
+        <button disabled={page <= 1} onClick={() => setPage((p) => p - 1)} className={btn}>← TRƯỚC</button>
+        <span className="font-mono text-xs text-paper/50">TRANG {meta.page}/{meta.totalPages}</span>
+        <button disabled={page >= meta.totalPages} onClick={() => setPage((p) => p + 1)} className={btn}>SAU →</button>
+      </div>
+    </div>
+  )
+}
+
+// Mỗi tab yêu cầu 1 quyền — staff chỉ thấy tab mình có quyền
+const TABS = [
+  ['dash', 'TỔNG QUAN', 'analytics:read'],
+  ['orders', 'ĐƠN HÀNG', 'orders:read'],
+  ['products', 'SẢN PHẨM', 'products:read'],
+  ['coupons', 'MÃ GIẢM GIÁ', 'coupons:read'],
+  ['changes', 'DUYỆT CHANGE', 'agent:read'],
+  ['chat', 'TRỢ LÝ', 'agent:use'],
+  ['roles', 'PHÂN QUYỀN', 'users:manage'],
+  ['audit', 'NHẬT KÝ', 'audit:read'],
+]
 
 export default function Admin() {
   const [me, setMe] = useState(null)
+  const [perms, setPerms] = useState([])
   const [checked, setChecked] = useState(false)
   const [tab, setTab] = useState('dash')
 
   useEffect(() => {
-    apiGet('/auth/me').then(setMe).catch(() => {}).finally(() => setChecked(true))
+    Promise.all([apiGet('/auth/me').catch(() => null), apiGet('/admin/me/permissions').catch(() => null)])
+      .then(([u, p]) => { setMe(u); setPerms(p?.permissions || []) })
+      .finally(() => setChecked(true))
   }, [])
 
+  const can = (perm) => me?.role === 'admin' || perms.includes(perm)
+  const visibleTabs = TABS.filter(([, , perm]) => can(perm))
+  useEffect(() => {
+    if (checked && visibleTabs.length && !visibleTabs.some(([id]) => id === tab)) setTab(visibleTabs[0][0])
+  }, [checked]) // eslint-disable-line react-hooks/exhaustive-deps
+
   if (!checked) return <main className="mx-auto max-w-6xl px-4 pt-24 pb-28 md:pt-32"><p className="font-mono text-xs text-paper/50">ĐANG KIỂM TRA QUYỀN…</p></main>
-  if (me?.role !== 'admin') {
+  if (!me || visibleTabs.length === 0) {
     return (
       <main className="mx-auto max-w-3xl px-4 pt-24 pb-28 md:pt-32">
         <p className="font-mono text-xs tracking-widest text-accent">ADMIN //</p>
         <h1 className="display-l mt-1 text-paper">KHÔNG CÓ QUYỀN<span className="text-accent">.</span></h1>
-        <p className="mt-4 text-sm text-paper/60">Đăng nhập bằng tài khoản admin (admin@kinetic.vn) để vào trang này.</p>
+        <p className="mt-4 text-sm text-paper/60">Tài khoản của bạn chưa được gán vai trò quản trị nào. Liên hệ admin để được phân quyền.</p>
         <a href="#" className="mt-6 inline-block border border-accent px-6 py-2.5 font-display text-xs font-bold tracking-widest text-accent hover:bg-accent hover:text-ink">VỀ TRANG CHỦ</a>
       </main>
     )
@@ -435,7 +676,7 @@ export default function Admin() {
       <h1 className="display-l mt-1 text-paper">QUẢN TRỊ<span className="text-accent">.</span></h1>
 
       <div className="mt-8 mb-6 flex flex-wrap gap-2 border-b border-white/10 pb-4">
-        {TABS.map(([id, label]) => (
+        {visibleTabs.map(([id, label]) => (
           <button
             key={id}
             onClick={() => { setTab(id); playTechClick() }}
@@ -452,6 +693,8 @@ export default function Admin() {
       {tab === 'coupons' && <Coupons />}
       {tab === 'chat' && <AdminChat />}
       {tab === 'changes' && <ChangeApprovals />}
+      {tab === 'roles' && <Roles />}
+      {tab === 'audit' && <AuditLog />}
     </main>
   )
 }
