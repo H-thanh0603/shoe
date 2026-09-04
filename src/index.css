@@ -153,14 +153,6 @@ body.secret .text-stroke {
 .animate-aurora-a { animation: aurora-a 14s ease-in-out infinite; }
 .animate-aurora-b { animation: aurora-b 18s ease-in-out infinite; }
 
-/* huy hiệu xoay chậm */
-@keyframes spin-slower {
-  to { transform: rotate(360deg); }
-}
-.animate-spin-slower {
-  animation: spin-slower 16s linear infinite;
-}
-
 /* cue cuộn */
 @keyframes scrollcue {
   0% { transform: scaleY(0); transform-origin: top; }
