@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef } from 'react'
+import { useAnimeReveal } from '../hooks/useAnimeReveal.js'
 import { useApi } from '../hooks/useApi.js'
 import { useProfile } from '../store/profile.js'
 import { matchScore } from '../lib/match.js'
@@ -67,11 +68,12 @@ export default function Collections() {
     if (ref.current) io.observe(ref.current)
     return () => io.disconnect()
   }, [])
+  useAnimeReveal(ref)
 
   return (
     <section ref={ref} className="reveal border-t border-white/10">
       <div className="mx-auto max-w-7xl px-4 py-20 md:px-8 md:py-28">
-        <h2 className="display-l mb-10 text-paper">BỘ SƯU TẬP</h2>
+        <h2 data-anime className="display-l mb-10 text-paper">BỘ SƯU TẬP</h2>
         {error && <p className="text-sm text-accent">Không tải được collections — kiểm tra server.</p>}
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           {sorted?.map((c, i) => (

@@ -12,9 +12,11 @@
   },
   "dependencies": {
     "@tailwindcss/vite": "^4.3.3",
-    "react": "^19.3.1",
-    "react-dom": "^19.3.1",
-    "tailwindcss": "^4.3.3"
+    "animejs": "^4.5.0",
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8",
+    "tailwindcss": "^4.3.3",
+    "three": "^0.185.1"
   },
   "devDependencies": {
     "@vitejs/plugin-react": "^5.1.1",

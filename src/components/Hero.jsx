@@ -1,9 +1,13 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { Suspense, lazy, useEffect, useMemo, useRef, useState } from 'react'
+import { animate, stagger } from 'animejs'
 import { useApi } from '../hooks/useApi.js'
 import { useProfile } from '../store/profile.js'
 import { matchScore, sortProducts } from '../lib/match.js'
 import { timeContext } from '../lib/time.js'
 import HeroShoe from './HeroShoe.jsx'
+import { isWebGLAvailable } from '../lib/webgl.js'
+// three.js chunk riêng — chỉ tải khi hero 3D hiện
+const ShoeViewer3D = lazy(() => import('./ShoeViewer3D.jsx'))
 import { playTechClick, playSwitch, isAudioMuted, setAudioEnabled } from '../lib/sound.js'
 
 const HEADLINE = {
@@ -55,6 +59,8 @@ export default function Hero({ onQuiz }) {
   const [selectedColor, setSelectedColor] = useState(COLORWAYS[0].hex)
   const [activeHotspot, setActiveHotspot] = useState('cushion')
   const [soundOn, setSoundOn] = useState(() => !isAudioMuted())
+  const [webgl] = useState(() => isWebGLAvailable())
+  const realtime = webgl && !exploded
 
   const { profile } = useProfile()
   const { data: products } = useApi('/products?limit=100')
@@ -69,12 +75,28 @@ export default function Hero({ onQuiz }) {
       { threshold: 0.15 },
     )
     if (el) io.observe(el)
-    return () => io.disconnect()
+    // intro timeline: headline → HUD → viewer → CTA
+    let cancelled = false
+    if (!window.matchMedia('(prefers-reduced-motion: reduce)').matches && el) {
+      const parts = el.querySelectorAll('[data-intro]')
+      animate(parts, { opacity: 0, y: 34, duration: 1 })
+      requestAnimationFrame(() => {
+        if (cancelled) return
+        animate(parts, {
+          opacity: [0, 1],
+          y: [34, 0],
+          duration: 900,
+          delay: stagger(110),
+          ease: 'outExpo',
+        })
+      })
+    }
+    return () => { cancelled = true; io.disconnect() }
   }, [])
 
-  // Mouse move tilt effect (chỉ khi không ở chế độ Exploded)
+  // Mouse move tilt effect (chỉ SVG tilt — 3D realtime tự kéo xoay)
   const onMove = (e) => {
-    if (exploded) return
+    if (exploded || realtime) return
     if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return
     const r = e.currentTarget.getBoundingClientRect()
     setTilt({
@@ -125,14 +147,14 @@ export default function Hero({ onQuiz }) {
 
       {/* Hero Header & Split Title */}
       <div className="relative z-10 mx-auto flex w-full max-w-7xl flex-col items-center px-4 text-center">
-        <div className="flex items-center gap-3">
+        <div data-intro className="flex items-center gap-3">
           <span className="h-1.5 w-1.5 rounded-full bg-accent animate-pulse" />
           <p className="text-xs font-semibold tracking-[0.25em] text-paper/60 uppercase">
             {greeting} · SS26 PROTOTYPE
           </p>
         </div>
 
-        <h1 className="display-xl mt-3 text-center transition-all duration-300">
+        <h1 data-intro className="display-xl mt-3 text-center transition-all duration-300">
           {(headline || ['MOVE', 'DIFFERENT'])[0]}<br />
           <span className="text-accent">{(headline || ['MOVE', 'DIFFERENT'])[1]}</span>
         </h1>
@@ -141,8 +163,8 @@ export default function Hero({ onQuiz }) {
       {/* Main Interactive Stage */}
       <div className="relative z-10 mx-auto mt-2 flex w-full max-w-7xl flex-1 flex-col items-center justify-center px-4">
         {/* Controls HUD trên đầu giày */}
-        <div className="mb-4 flex flex-wrap items-center justify-center gap-3">
-          {/* Mode Switcher: 3D Tilt vs X-Ray Exploded */}
+        <div data-intro className="mb-4 flex flex-wrap items-center justify-center gap-3">
+          {/* Mode Switcher: 3D Realtime vs X-Ray Exploded */}
           <div className="flex items-center rounded border border-white/15 bg-charcoal/80 p-1 backdrop-blur-md">
             <button
               onClick={() => { if (exploded) toggleExploded() }}
@@ -150,7 +172,7 @@ export default function Hero({ onQuiz }) {
                 !exploded ? 'bg-accent text-ink' : 'text-paper/60 hover:text-paper'
               }`}
             >
-              3D TILT
+              {webgl ? '3D REALTIME' : '3D TILT'}
             </button>
             <button
               onClick={() => { if (!exploded) toggleExploded() }}
@@ -193,27 +215,39 @@ export default function Hero({ onQuiz }) {
           </button>
         </div>
 
-        {/* Sneaker Protagonist Container with 3D tilt transform */}
+        {/* Sneaker Protagonist: 3D realtime (kéo xoay) hoặc SVG X-Ray */}
         <div
+          data-intro
           className="relative w-full max-w-[620px]"
           style={{
-            transform: exploded
+            transform: exploded || realtime
               ? 'none'
               : `perspective(1000px) rotateY(${tilt.x}deg) rotateX(${tilt.y}deg)`,
             transition: exploded ? 'transform 600ms var(--ease-out)' : 'transform 200ms ease-out',
           }}
         >
-          <HeroShoe
-            colorway={selectedColor}
-            exploded={exploded}
-            activeHotspot={activeHotspot}
-            setActiveHotspot={(h) => { setActiveHotspot(h); playTechClick() }}
-            onHotspotClick={(h) => { setActiveHotspot(h); playTechClick() }}
-          />
+          {realtime ? (
+            <Suspense fallback={<p className="py-20 text-center font-mono text-xs tracking-widest text-paper/40">ĐANG DỰNG 3D…</p>}>
+              <ShoeViewer3D colorway={selectedColor} />
+            </Suspense>
+          ) : (
+            <HeroShoe
+              colorway={selectedColor}
+              exploded={exploded}
+              activeHotspot={activeHotspot}
+              setActiveHotspot={(h) => { setActiveHotspot(h); playTechClick() }}
+              onHotspotClick={(h) => { setActiveHotspot(h); playTechClick() }}
+            />
+          )}
+          {realtime && (
+            <p className="pointer-events-none absolute bottom-1 left-1/2 -translate-x-1/2 font-mono text-[10px] tracking-widest whitespace-nowrap text-paper/40">
+              KÉO ĐỂ XOAY · TỰ XOAY KHI RẢNH
+            </p>
+          )}
         </div>
 
-        {/* Interactive Hotspot HUD Detail Card */}
-        {hotspot && !exploded && (
+        {/* Interactive Hotspot HUD Detail Card (chế độ SVG tilt) */}
+        {hotspot && !exploded && !realtime && (
           <div className="mt-4 flex max-w-lg items-center gap-4 rounded border border-white/10 bg-charcoal/90 p-4 backdrop-blur-md animate-fadeIn">
             <div className="shrink-0 border-r border-white/10 pr-4">
               <span className="block font-mono text-[9px] tracking-widest text-accent">{hotspot.tag}</span>
@@ -238,7 +272,7 @@ export default function Hero({ onQuiz }) {
       </div>
 
       {/* Bottom Metadata & CTAs */}
-      <div className="relative z-10 mx-auto mt-6 flex w-full max-w-7xl flex-wrap items-end justify-between gap-4 px-4 md:px-8">
+      <div data-intro className="relative z-10 mx-auto mt-6 flex w-full max-w-7xl flex-wrap items-end justify-between gap-4 px-4 md:px-8">
         <div className="flex flex-col gap-1 text-[11px] font-mono tracking-widest text-paper/50">
           <span>DROP 004 // LIVE</span>
           <span className="text-accent font-semibold">LIMITED: 120 PAIRS</span>

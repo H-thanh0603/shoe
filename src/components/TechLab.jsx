@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { useAnimeReveal } from '../hooks/useAnimeReveal.js'
 import { playTechClick } from '../lib/sound.js'
 
 const LAB_TABS = [
@@ -78,6 +79,7 @@ export default function TechLab() {
     if (ref.current) io.observe(ref.current)
     return () => io.disconnect()
   }, [])
+  useAnimeReveal(ref)
 
   return (
     <section ref={ref} className="reveal border-t border-white/10 bg-ink-deep py-24">
@@ -85,14 +87,14 @@ export default function TechLab() {
         {/* Section Header */}
         <div className="flex flex-col justify-between gap-4 md:flex-row md:items-end">
           <div>
-            <span className="font-mono text-xs tracking-widest text-accent uppercase">
+            <span data-anime className="font-mono text-xs tracking-widest text-accent uppercase">
               // SPECIFICATION LAB // 004
             </span>
-            <h2 className="display-l mt-2 text-paper">
+            <h2 data-anime className="display-l mt-2 text-paper">
               GIẢI PHẪU <span className="text-accent">CÔNG NGHỆ</span>
             </h2>
           </div>
-          <p className="max-w-md font-mono text-xs text-paper/50 leading-relaxed">
+          <p data-anime className="max-w-md font-mono text-xs text-paper/50 leading-relaxed">
             Mỗi chi tiết trên giày KINETIC đều được tính toán theo dữ liệu chuyển động học (Biomechanical data), không thừa bất kỳ gram trọng lượng nào.
           </p>
         </div>

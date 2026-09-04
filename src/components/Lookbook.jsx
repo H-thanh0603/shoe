@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { useAnimeReveal } from '../hooks/useAnimeReveal.js'
 import { playTechClick } from '../lib/sound.js'
 
 const LOOKS = [
@@ -64,6 +65,7 @@ export default function Lookbook() {
     if (ref.current) io.observe(ref.current)
     return () => io.disconnect()
   }, [])
+  useAnimeReveal(ref)
 
   return (
     <section ref={ref} className="reveal border-t border-white/10 bg-ink py-24">
@@ -71,14 +73,14 @@ export default function Lookbook() {
         {/* Header */}
         <div className="flex flex-col justify-between gap-4 md:flex-row md:items-end mb-12">
           <div>
-            <span className="font-mono text-xs tracking-widest text-accent uppercase">
+            <span data-anime className="font-mono text-xs tracking-widest text-accent uppercase">
               LOOKBOOK // ON-FOOT IN THE WILD
             </span>
-            <h2 className="display-l mt-2 text-paper">
+            <h2 data-anime className="display-l mt-2 text-paper">
               PHỐI ĐỒ <span className="text-accent">ĐƯỜNG PHỐ</span>
             </h2>
           </div>
-          <p className="max-w-md font-mono text-xs text-paper/50">
+          <p data-anime className="max-w-md font-mono text-xs text-paper/50">
             Xem cách cộng đồng KINETIC diện giày trong đời thực. Chạm vào điểm ghim trên ảnh để xem chi tiết outfit.
           </p>
         </div>
