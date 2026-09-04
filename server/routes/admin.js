@@ -7,7 +7,7 @@ const express = require('express')
 const pool = require('../db.js')
 const validate = require('../middleware/validate.js')
 const { requireRole } = require('../middleware/auth.js')
-const { bust } = require('../middleware/cache.js')
+const { bust, cacheGet } = require('../middleware/cache.js')
 const { z } = require('zod')
 
 const router = express.Router()
@@ -72,7 +72,7 @@ router.patch('/orders/:id', validate(z.object({ status: z.enum(['pending', 'paid
     const paymentStatus = next === 'paid' ? 'paid' : o.payment_status
     await client.query('UPDATE orders SET status = $1, payment_status = $2 WHERE id = $3', [next, paymentStatus, o.id])
     await client.query('COMMIT')
-    await bust('products:detail')
+    await bust('products:detail', 'admin:analytics') // stock + số dashboard đổi theo trạng thái đơn
     ok(res, { id: o.id, status: next })
   } catch (e) {
     await client.query('ROLLBACK').catch(() => {})
@@ -189,7 +189,10 @@ router.post('/inventory', validate(z.object({
 })
 
 // ——— Analytics (§71): revenue, orders, AOV, top products, low stock ———
-router.get('/analytics', async (_req, res) => {
+// Aggregate toàn bảng mỗi lần mở dashboard → cache 120s (private: số liệu nội bộ).
+// Bust khi đơn đổi trạng thái (ảnh hưởng paid/pending) — xem PATCH /orders/:id.
+const ANALYTICS_CC = { cacheControl: 'private, max-age=60' }
+router.get('/analytics', cacheGet('admin:analytics', 120, () => 'summary', ANALYTICS_CC), async (_req, res) => {
   // Doanh thu/đơn chỉ tính tiền thật (paid+) — pending chưa phải tiền về,
   // số dashboard sẽ thấp hơn trước nhưng đúng
   const { rows: [summary] } = await pool.query(
@@ -328,7 +331,8 @@ router.get('/products/:id/variants', async (req, res) => {
 })
 
 // ——— Series theo ngày (cho merchant agent query_metrics + chart) ———
-router.get('/analytics/series', async (req, res) => {
+router.get('/analytics/series', cacheGet('admin:analytics', 120, (req) =>
+  `series:${req.query.metric === 'orders' ? 'orders' : 'revenue'}:${Math.min(Math.max(Number(req.query.days) || 30, 1), 90)}`, ANALYTICS_CC), async (req, res) => {
   const metric = req.query.metric === 'orders' ? 'orders' : 'revenue'
   const days = Math.min(Math.max(Number(req.query.days) || 30, 1), 90)
   const { rows } = await pool.query(
@@ -350,7 +354,7 @@ router.get('/analytics/series', async (req, res) => {
 })
 
 // ——— Behavioral analytics từ product_events (30 ngày) ———
-router.get('/analytics/events', async (_req, res) => {
+router.get('/analytics/events', cacheGet('admin:analytics', 120, () => 'events', ANALYTICS_CC), async (_req, res) => {
   const { rows: topViews } = await pool.query(
     `SELECT p.slug, p.name, COUNT(*) AS views,
             COUNT(*) FILTER (WHERE e.type = 'cart_add') AS carts

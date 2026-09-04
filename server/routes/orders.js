@@ -141,7 +141,7 @@ router.post('/', validate(orderSchema), async (req, res) => {
 
     // Việc sau bán (xác nhận đơn, quét tồn) chạy nền — response không đợi (fail-open).
     // Detail cache chứa stock → bust để lần đọc sau đúng.
-    bust('products:detail').catch(() => {})
+    bust('products:detail', 'admin:analytics').catch(() => {})
     enqueue('order_confirmation', { refCode: ref, email: req.body.email, totalVnd: total })
     res.status(201).json({ success: true, data: { refCode: ref, totalVnd: total, shippingFeeVnd, discountVnd: discount, subtotalVnd: subtotal } })
   } catch (e) {
@@ -195,7 +195,7 @@ router.post('/ref/:code/cancel', requireAuth, async (req, res) => {
     }
     await client.query("UPDATE orders SET status = 'cancelled' WHERE id = $1", [o.id])
     await client.query('COMMIT')
-    bust('products:detail').catch(() => {})
+    bust('products:detail', 'admin:analytics').catch(() => {})
     res.json({ success: true, data: { refCode: req.params.code, status: 'cancelled' } })
   } catch (e) {
     await client.query('ROLLBACK').catch(() => {})
