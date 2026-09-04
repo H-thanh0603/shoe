@@ -65,33 +65,71 @@ def _ctx(role: str, session_id: str, operator: str):
                                   timezone="Asia/Ho_Chi_Minh")
 
 
-@app.post("/chat")
-async def chat(body: ChatIn, x_bridge_secret: str = Header(default="")):
-    if not SECRET or x_bridge_secret != SECRET:
+async def _run_turn(agent, session, state, message):
+    """Yield (kind, payload) — dùng chung cho /chat (gom) và /chat_stream (live)."""
+    text_parts, tools = [], []
+    async for event in agent.stream_turn([{"role": "user", "content": message}],
+                                         session, state):
+        kind = getattr(event, "kind", None) or (event.get("kind", "?")
+                                               if isinstance(event, dict) else "?")
+        if kind == "text_delta":
+            t = event.get("text", "") if isinstance(event, dict) else getattr(event, "text", "")
+            text_parts.append(t)
+            yield "text", t
+        elif kind == "tool_call":
+            name = event.get("name", "?") if isinstance(event, dict) else "?"
+            if name not in tools:
+                tools.append(name)
+                yield "tool", name
+    yield "done", {"text": "".join(text_parts).strip(), "tools": tools}
+
+
+def _get_or_build(body: ChatIn):
+    key = (body.role, body.session_id)
+    if key not in _sessions:
+        agent, state_cls = _build(body.role)
+        _sessions[key] = [agent, _ctx(body.role, body.session_id, body.operator),
+                          state_cls()]
+    return _sessions[key]
+
+
+def _check(body: ChatIn, secret: str):
+    if not SECRET or secret != SECRET:
         raise HTTPException(403, "bad bridge secret")
     if body.role != "merchant":
         raise HTTPException(400, "role web hiện tại chỉ hỗ trợ merchant")
     if not body.message.strip():
         raise HTTPException(400, "message trống")
-    text_parts, tools = [], []
+
+
+@app.post("/chat")
+async def chat(body: ChatIn, x_bridge_secret: str = Header(default="")):
+    _check(body, x_bridge_secret)
+    text, tools, error = "", [], False
     try:
-        key = (body.role, body.session_id)
-        if key not in _sessions:
-            agent, state_cls = _build(body.role)
-            _sessions[key] = [agent, _ctx(body.role, body.session_id, body.operator),
-                              state_cls()]
-        agent, session, state = _sessions[key]
-        async for event in agent.stream_turn([{"role": "user", "content": body.message}],
-                                             session, state):
-            kind = getattr(event, "kind", None) or (event.get("kind", "?")
-                                                   if isinstance(event, dict) else "?")
-            if kind == "text_delta":
-                text_parts.append(event.get("text", "") if isinstance(event, dict)
-                                  else getattr(event, "text", ""))
-            elif kind == "tool_call":
-                name = event.get("name", "?") if isinstance(event, dict) else "?"
-                if name not in tools:
-                    tools.append(name)
+        agent, session, state = _get_or_build(body)
+        async for kind, payload in _run_turn(agent, session, state, body.message):
+            if kind == "text":
+                text += payload
+            elif kind == "tool":
+                tools.append(payload)
     except Exception as e:
         return {"text": f"Lỗi agent: {e}", "tools": tools, "error": True}
-    return {"text": "".join(text_parts).strip(), "tools": tools}
+    return {"text": text.strip(), "tools": tools}
+
+
+@app.post("/chat_stream")
+async def chat_stream(body: ChatIn, x_bridge_secret: str = Header(default="")):
+    from fastapi.responses import StreamingResponse
+    import json as _json
+    _check(body, x_bridge_secret)
+
+    async def gen():
+        try:
+            agent, session, state = _get_or_build(body)
+            async for kind, payload in _run_turn(agent, session, state, body.message):
+                yield f"data: {_json.dumps({'kind': kind, 'payload': payload})}\n\n"
+        except Exception as e:
+            yield f"data: {_json.dumps({'kind': 'error', 'payload': str(e)})}\n\n"
+
+    return StreamingResponse(gen(), media_type="text/event-stream")

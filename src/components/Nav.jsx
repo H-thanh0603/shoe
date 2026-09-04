@@ -82,6 +82,11 @@ export default function Nav({ onQuiz, onLogoTap, secret, onSearch }) {
           <a href="#/tra-don" className="hidden text-sm font-medium tracking-widest text-paper/80 transition-colors duration-200 hover:text-accent focus-visible:text-accent sm:inline">
             TRA ĐƠN
           </a>
+          {user && (
+            <a href="#/don-cua-toi" className="hidden text-sm font-medium tracking-widest text-paper/80 transition-colors duration-200 hover:text-accent focus-visible:text-accent sm:inline">
+              ĐƠN CỦA TÔI
+            </a>
+          )}
           {user?.role === 'admin' && (
             <a href="#/admin" className="hidden text-sm font-medium tracking-widest text-accent transition-colors duration-200 hover:text-accent-hot sm:inline">
               ADMIN

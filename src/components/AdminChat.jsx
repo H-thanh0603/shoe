@@ -19,14 +19,54 @@ export default function AdminChat() {
     const text = input.trim()
     if (!text || busy) return
     setInput('')
-    setMsgs((m) => [...m, { from: 'user', text }])
+    setMsgs((m) => [...m, { from: 'user', text }, { from: 'agent', text: '', tools: [], live: true }])
     setBusy(true)
     scrollDown()
+    const patchLive = (fn) => setMsgs((m) => {
+      const next = [...m]
+      const i = next.map((x) => x.live).lastIndexOf(true)
+      if (i >= 0) next[i] = { ...next[i], ...fn(next[i]) }
+      return next
+    })
     try {
-      const data = await apiFetch('/agent/chat', { method: 'POST', body: { message: text, sessionId: sid } })
-      setMsgs((m) => [...m, { from: 'agent', text: data.text || '(không có trả lời)', tools: data.tools }])
+      // SSE qua POST (EventSource không POST được) — res.body text/event-stream
+      const r = await fetch('/api/v1/agent/chat/stream', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message: text, sessionId: sid }),
+      })
+      if (!r.ok) {
+        const body = await r.json().catch(() => null)
+        throw new Error(body?.error?.message || `HTTP ${r.status}`)
+      }
+      const reader = r.body.getReader()
+      const decoder = new TextDecoder()
+      let buf = ''
+      for (;;) {
+        const { done, value } = await reader.read()
+        if (done) break
+        buf += decoder.decode(value, { stream: true })
+        const frames = buf.split('\n\n')
+        buf = frames.pop()
+        for (const f of frames) {
+          const line = f.trim().replace(/^data:\s*/, '')
+          if (!line) continue
+          let ev
+          try { ev = JSON.parse(line) } catch { continue }
+          if (ev.kind === 'text') {
+            const t = ev.payload
+            patchLive((m) => ({ text: m.text + t }))
+            scrollDown()
+          } else if (ev.kind === 'tool') {
+            patchLive((m) => ({ tools: [...m.tools, ev.payload] }))
+          } else if (ev.kind === 'error') {
+            patchLive(() => ({ text: `Lỗi: ${ev.payload}`, error: true }))
+          }
+        }
+      }
+      patchLive((m) => ({ live: false, text: m.text || '(không có trả lời)' }))
     } catch (err) {
-      setMsgs((m) => [...m, { from: 'agent', text: `Lỗi: ${err.message}`, error: true }])
+      patchLive(() => ({ text: `Lỗi: ${err.message}`, error: true, live: false }))
     } finally {
       setBusy(false)
       scrollDown()

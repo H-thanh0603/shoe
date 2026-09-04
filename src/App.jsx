@@ -13,6 +13,7 @@ import CommunityFeed from './components/CommunityFeed.jsx'
 import Home from './pages/Home.jsx'
 import ProductPage from './pages/ProductPage.jsx'
 import TrackOrder from './pages/TrackOrder.jsx'
+import MyOrders from './pages/MyOrders.jsx'
 import Admin from './pages/Admin.jsx'
 
 export default function App() {
@@ -52,6 +53,8 @@ export default function App() {
         <ProductPage slug={route.param} />
       ) : route.name === 'track' ? (
         <TrackOrder initialCode={route.param} />
+      ) : route.name === 'myorders' ? (
+        <MyOrders />
       ) : route.name === 'admin' ? (
         <Admin />
       ) : (

@@ -48,4 +48,43 @@ router.post('/chat',
   }),
 )
 
+// POST /api/v1/agent/chat/stream — SSE pipe từ bridge (text live từng token)
+// Client đọc bằng fetch + ReadableStream (EventSource không POST được).
+router.post('/chat/stream',
+  requireRole('admin'),
+  validate(z.object({
+    message: z.string().trim().min(1).max(2000),
+    sessionId: z.string().trim().min(1).max(100),
+  })),
+  asyncHandler(async (req, res) => {
+    if (!BRIDGE_SECRET) throw httpError(503, 'BRIDGE_NOT_CONFIGURED', 'Chưa cấu hình BRIDGE_SECRET')
+    let r
+    try {
+      r = await fetch(`${BRIDGE_URL}/chat_stream`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-Bridge-Secret': BRIDGE_SECRET },
+        body: JSON.stringify({
+          role: 'merchant',
+          session_id: req.body.sessionId,
+          operator: `admin:${req.user.id}`,
+          message: req.body.message,
+        }),
+      })
+    } catch {
+      throw httpError(503, 'BRIDGE_DOWN', 'Bridge agent chưa chạy (agents/run_bridge.sh)')
+    }
+    if (!r.ok || !r.body) throw httpError(502, 'BRIDGE_ERROR', `Bridge lỗi HTTP ${r.status}`)
+    res.writeHead(200, {
+      'Content-Type': 'text/event-stream',
+      'Cache-Control': 'no-cache',
+      Connection: 'keep-alive',
+    })
+    req.on('close', () => r.body.cancel().catch(() => {}))
+    try {
+      for await (const chunk of r.body) res.write(chunk)
+    } catch { /* client ngắt giữa chừng */ }
+    res.end()
+  }),
+)
+
 module.exports = router

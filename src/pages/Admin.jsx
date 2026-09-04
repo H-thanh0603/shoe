@@ -164,8 +164,59 @@ function Products() {
     } catch (e) { alert(e.message) }
   }
 
+  const [editing, setEditing] = useState(null) // null | {…fields} | {id,…fields}
+  const blankForm = { name: '', slug: '', brand: 'KINETIC', description: '', priceVnd: '', colors: '#d43a2a,#0a0a0a', tag: '', purpose: 'daily' }
+
+  const saveProduct = async (e) => {
+    e.preventDefault()
+    const body = {
+      name: editing.name.trim(),
+      slug: editing.slug.trim().toLowerCase(),
+      brand: editing.brand.trim(),
+      description: editing.description.trim() || undefined,
+      priceVnd: Number(editing.priceVnd),
+      colors: editing.colors.split(',').map((c) => c.trim()).filter(Boolean),
+      tag: editing.tag || null,
+      purpose: editing.purpose || null,
+    }
+    try {
+      if (editing.id) await apiFetch(`/admin/products/${editing.id}`, { method: 'PATCH', body })
+      else await apiFetch('/admin/products', { method: 'POST', body })
+      setEditing(null); playTechClick(); load()
+    } catch (err) { alert(err.message) }
+  }
+  const fset = (k) => (e) => setEditing((f) => ({ ...f, [k]: e.target.value }))
+  const labelCls = 'flex flex-col gap-1 font-mono text-[10px] text-paper/50'
+
   return (
     <div className="flex flex-col gap-4">
+      <div>
+        <button onClick={() => setEditing({ ...blankForm })} className="border border-accent bg-accent px-4 py-1.5 font-mono text-xs font-bold text-ink hover:bg-transparent hover:text-accent">+ THÊM SẢN PHẨM</button>
+      </div>
+
+      {editing && (
+        <form onSubmit={saveProduct} className="flex flex-wrap items-end gap-2 border border-accent/40 bg-charcoal p-4">
+          <label className={labelCls}>TÊN*<input value={editing.name} onChange={fset('name')} required minLength={2} className={`${inputCls} w-48`} /></label>
+          <label className={labelCls}>SLUG*<input value={editing.slug} onChange={fset('slug')} required pattern="[a-z0-9-]+" placeholder="ten-giay-01" disabled={!!editing.id} className={`${inputCls} w-40`} /></label>
+          <label className={labelCls}>HÃNG*<input value={editing.brand} onChange={fset('brand')} required className={`${inputCls} w-32`} /></label>
+          <label className={labelCls}>GIÁ (VND)*<input value={editing.priceVnd} onChange={fset('priceVnd')} required inputMode="numeric" className={`${inputCls} w-32`} /></label>
+          <label className={labelCls}>MÀU (hex, phẩy)<input value={editing.colors} onChange={fset('colors')} className={`${inputCls} w-48`} /></label>
+          <label className={labelCls}>TAG
+            <select value={editing.tag} onChange={fset('tag')} className={inputCls}>
+              <option value="">—</option><option value="NEW">NEW</option><option value="LIMITED">LIMITED</option><option value="SALE">SALE</option>
+            </select>
+          </label>
+          <label className={labelCls}>MỤC ĐÍCH
+            <select value={editing.purpose} onChange={fset('purpose')} className={inputCls}>
+              <option value="">—</option><option value="running">CHẠY BỘ</option><option value="street">STREET</option><option value="court">BÓNG RỔ</option><option value="daily">HẰNG NGÀY</option><option value="trail">TRAIL</option>
+            </select>
+          </label>
+          <label className={`${labelCls} basis-full`}>MÔ TẢ<textarea value={editing.description} onChange={fset('description')} rows={2} className={inputCls} /></label>
+          <button type="submit" className="border border-accent bg-accent px-4 py-1.5 font-mono text-xs font-bold text-ink hover:bg-transparent hover:text-accent">{editing.id ? 'LƯU' : 'TẠO'}</button>
+          <button type="button" onClick={() => setEditing(null)} className={btn}>HỦY</button>
+        </form>
+      )}
+
       <div className="overflow-x-auto border border-white/10">
         <table className="w-full border-collapse bg-charcoal">
           <thead><tr className="border-b border-white/10"><th className={th}>SẢN PHẨM</th><th className={th}>GIÁ</th><th className={th}>TỒN</th><th className={th}>HIỂN THỊ</th><th className={th}>THAO TÁC</th></tr></thead>
@@ -179,6 +230,17 @@ function Products() {
                 <td className={td}>
                   <span className="flex flex-wrap gap-1.5">
                     <button onClick={() => openVariants(p)} className={btn}>KHO</button>
+                    <button
+                      onClick={() => setEditing({
+                        id: p.id, name: p.name, slug: p.slug, brand: p.brand,
+                        description: p.description || '', priceVnd: String(p.price_vnd),
+                        colors: (Array.isArray(p.colors) ? p.colors : JSON.parse(p.colors || '[]')).join(','),
+                        tag: p.tag || '', purpose: p.purpose || '',
+                      })}
+                      className={btn}
+                    >
+                      SỬA
+                    </button>
                     <button onClick={() => toggleActive(p)} className={btn}>{p.is_active ? 'ẨN' : 'HIỆN'}</button>
                   </span>
                 </td>

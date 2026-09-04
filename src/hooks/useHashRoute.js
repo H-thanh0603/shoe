@@ -18,5 +18,6 @@ export function useHashRoute() {
   const t = route.match(/^#\/tra-don(?:\/([^/]+))?/)
   if (t) return { name: 'track', param: t[1] ? decodeURIComponent(t[1]) : null }
   if (route === '#/admin') return { name: 'admin' }
+  if (route === '#/don-cua-toi') return { name: 'myorders' }
   return { name: 'home' }
 }
