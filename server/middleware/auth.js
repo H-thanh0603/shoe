@@ -53,4 +53,41 @@ const requireRole = (...roles) => (req, res, next) => {
   next()
 }
 
-module.exports = { sign, signAccess, signRefresh, signReset, attachUser, requireAuth, requireRole }
+// ——— RBAC: permissions theo staff roles (015). users.role='admin' = superuser, qua hết.
+// Quyền cache 5 phút theo user (rbac:perms:<id>), bust khi gán/thu vai trò.
+// Dùng: router.use(requireAuth, loadPerms) rồi requirePerm('orders:write') từng route.
+async function loadPerms(req, _res, next) {
+  try {
+    if (!req.user) return next()
+    if (req.user.role === 'admin') { req.perms = new Set(['*']); return next() }
+    const key = `rbac:perms:${req.user.id}`
+    let perms = await cache.get(key).catch(() => null)
+    if (!perms) {
+      const pool = require('../db.js')
+      const { rows } = await pool.query(
+        `SELECT DISTINCT p.key FROM permissions p
+         JOIN role_permissions rp ON rp.permission_id = p.id
+         JOIN user_roles ur ON ur.role_id = rp.role_id
+         WHERE ur.user_id = $1`, [req.user.id])
+      perms = rows.map((r) => r.key)
+      await cache.set(key, perms, 300).catch(() => {})
+    }
+    req.perms = new Set(perms)
+    next()
+  } catch {
+    next() // fail-open: không load được quyền → route tự 403 khi check
+  }
+}
+
+// Chấp nhận nếu có BẤT KỲ quyền nào trong danh sách (any-of).
+const requirePerm = (...keys) => (req, res, next) => {
+  if (!req.user) return res.status(401).json({ success: false, error: { code: 'UNAUTHORIZED', message: 'Cần đăng nhập' } })
+  if (req.perms?.has('*') || keys.some((k) => req.perms?.has(k))) return next()
+  return res.status(403).json({ success: false, error: { code: 'FORBIDDEN', message: 'Thiếu quyền: ' + keys.join(' hoặc ') } })
+}
+
+async function bustPerms(userId) {
+  await cache.del(`rbac:perms:${userId}`).catch(() => {})
+}
+
+module.exports = { sign, signAccess, signRefresh, signReset, attachUser, requireAuth, requireRole, loadPerms, requirePerm, bustPerms }
