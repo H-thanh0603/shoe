@@ -14,18 +14,22 @@ router.post('/validate', validate(z.object({
   code: z.string().trim().min(1).max(50),
   subtotal: z.number().int().min(0),
 })), asyncHandler(async (req, res) => {
+  const userId = req.user?.id ?? null // attachUser gắn khi có cookie, route public
   const { rows: [c] } = await pool.query(
-    `SELECT c.*, COUNT(cu.order_id) AS used_count FROM coupons c
+    `SELECT c.*, COUNT(cu.order_id) AS used_count,
+            COUNT(cu.order_id) FILTER (WHERE o.user_id = $2) AS user_used_count
+     FROM coupons c
      LEFT JOIN coupon_usages cu ON cu.coupon_id = c.id
+     LEFT JOIN orders o ON o.id = cu.order_id
      WHERE c.code = $1 GROUP BY c.id`,
-    [req.body.code.trim()],
+    [req.body.code.trim(), userId],
   )
   if (!c) throw httpError(400, 'COUPON_NOT_FOUND', 'Mã giảm giá không tồn tại')
 
   let discount = 0
   let freeShipping = false
   try {
-    ;({ discount, freeShipping } = couponDiscount(c, req.body.subtotal))
+    ;({ discount, freeShipping } = couponDiscount(c, req.body.subtotal, userId))
   } catch (e) {
     throw httpError(e.status || 400, e.code || 'COUPON_INVALID', e.message)
   }

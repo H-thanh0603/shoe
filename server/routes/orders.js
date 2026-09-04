@@ -80,13 +80,16 @@ router.post('/', validate(orderSchema), async (req, res) => {
     let freeShipping = false
     if (req.body.couponCode) {
       const { rows: [c] } = await client.query(
-        `SELECT c.*, COUNT(cu.order_id) AS used_count FROM coupons c
+        `SELECT c.*, COUNT(cu.order_id) AS used_count,
+                COUNT(cu.order_id) FILTER (WHERE o.user_id = $2) AS user_used_count
+         FROM coupons c
          LEFT JOIN coupon_usages cu ON cu.coupon_id = c.id
+         LEFT JOIN orders o ON o.id = cu.order_id
          WHERE c.code = $1 GROUP BY c.id`,
-        [req.body.couponCode],
+        [req.body.couponCode, req.user?.id ?? null],
       )
       if (!c) throw Object.assign(new Error('Mã giảm giá không tồn tại'), { status: 400, code: 'COUPON_NOT_FOUND' })
-      ;({ discount, freeShipping } = couponDiscount(c, subtotal))
+      ;({ discount, freeShipping } = couponDiscount(c, subtotal, req.user?.id ?? null))
       couponId = c.id
     }
 
@@ -145,6 +148,45 @@ router.get('/me/orders', requireAuth, async (req, res) => {
     [req.user.id],
   )
   res.json({ success: true, data: rows })
+})
+
+// POST hủy đơn của chính mình — chỉ khi còn pending, hoàn kho + log RESTOCK
+// (giống nhánh cancel của admin). Đơn guest (không user_id) chỉ admin hủy được.
+router.post('/ref/:code/cancel', requireAuth, async (req, res) => {
+  const { rows: [o] } = await pool.query(
+    'SELECT id, status FROM orders WHERE ref_code = $1 AND user_id = $2',
+    [req.params.code, req.user.id],
+  )
+  if (!o) return res.status(404).json({ success: false, error: { code: 'ORDER_NOT_FOUND', message: 'Không tìm thấy đơn hàng của bạn' } })
+  if (o.status !== 'pending') {
+    return res.status(409).json({ success: false, error: { code: 'INVALID_TRANSITION', message: 'Chỉ hủy được đơn mới đặt (đang chờ xử lý)' } })
+  }
+
+  const client = await pool.connect()
+  try {
+    await client.query('BEGIN')
+    const { rows: [locked] } = await client.query(
+      'SELECT status FROM orders WHERE id = $1 FOR UPDATE', [o.id])
+    if (locked.status !== 'pending') throw Object.assign(new Error('Đơn đã chuyển trạng thái, không hủy được nữa'), { status: 409, code: 'INVALID_TRANSITION' })
+    const { rows: items } = await client.query(
+      'SELECT variant_id, qty FROM order_items WHERE order_id = $1', [o.id])
+    for (const it of items) {
+      const { rows: [v] } = await client.query(
+        'UPDATE product_variants SET stock = stock + $1 WHERE id = $2 RETURNING stock', [it.qty, it.variant_id])
+      await client.query(
+        'INSERT INTO inventory_transactions (variant_id, qty, before_qty, after_qty, type, reference_id) VALUES ($1,$2,$3,$4,$5,$6)',
+        [it.variant_id, it.qty, v.stock - it.qty, v.stock, 'RESTOCK', o.id])
+    }
+    await client.query("UPDATE orders SET status = 'cancelled' WHERE id = $1", [o.id])
+    await client.query('COMMIT')
+    res.json({ success: true, data: { refCode: req.params.code, status: 'cancelled' } })
+  } catch (e) {
+    await client.query('ROLLBACK').catch(() => {})
+    const { status, body } = err(e)
+    res.status(status).json(body)
+  } finally {
+    client.release()
+  }
 })
 
 router.get('/ref/:code', async (req, res) => {

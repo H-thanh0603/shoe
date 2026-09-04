@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { apiGet } from '../lib/api.js'
+import { apiFetch, apiGet } from '../lib/api.js'
 import { playTechClick } from '../lib/sound.js'
 
 const STEPS = ['pending', 'paid', 'shipped', 'done']
@@ -17,6 +17,22 @@ export default function TrackOrder({ initialCode }) {
   const [order, setOrder] = useState(null)
   const [loading, setLoading] = useState(false)
   const [err, setErr] = useState(null)
+  const [cancelling, setCancelling] = useState(false)
+
+  const cancelOrder = async () => {
+    if (!order || order.status !== 'pending') return
+    if (!confirm(`Hủy đơn ${order.ref_code}? Kho sẽ được hoàn lại.`)) return
+    setCancelling(true)
+    try {
+      await apiFetch(`/orders/ref/${encodeURIComponent(order.ref_code)}/cancel`, { method: 'POST' })
+      setOrder({ ...order, status: 'cancelled' })
+      playTechClick()
+    } catch (e) {
+      setErr(e.status === 401 ? 'Đăng nhập đúng tài khoản đã đặt đơn để hủy.' : e.message)
+    } finally {
+      setCancelling(false)
+    }
+  }
 
   const lookup = async (c) => {
     const q = (c ?? code).trim().toUpperCase()
@@ -107,6 +123,16 @@ export default function TrackOrder({ initialCode }) {
             <div className="flex justify-between pt-1 text-sm font-bold"><dt className="text-paper">TỔNG</dt><dd className="text-accent">{vnd(order.total_vnd)}</dd></div>
             <div className="flex justify-between pt-1"><dt>ĐẶT LÚC</dt><dd>{new Date(order.created_at).toLocaleString('vi-VN')}</dd></div>
           </dl>
+
+          {order.status === 'pending' && (
+            <button
+              onClick={cancelOrder}
+              disabled={cancelling}
+              className="mt-4 w-full border border-white/20 py-2.5 font-mono text-xs tracking-widest text-paper/60 transition-colors hover:border-accent hover:text-accent disabled:opacity-40"
+            >
+              {cancelling ? 'ĐANG HỦY…' : 'HỦY ĐƠN NÀY'}
+            </button>
+          )}
         </div>
       )}
     </main>

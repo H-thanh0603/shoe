@@ -37,6 +37,21 @@ test('coupon hết hạn / chưa bắt đầu / sai min-order ném mã lỗi đ�
   assert.throws(() => couponDiscount({ ...baseCoupon, minimum_order_vnd: 1_000_000 }, 500_000), /áp dụng đơn từ/)
 })
 
+test('per_user_limit: hết lượt cá nhân thì chặn, guest bỏ qua', () => {
+  const c = { ...baseCoupon, per_user_limit: 1, user_used_count: 1 }
+  assert.throws(() => couponDiscount(c, 500_000, 42), /hết lượt của mã này/)
+  // chưa dùng hết → qua
+  assert.deepEqual(
+    couponDiscount({ ...c, user_used_count: 0 }, 500_000, 42),
+    { discount: 100_000, freeShipping: false },
+  )
+  // guest (không định danh) → bỏ qua giới hạn cá nhân
+  assert.deepEqual(
+    couponDiscount(c, 500_000, null),
+    { discount: 100_000, freeShipping: false },
+  )
+})
+
 test('shippingFee: free khi đủ ngưỡng hoặc có freeShip', () => {
   assert.equal(shippingFee(FREE_SHIPPING_MIN, false), 0)
   assert.equal(shippingFee(100_000, true), 0)
