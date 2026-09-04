@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { apiFetch, apiGet } from '../lib/api.js'
 import { playTechClick } from '../lib/sound.js'
+import AdminChat from '../components/AdminChat.jsx'
 
 // Mirror server NEXT (routes/admin.js) — action khả dụng cho mỗi status
 const NEXT = { pending: ['paid', 'cancelled'], paid: ['shipped', 'cancelled'], shipped: ['done', 'cancelled'], done: [], cancelled: [] }
@@ -326,7 +327,7 @@ function ChangeApprovals() {
   )
 }
 
-const TABS = [['dash', 'TỔNG QUAN'], ['orders', 'ĐƠN HÀNG'], ['products', 'SẢN PHẨM'], ['coupons', 'MÃ GIẢM GIÁ'], ['changes', 'DUYỆT CHANGE']]
+const TABS = [['dash', 'TỔNG QUAN'], ['orders', 'ĐƠN HÀNG'], ['products', 'SẢN PHẨM'], ['coupons', 'MÃ GIẢM GIÁ'], ['changes', 'DUYỆT CHANGE'], ['chat', 'TRỢ LÝ']]
 
 export default function Admin() {
   const [me, setMe] = useState(null)
@@ -370,6 +371,7 @@ export default function Admin() {
       {tab === 'orders' && <Orders />}
       {tab === 'products' && <Products />}
       {tab === 'coupons' && <Coupons />}
+      {tab === 'chat' && <AdminChat />}
       {tab === 'changes' && <ChangeApprovals />}
     </main>
   )

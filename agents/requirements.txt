@@ -1,6 +1,9 @@
 # Smoke test (không cần key): pydantic + requests.
 # Demo chat (cần key): thêm anthropic + pyyaml.
+# Bridge web (agents/run_bridge.sh): thêm fastapi + uvicorn.
 pydantic>=2
 requests>=2
 anthropic>=0.91
 pyyaml>=6
+fastapi>=0.100
+uvicorn>=0.20
