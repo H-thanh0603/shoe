@@ -6,6 +6,8 @@ const pool = require('../db.js')
 const validate = require('../middleware/validate.js')
 const { requireAuth } = require('../middleware/auth.js')
 const { couponDiscount, shippingFee } = require('../services/pricing.js')
+const { enqueue } = require('../services/jobs.js')
+const { bust } = require('../middleware/cache.js')
 const { z } = require('zod')
 
 const router = express.Router()
@@ -85,17 +87,20 @@ router.post('/', validate(orderSchema), async (req, res) => {
     let freeShipping = false
     if (req.body.couponCode) {
       // FOR UPDATE lock row coupon: 2 checkout cùng dùng lượt cuối → 1 thắng,
-      // không vượt usage_limit (giống chống oversell kho §16)
+      // không vượt usage_limit (giống chống oversell kho §16).
+      // NOTE: FOR UPDATE không đi kèm GROUP BY được (PG báo 0A000) → lock trước, đếm sau.
+      const { rows: [lock] } = await client.query(
+        'SELECT id FROM coupons WHERE code = $1 FOR UPDATE', [req.body.couponCode])
+      if (!lock) throw Object.assign(new Error('Mã giảm giá không tồn tại'), { status: 400, code: 'COUPON_NOT_FOUND' })
       const { rows: [c] } = await client.query(
         `SELECT c.*, COUNT(cu.order_id) AS used_count,
                 COUNT(cu.order_id) FILTER (WHERE o.user_id = $2) AS user_used_count
          FROM coupons c
          LEFT JOIN coupon_usages cu ON cu.coupon_id = c.id
          LEFT JOIN orders o ON o.id = cu.order_id
-         WHERE c.code = $1 GROUP BY c.id FOR UPDATE OF c`,
-        [req.body.couponCode, req.user?.id ?? null],
+         WHERE c.id = $1 GROUP BY c.id`,
+        [lock.id, req.user?.id ?? null],
       )
-      if (!c) throw Object.assign(new Error('Mã giảm giá không tồn tại'), { status: 400, code: 'COUPON_NOT_FOUND' })
       ;({ discount, freeShipping } = couponDiscount(c, subtotal, req.user?.id ?? null))
       couponId = c.id
     }
@@ -134,6 +139,10 @@ router.post('/', validate(orderSchema), async (req, res) => {
     await client.query('DELETE FROM cart_items WHERE cart_id = $1', [cartId])
     await client.query('COMMIT')
 
+    // Việc sau bán (xác nhận đơn, quét tồn) chạy nền — response không đợi (fail-open).
+    // Detail cache chứa stock → bust để lần đọc sau đúng.
+    bust('products:detail').catch(() => {})
+    enqueue('order_confirmation', { refCode: ref, email: req.body.email, totalVnd: total })
     res.status(201).json({ success: true, data: { refCode: ref, totalVnd: total, shippingFeeVnd, discountVnd: discount, subtotalVnd: subtotal } })
   } catch (e) {
     await client.query('ROLLBACK').catch(() => {})
@@ -186,6 +195,7 @@ router.post('/ref/:code/cancel', requireAuth, async (req, res) => {
     }
     await client.query("UPDATE orders SET status = 'cancelled' WHERE id = $1", [o.id])
     await client.query('COMMIT')
+    bust('products:detail').catch(() => {})
     res.json({ success: true, data: { refCode: req.params.code, status: 'cancelled' } })
   } catch (e) {
     await client.query('ROLLBACK').catch(() => {})

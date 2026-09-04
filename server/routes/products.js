@@ -4,6 +4,7 @@ const express = require('express')
 const validate = require('../middleware/validate.js')
 const { asyncHandler } = require('../middleware/errorHandler.js')
 const { requireAuth } = require('../middleware/auth.js')
+const { cacheGet, bust } = require('../middleware/cache.js')
 const { z } = require('zod')
 const products = require('../services/products.js')
 
@@ -11,7 +12,11 @@ const router = express.Router()
 
 const ok = (res, data, meta) => res.json({ success: true, data, ...(meta && { meta }) })
 
-router.get('/', asyncHandler(async (req, res) => {
+// Catalog đọc nhiều/ghi ít → cache 60s (list) / 120s (detail). Key bao đủ tham số.
+router.get('/',
+  cacheGet('products:list', 60, (req) =>
+    `p=${Math.max(Number(req.query.page) || 1, 1)}&l=${Math.min(Number(req.query.limit) || 24, 100)}&q=${(req.query.q?.trim() || '').slice(0, 50)}`),
+  asyncHandler(async (req, res) => {
   const limit = Math.min(Number(req.query.limit) || 24, 100)
   const page = Math.max(Number(req.query.page) || 1, 1)
   const q = req.query.q?.trim() || undefined
@@ -19,7 +24,9 @@ router.get('/', asyncHandler(async (req, res) => {
   ok(res, items, meta)
 }))
 
-router.get('/:slug', asyncHandler(async (req, res) => {
+router.get('/:slug',
+  cacheGet('products:detail', 120, (req) => req.params.slug.slice(0, 120)),
+  asyncHandler(async (req, res) => {
   ok(res, await products.getProductDetail(req.params.slug))
 }))
 
@@ -35,6 +42,7 @@ router.post('/:slug/reviews', requireAuth, validate(z.object({
   images: z.array(z.string()).max(3).optional(),
 })), asyncHandler(async (req, res) => {
   const r = await products.createReview(req.params.slug, req.user.id, req.body)
+  await bust('products:detail') // detail có thể nhúng avg rating sau này — bust cho chắc
   res.status(201).json({ success: true, data: r })
 }))
 

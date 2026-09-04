@@ -18,19 +18,38 @@ async function attachImages(items) {
 }
 
 async function listProducts({ limit = 24, page = 1, q } = {}) {
-  const where = q ? "is_active AND (name ILIKE $3 OR brand ILIKE $3)" : 'is_active'
-  const likeArgs = q ? [`%${q}%`] : []
-  // ponytail: ILIKE đủ cho catalog nhỏ; pg_trgm khi cần fuzzy + dataset lớn
+  if (!q) {
+    const { rows } = await pool.query(
+      'SELECT * FROM products WHERE is_active ORDER BY id LIMIT $1 OFFSET $2',
+      [limit, (page - 1) * limit],
+    )
+    const { rows: [{ count }] } = await pool.query(
+      "SELECT COUNT(*) FROM products WHERE is_active",
+    )
+    const total = Number(count)
+    const items = await attachImages(rows.map(mapProduct))
+    return { items, meta: { page, limit, total, totalPages: Math.ceil(total / limit) } }
+  }
+  // Tìm kiếm: ILIKE (prefix/chính xác) + trigram similarity (gõ sai/fuzzy) — idx 011/013.
+  // lower() 2 vế để fuzzy không phân biệt hoa/thường; xếp hạng liên quan trước.
+  const term = `%${q.slice(0, 50)}%`
+  const plain = q.slice(0, 50).toLowerCase()
   const { rows } = await pool.query(
-    `SELECT * FROM products WHERE ${where} ORDER BY id LIMIT $1 OFFSET $2`,
-    [limit, (page - 1) * limit, ...likeArgs],
+    `SELECT *, GREATEST(similarity(lower(name), $4), similarity(lower(brand), $4)) AS sim
+     FROM products
+     WHERE is_active AND (name ILIKE $3 OR brand ILIKE $3 OR slug ILIKE $3
+       OR similarity(lower(name), $4) > 0.2 OR similarity(lower(brand), $4) > 0.2)
+     ORDER BY sim DESC, id LIMIT $1 OFFSET $2`,
+    [limit, (page - 1) * limit, term, plain],
   )
   const { rows: [{ count }] } = await pool.query(
-    `SELECT COUNT(*) FROM products WHERE ${q ? "is_active AND (name ILIKE $1 OR brand ILIKE $1)" : 'is_active'}`,
-    likeArgs,
+    `SELECT COUNT(*) FROM products
+     WHERE is_active AND (name ILIKE $1 OR brand ILIKE $1 OR slug ILIKE $1
+       OR similarity(lower(name), $2) > 0.2 OR similarity(lower(brand), $2) > 0.2)`,
+    [term, plain],
   )
   const total = Number(count)
-  const items = await attachImages(rows.map(mapProduct))
+  const items = await attachImages(rows.map(({ sim, ...r }) => mapProduct(r)))
   return { items, meta: { page, limit, total, totalPages: Math.ceil(total / limit) } }
 }
 

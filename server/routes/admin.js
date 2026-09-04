@@ -7,6 +7,7 @@ const express = require('express')
 const pool = require('../db.js')
 const validate = require('../middleware/validate.js')
 const { requireRole } = require('../middleware/auth.js')
+const { bust } = require('../middleware/cache.js')
 const { z } = require('zod')
 
 const router = express.Router()
@@ -71,6 +72,7 @@ router.patch('/orders/:id', validate(z.object({ status: z.enum(['pending', 'paid
     const paymentStatus = next === 'paid' ? 'paid' : o.payment_status
     await client.query('UPDATE orders SET status = $1, payment_status = $2 WHERE id = $3', [next, paymentStatus, o.id])
     await client.query('COMMIT')
+    await bust('products:detail')
     ok(res, { id: o.id, status: next })
   } catch (e) {
     await client.query('ROLLBACK').catch(() => {})
@@ -123,6 +125,7 @@ router.post('/products', validate(productBody.extend({ variants: z.array(variant
         [v.id, v.stock, 0, v.stock, 'RESTOCK', null])
     }
     await client.query('COMMIT')
+    await bust('products:list', 'products:detail')
     res.status(201).json({ success: true, data: { ...p, variants } })
   } catch (e) {
     await client.query('ROLLBACK').catch(() => {})
@@ -142,6 +145,7 @@ router.patch('/products/:id', validate(productBody.partial()), async (req, res) 
      WHERE id = $1 RETURNING *`,
     [req.params.id, b.name, b.slug, b.brand, b.description, b.priceVnd, b.tag ?? null, b.collectionId ?? null, b.purpose ?? null])
   if (!p) return bad(res, 'PRODUCT_NOT_FOUND', 'Không tìm thấy sản phẩm', 404)
+  await bust('products:list', 'products:detail')
   ok(res, p)
 })
 
@@ -150,9 +154,11 @@ router.patch('/products/:id/archive', (req, res, next) => setActive(req, res, ne
 router.patch('/products/:id/restore', (req, res, next) => setActive(req, res, next, true))
 function setActive(req, res, _next, isActive) {
   pool.query('UPDATE products SET is_active = $2 WHERE id = $1 RETURNING id, slug, is_active', [req.params.id, isActive])
-    .then(({ rows: [p] }) => p
-      ? ok(res, p)
-      : bad(res, 'PRODUCT_NOT_FOUND', 'Không tìm thấy sản phẩm', 404))
+    .then(async ({ rows: [p] }) => {
+      if (!p) return bad(res, 'PRODUCT_NOT_FOUND', 'Không tìm thấy sản phẩm', 404)
+      await bust('products:list', 'products:detail')
+      return ok(res, p)
+    })
     .catch(() => bad(res, 'INVALID_INPUT', 'id không hợp lệ'))
 }
 
@@ -174,6 +180,7 @@ router.post('/inventory', validate(z.object({
       'INSERT INTO inventory_transactions (variant_id, qty, before_qty, after_qty, type, reference_id) VALUES ($1,$2,$3,$4,$5,$6)',
       [variantId, qty, v.stock, after, qty > 0 ? 'RESTOCK' : 'ADJUSTMENT', null])
     await client.query('COMMIT')
+    await bust('products:detail')
     res.status(201).json({ success: true, data: { variantId, stock: after } })
   } catch (e) {
     await client.query('ROLLBACK').catch(() => {})
@@ -364,6 +371,39 @@ router.get('/analytics/events', async (_req, res) => {
       viewToCart: funnel.views > 0 ? Math.round((funnel.carts / funnel.views) * 1000) / 10 : 0,
     },
   })
+})
+
+// ——— Cache: xem hit-rate/backend + xóa tay khi cần (đa instance: cần Redis mới clear chung) ———
+router.get('/cache', async (_req, res) => {
+  const cache = require('../services/cache.js')
+  ok(res, cache.info())
+})
+
+router.delete('/cache', async (_req, res) => {
+  const cache = require('../services/cache.js')
+  await cache.del()
+  ok(res, { cleared: true, ...cache.info() })
+})
+
+// ——— Jobs: quan sát + retry tay (hàng failed nằm lại để xử lý) ———
+router.get('/jobs', async (req, res) => {
+  const limit = Math.min(Number(req.query.limit) || 20, 100)
+  const status = req.query.status
+  const args = status ? [limit, status] : [limit]
+  const { rows } = await pool.query(
+    `SELECT id, type, status, attempts, max_attempts, last_error, run_after, created_at, updated_at
+     FROM jobs ${status ? 'WHERE status = $2' : ''} ORDER BY id DESC LIMIT $1`, args)
+  const { rows: [{ count }] } = await pool.query(
+    `SELECT COUNT(*) FROM jobs ${status ? 'WHERE status = $1' : ''}`, status ? [status] : [])
+  ok(res, rows, { total: Number(count) })
+})
+
+router.post('/jobs/:id/retry', async (req, res) => {
+  const { rows: [j] } = await pool.query(
+    `UPDATE jobs SET status = 'pending', run_after = now(), updated_at = now()
+     WHERE id = $1 AND status = 'failed' RETURNING id, type, status`, [req.params.id])
+  if (!j) return bad(res, 'JOB_NOT_FOUND', 'Không tìm thấy job failed', 404)
+  ok(res, j)
 })
 
 module.exports = router

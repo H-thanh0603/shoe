@@ -1,0 +1,71 @@
+# Scale ngang: docker compose up --build --scale app=2
+# (app replicas share Redis cache/rate-limit + Postgres jobs qua SKIP LOCKED).
+services:
+  postgres:
+    image: postgres:18-alpine
+    environment:
+      POSTGRES_USER: kinetic
+      POSTGRES_PASSWORD: kinetic
+      POSTGRES_DB: kinetic
+    ports:
+      - "5433:5432" # debug/test local trỏ vào DB container (app trong compose vẫn dùng host `postgres`)
+    volumes:
+      - pgdata:/var/lib/postgresql # PG18+: mount cha, data nằm trong subdir (pg_upgrade-safe)
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U kinetic"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - redisdata:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  app:
+    build: .
+    restart: unless-stopped # crash bất ngờ (vd DB failover) → tự lên lại, LB /readyz gating traffic
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      PORT: 3000
+      DATABASE_URL: postgresql://kinetic:kinetic@postgres:5432/kinetic
+      REDIS_URL: redis://redis:6379
+      JWT_SECRET: ${JWT_SECRET:?đặt JWT_SECRET trong .env khi deploy}
+      TRUST_PROXY: 1
+      CACHE_TTL_SEC: 60
+    ports:
+      - "3000-3002:3000" # dải port để --scale app=2..3 không đụng port
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000/readyz"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+  # Worker jobs riêng (không mở port): nhận job tồn/confirm dọn events khi API bận.
+  worker:
+    build: .
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://kinetic:kinetic@postgres:5432/kinetic
+      REDIS_URL: redis://redis:6379
+      JWT_SECRET: ${JWT_SECRET:?đặt JWT_SECRET trong .env khi deploy}
+      WORKER_ONLY: "true"
+
+volumes:
+  pgdata:
+  redisdata:
