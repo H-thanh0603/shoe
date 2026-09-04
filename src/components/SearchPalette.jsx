@@ -167,13 +167,17 @@ export default function SearchPalette({ open, onClose }) {
               <div className="flex items-center gap-3 min-w-0">
                 {/* Mini thumbnail */}
                 <div
-                  className="flex h-10 w-14 shrink-0 items-center justify-center border border-white/10"
+                  className="flex h-10 w-14 shrink-0 items-center justify-center overflow-hidden border border-white/10"
                   style={{ background: `color-mix(in oklab, ${p.colors[0]} 30%, var(--color-charcoal-2))` }}
                 >
-                  <svg viewBox="0 0 520 220" className="w-10 opacity-90" aria-hidden="true">
-                    <path d="M20 170 Q10 190 40 195 L480 195 Q510 190 505 165 L470 150 L60 150 Q30 155 20 170Z" fill={p.colors[0]} />
-                    <path d="M60 150 Q80 60 200 55 Q300 50 350 90 L420 80 Q470 90 470 150 L60 150Z" fill="#e8e6e1" />
-                  </svg>
+                  {p.images?.[0] ? (
+                    <img src={p.images[0]} alt="" loading="lazy" className="h-full w-full object-cover" onError={(e) => { e.currentTarget.style.display = 'none' }} />
+                  ) : (
+                    <svg viewBox="0 0 520 220" className="w-10 opacity-90" aria-hidden="true">
+                      <path d="M20 170 Q10 190 40 195 L480 195 Q510 190 505 165 L470 150 L60 150 Q30 155 20 170Z" fill={p.colors[0]} />
+                      <path d="M60 150 Q80 60 200 55 Q300 50 350 90 L420 80 Q470 90 470 150 L60 150Z" fill="#e8e6e1" />
+                    </svg>
+                  )}
                 </div>
                 <div className="min-w-0">
                   <p className="font-mono text-[9px] tracking-widest text-paper/40">{p.brand}</p>

@@ -11,6 +11,8 @@ export function Card({ p, match, onWishlist, isWishlisted, onToggleCompare, isCo
   const { variants, loading: loadingVariants, load: loadVariants } = useVariants(p.slug)
   const [addedMsg, setAddedMsg] = useState(null)
   const [activeColorIdx, setActiveColorIdx] = useState(0)
+  const [imgOk, setImgOk] = useState(true)
+  const photo = p.images?.[0]
 
   const spanCls =
     p.span === 'wide' ? 'md:col-span-2 aspect-[2.2/1]' :
@@ -52,6 +54,17 @@ export function Card({ p, match, onWishlist, isWishlisted, onToggleCompare, isCo
       >
         {/* Subtle grid background */}
         <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(#ffffff0a_1px,transparent_1px)] bg-[size:1rem_1rem]" />
+
+        {/* Ảnh thật — lỗi thì rơi về SVG vẽ tay bên dưới */}
+        {photo && imgOk && (
+          <img
+            src={photo}
+            alt={p.name}
+            loading="lazy"
+            onError={() => setImgOk(false)}
+            className="absolute inset-0 h-full w-full object-cover"
+          />
+        )}
 
         <svg viewBox="0 0 520 220" className="w-[82%] drop-shadow-[0_15px_25px_rgba(0,0,0,0.6)]" aria-hidden="true">
           {/* Sole */}

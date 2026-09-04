@@ -5,6 +5,18 @@ const { httpError } = require('../middleware/errorHandler.js')
 const fmtPrice = (vnd) => vnd.toLocaleString('vi-VN') + '₫'
 const mapProduct = (p) => ({ ...p, colors: JSON.parse(p.colors), tags: JSON.parse(p.tags || '[]'), price: fmtPrice(p.price_vnd) })
 
+// ảnh sản phẩm (bảng product_images): 1 query cho nhiều product, gộp theo id
+async function attachImages(items) {
+  if (!items.length) return items
+  const { rows } = await pool.query(
+    'SELECT product_id, url FROM product_images WHERE product_id = ANY($1) ORDER BY sort',
+    [items.map((p) => p.id)],
+  )
+  const byId = {}
+  for (const r of rows) (byId[r.product_id] ??= []).push(r.url)
+  return items.map((p) => ({ ...p, images: byId[p.id] || [] }))
+}
+
 async function listProducts({ limit = 24, page = 1, q } = {}) {
   const where = q ? "is_active AND (name ILIKE $3 OR brand ILIKE $3)" : 'is_active'
   const likeArgs = q ? [`%${q}%`] : []
@@ -18,7 +30,8 @@ async function listProducts({ limit = 24, page = 1, q } = {}) {
     likeArgs,
   )
   const total = Number(count)
-  return { items: rows.map(mapProduct), meta: { page, limit, total, totalPages: Math.ceil(total / limit) } }
+  const items = await attachImages(rows.map(mapProduct))
+  return { items, meta: { page, limit, total, totalPages: Math.ceil(total / limit) } }
 }
 
 async function getProductDetail(slug) {
@@ -33,7 +46,8 @@ async function getProductDetail(slug) {
     'SELECT id, size, stock FROM product_variants WHERE product_id = $1 ORDER BY size',
     [rows[0].id],
   )
-  return { ...mapProduct(rows[0]), variants }
+  const [detail] = await attachImages([mapProduct(rows[0])])
+  return { ...detail, variants }
 }
 
 // Ảnh review: data-URL (jpeg/png/webp), tối đa 3 ảnh, mỗi ảnh ~500KB.

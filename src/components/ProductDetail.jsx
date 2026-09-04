@@ -37,10 +37,12 @@ export default function ProductDetail({ slug, back }) {
   const [size, setSize] = useState(null)
   const [adding, setAdding] = useState(false)
   const [msg, setMsg] = useState(null)
+  const [photoIdx, setPhotoIdx] = useState(0)
+  const [photoOk, setPhotoOk] = useState(true)
   const [sizeHelper, setSizeHelper] = useState(false)
   const [otherBrand, setOtherBrand] = useState('NIKE')
 
-  useEffect(() => { setSize(null); setMsg(null) }, [slug])
+  useEffect(() => { setSize(null); setMsg(null); setPhotoIdx(0); setPhotoOk(true) }, [slug])
   const tracked = useRef(null)
   const { wishlist, toggle: toggleWishlist } = useWishlist()
   const { items: recent, push: pushRecent } = useRecentlyViewed(slug)
@@ -100,13 +102,37 @@ export default function ProductDetail({ slug, back }) {
         {/* Left column: Visual Gallery */}
         <div className="flex flex-col gap-4">
           <div className="border border-white/10 bg-charcoal overflow-hidden relative">
-            <ShoeArt colors={p.colors} large />
+            {p.images?.length > 0 && photoOk ? (
+              <img
+                key={photoIdx}
+                src={p.images[photoIdx] ?? p.images[0]}
+                alt={p.name}
+                onError={() => setPhotoOk(false)}
+                className="aspect-[4/3] w-full object-cover animate-fadeIn"
+              />
+            ) : (
+              <ShoeArt colors={p.colors} large />
+            )}
             {p.tag && (
               <span className="absolute top-4 left-4 bg-accent px-3 py-1 font-mono text-xs font-bold text-ink">
                 {p.tag}
               </span>
             )}
           </div>
+          {p.images?.length > 1 && photoOk && (
+            <div className="flex gap-2">
+              {p.images.map((src, i) => (
+                <button
+                  key={src}
+                  onClick={() => { setPhotoIdx(i); setPhotoOk(true); playTechClick() }}
+                  aria-label={`Xem ảnh ${i + 1}`}
+                  className={`h-16 w-20 overflow-hidden border transition-all ${i === photoIdx ? 'border-accent' : 'border-white/15 opacity-60 hover:opacity-100'}`}
+                >
+                  <img src={src} alt="" loading="lazy" className="h-full w-full object-cover" />
+                </button>
+              ))}
+            </div>
+          )}
 
           {/* Guarantees row */}
           <div className="grid grid-cols-3 gap-2 border border-white/10 bg-charcoal-2/40 p-4 font-mono text-[10px] text-paper/60">
