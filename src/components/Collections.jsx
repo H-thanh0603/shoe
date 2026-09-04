@@ -15,7 +15,7 @@ const bgMap = {
 function CollectionCard({ c, i }) {
   return (
     <a
-      href="#"
+      href={`#/bo-suu-tap/${c.slug}`}
       className={`group relative flex aspect-[4/5] flex-col justify-between overflow-hidden p-6 transition-transform duration-300 hover:-translate-y-1 md:aspect-auto md:min-h-[340px] ${bgMap[c.bg]} ${c.invert ? 'bg-paper text-ink' : ''}`}
     >
       <span className="text-[11px] tracking-widest opacity-60">

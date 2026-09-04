@@ -19,6 +19,11 @@ export function useHashRoute() {
   if (t) return { name: 'track', param: t[1] ? decodeURIComponent(t[1]) : null }
   if (route === '#/admin') return { name: 'admin' }
   if (route === '#/don-cua-toi') return { name: 'myorders' }
+  if (route === '#/shop') return { name: 'shop' }
+  if (route === '#/new') return { name: 'new' }
+  if (route === '#/bo-suu-tap') return { name: 'collections' }
+  const c = route.match(/^#\/bo-suu-tap\/(.+)/)
+  if (c) return { name: 'collection', param: decodeURIComponent(c[1]) }
   const g = route.match(/^#\/gio-hang\/(.+)/)
   if (g) return { name: 'claim', param: decodeURIComponent(g[1]) }
   return { name: 'home' }

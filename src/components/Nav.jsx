@@ -5,9 +5,22 @@ import { apiFetch } from '../lib/api.js'
 import AuthModal from './AuthModal.jsx'
 
 const menu = {
-  SHOP: ['Running', 'Street', 'Court', 'Lifestyle'],
-  NEW: ['Just landed', 'Coming soon'],
-  COLLECTIONS: ['Street Future', 'Night Runner', 'Raw Motion', 'City Heat'],
+  SHOP: [
+    { label: 'Tất cả giày', href: '#/shop' },
+    { label: 'Running', href: '#/shop' },
+    { label: 'Street', href: '#/shop' },
+    { label: 'Hàng mới về', href: '#/new' },
+  ],
+  NEW: [
+    { label: 'Vừa về', href: '#/new' },
+    { label: 'Sắp ra mắt', href: '#drop' },
+  ],
+  COLLECTIONS: [
+    { label: 'Tất cả BST', href: '#/bo-suu-tap' },
+    { label: 'Street Future', href: '#/bo-suu-tap/street-future' },
+    { label: 'Night Runner', href: '#/bo-suu-tap/night-runner' },
+    { label: 'Raw Motion', href: '#/bo-suu-tap/raw-motion' },
+  ],
 }
 
 export default function Nav({ onQuiz, onLogoTap, secret, onSearch }) {
@@ -130,12 +143,13 @@ export default function Nav({ onQuiz, onLogoTap, secret, onSearch }) {
           <div className="mx-auto grid max-w-7xl grid-cols-4 gap-8 px-8 py-8">
             {menu[open].map((item) => (
               <a
-                key={item}
-                href="#"
+                key={item.label}
+                href={item.href}
+                onClick={() => setOpen(null)}
                 className="group flex h-28 items-end border border-white/10 bg-ink-deep p-4 transition-colors duration-200 hover:border-accent focus-visible:border-accent"
               >
                 <span className="font-display text-lg font-semibold text-paper group-hover:text-accent">
-                  {item}
+                  {item.label}
                 </span>
               </a>
             ))}

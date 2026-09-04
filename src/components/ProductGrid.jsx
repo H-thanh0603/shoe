@@ -10,13 +10,14 @@ import { SearchBar, FilterBar } from './ProductFilters.jsx'
 
 const PAGE_SIZES = [6, 9, 12, 18]
 
-export default function ProductGrid({ onToggleCompare, compareIds = [] }) {
+export default function ProductGrid({ onToggleCompare, compareIds = [], preset = null, heading = null, kicker = null }) {
   const ref = useRef(null)
   const { data: products, error } = useApi('/products?limit=100')
   const { profile } = useProfile()
   const { wishlist, toggle: toggleWishlist } = useWishlist()
 
-  const [filters, setFilters] = useState(DEFAULT_FILTERS)
+  const initial = useMemo(() => ({ ...DEFAULT_FILTERS, ...(preset || {}) }), [])
+  const [filters, setFilters] = useState(initial)
   const [currentPage, setCurrentPage] = useState(1)
   const [pageSize, setPageSize] = useState(9)
 
@@ -27,7 +28,7 @@ export default function ProductGrid({ onToggleCompare, compareIds = [] }) {
   }
 
   const resetFilters = () => {
-    setFilters(DEFAULT_FILTERS)
+    setFilters(initial)
     setCurrentPage(1)
     playTechClick()
   }
@@ -70,10 +71,10 @@ export default function ProductGrid({ onToggleCompare, compareIds = [] }) {
       <div className="mb-8 flex flex-col justify-between gap-4 md:flex-row md:items-end">
         <div>
           <span className="font-mono text-xs tracking-widest text-accent uppercase">
-            CATALOG // SS26 ARCHIVE
+            {kicker || 'CATALOG // SS26 ARCHIVE'}
           </span>
           <h2 className="display-l text-paper mt-1">
-            {profile ? 'DÀNH CHO BẠN' : 'BỘ SẢN PHẨM'}
+            {heading || (profile ? 'DÀNH CHO BẠN' : 'BỘ SẢN PHẨM')}
           </h2>
         </div>
 

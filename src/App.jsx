@@ -15,6 +15,10 @@ import ProductPage from './pages/ProductPage.jsx'
 import TrackOrder from './pages/TrackOrder.jsx'
 import MyOrders from './pages/MyOrders.jsx'
 import ClaimCart from './pages/ClaimCart.jsx'
+import Shop from './pages/Shop.jsx'
+import NewDrops from './pages/NewDrops.jsx'
+import CollectionDetail from './pages/CollectionDetail.jsx'
+import Collections from './components/Collections.jsx'
 import Admin from './pages/Admin.jsx'
 import Preloader from './components/Preloader.jsx'
 
@@ -61,6 +65,14 @@ export default function App() {
         <MyOrders />
       ) : route.name === 'claim' ? (
         <ClaimCart token={route.param} />
+      ) : route.name === 'shop' ? (
+        <Shop onToggleCompare={compare.toggle} compareIds={compare.ids} />
+      ) : route.name === 'new' ? (
+        <NewDrops onToggleCompare={compare.toggle} compareIds={compare.ids} />
+      ) : route.name === 'collections' ? (
+        <main className="pt-16"><Collections /></main>
+      ) : route.name === 'collection' ? (
+        <CollectionDetail slug={route.param} onToggleCompare={compare.toggle} compareIds={compare.ids} />
       ) : route.name === 'admin' ? (
         <Admin />
       ) : (
