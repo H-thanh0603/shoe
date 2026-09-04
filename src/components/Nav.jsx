@@ -23,6 +23,9 @@ const menu = {
   ],
 }
 
+// bấm vào tên mục → trang tổng (hover mới mở mega menu)
+const LANDING = { SHOP: '#/shop', NEW: '#/new', COLLECTIONS: '#/bo-suu-tap' }
+
 export default function Nav({ onQuiz, onLogoTap, secret, onSearch }) {
   const [open, setOpen] = useState(null)
   const [user, setUser] = useState(null)
@@ -71,7 +74,8 @@ export default function Nav({ onQuiz, onLogoTap, secret, onSearch }) {
                 className="flex items-center gap-1 text-sm font-medium tracking-widest text-paper/80 transition-colors duration-200 hover:text-accent focus-visible:text-accent"
                 onMouseEnter={() => setOpen(k)}
                 onFocus={() => setOpen(k)}
-                onClick={() => setOpen(open === k ? null : k)}
+                onClick={() => { setOpen(null); location.hash = LANDING[k] }}
+                title={`Xem tất cả ${k}`}
               >
                 {k}
                 <svg width="8" height="8" viewBox="0 0 8 8" aria-hidden="true"><path d="M1 2l3 3 3-3" stroke="currentColor" strokeWidth="1.5" fill="none" /></svg>
@@ -79,6 +83,18 @@ export default function Nav({ onQuiz, onLogoTap, secret, onSearch }) {
             </li>
           ))}
         </ul>
+
+        {/* hamburger mobile */}
+        <button
+          onClick={() => setOpen(open === 'm' ? null : 'm')}
+          aria-label="Mở menu"
+          aria-expanded={open === 'm'}
+          className="flex h-10 w-10 flex-col items-center justify-center gap-1.5 md:hidden"
+        >
+          <span className={`block h-0.5 w-5 bg-paper transition-transform ${open === 'm' ? 'translate-y-[7px] rotate-45' : ''}`} />
+          <span className={`block h-0.5 w-5 bg-paper transition-opacity ${open === 'm' ? 'opacity-0' : ''}`} />
+          <span className={`block h-0.5 w-5 bg-paper transition-transform ${open === 'm' ? '-translate-y-[7px] -rotate-45' : ''}`} />
+        </button>
 
         <div className="flex items-center gap-5">
           <button
@@ -134,8 +150,42 @@ export default function Nav({ onQuiz, onLogoTap, secret, onSearch }) {
         />
       )}
 
+      {/* menu mobile full */}
+      {open === 'm' && (
+        <div className="max-h-[70vh] overflow-y-auto border-t border-white/10 bg-charcoal px-4 py-4 md:hidden">
+          {Object.entries(menu).map(([k, items]) => (
+            <div key={k} className="mb-4">
+              <a
+                href={LANDING[k]}
+                onClick={() => setOpen(null)}
+                className="block py-2 font-display text-lg font-bold text-paper"
+              >
+                {k} →
+              </a>
+              <div className="flex flex-wrap gap-2">
+                {items.map((item) => (
+                  <a
+                    key={item.label}
+                    href={item.href}
+                    onClick={() => setOpen(null)}
+                    className="border border-white/15 px-3 py-1.5 font-mono text-xs text-paper/70"
+                  >
+                    {item.label}
+                  </a>
+                ))}
+              </div>
+            </div>
+          ))}
+          <div className="flex flex-wrap gap-2 border-t border-white/10 pt-4">
+            <a href="#/tra-don" onClick={() => setOpen(null)} className="border border-white/15 px-3 py-1.5 font-mono text-xs text-paper/70">TRA ĐƠN</a>
+            {user && <a href="#/don-cua-toi" onClick={() => setOpen(null)} className="border border-white/15 px-3 py-1.5 font-mono text-xs text-paper/70">ĐƠN CỦA TÔI</a>}
+            {user?.role === 'admin' && <a href="#/admin" onClick={() => setOpen(null)} className="border border-accent px-3 py-1.5 font-mono text-xs text-accent">ADMIN</a>}
+          </div>
+        </div>
+      )}
+
       {/* mega menu (N11) — hover mở, categories + visual */}
-      {open && (
+      {open && open !== 'm' && (
         <div
           className="absolute top-full left-0 hidden w-full border-t border-white/10 bg-charcoal/95 backdrop-blur-md md:block"
           onMouseLeave={() => setOpen(null)}
