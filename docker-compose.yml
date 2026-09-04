@@ -113,6 +113,24 @@ services:
       - ./backups:/backups
     command: ["sh", "-c", "mkdir -p /backups/base && while true; do F=/backups/kinetic-$$(date +%F_%H%M).dump; pg_dump -h postgres -U kinetic -Fc kinetic > $$F && echo \"backup ok: $$F\" && ls -t /backups/*.dump | tail -n +8 | xargs -r rm -f; if [ -z \"$$(find /backups/base -maxdepth 1 -mtime -7 -name 'base-*' 2>/dev/null)\" ]; then B=/backups/base/base-$$(date +%F); pg_basebackup -h postgres -U kinetic -Ft -z -D $$B && echo \"base ok: $$B\" && ls -dt /backups/base/base-* | tail -n +3 | xargs -r rm -rf; fi; sleep 86400; done"]
 
+  # Edge Nginx: cổng vào từ internet — LB qua replicas, cache catalog, rate-limit lớp ngoài.
+  # Deploy prod: chỉ mở 8080 ra ngoài, đóng port 3000-3002 của app. Dev/test vẫn gọi :3000 trực tiếp.
+  edge:
+    image: nginx:1.27-alpine
+    restart: unless-stopped
+    depends_on:
+      app:
+        condition: service_healthy
+    volumes:
+      - ./ops/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+    ports:
+      - "8081:8080"
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8080/healthz"]
+      interval: 15s
+      timeout: 3s
+      retries: 5
+
 volumes:
   pgdata:
   redisdata:
