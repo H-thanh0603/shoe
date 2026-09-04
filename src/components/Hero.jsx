@@ -4,6 +4,7 @@ import { useApi } from '../hooks/useApi.js'
 import { useProfile } from '../store/profile.js'
 import { matchScore, sortProducts } from '../lib/match.js'
 import { timeContext } from '../lib/time.js'
+import { useMagnetic } from '../hooks/useMagnetic.js'
 import HeroShoe from './HeroShoe.jsx'
 import { isWebGLAvailable } from '../lib/webgl.js'
 // three.js chunk riêng — chỉ tải khi hero 3D hiện
@@ -25,85 +26,49 @@ const COLORWAYS = [
   { id: 'obsidian', name: 'TRIPLE OBSIDIAN', hex: '#111113' },
 ]
 
-const HOTSPOTS_DATA = {
-  cushion: {
-    title: 'NITRO-GEN™ CUSHION FOAM',
-    metric: '+85% ENERGY RETURN',
-    desc: 'Đệm bọt khí Nitơ áp suất cao giải phóng chấn động gót chân khi tiếp đất.',
-    tag: 'MIDSOLE V2',
-  },
-  carbon: {
-    title: '3K TWILL CARBON PLATE',
-    metric: 'STIFFNESS LVL 4',
-    desc: 'Tấm sợi carbon phản lực tăng tốc bứt phá và chống xoắn lật vòm chân.',
-    tag: 'PROPULSION',
-  },
-  upper: {
-    title: 'MONOFILAMENT RIPSTOP MESH',
-    metric: '180G ULTRA-LIGHT',
-    desc: 'Dệt một mảnh kháng nước mưa nhẹ, thoáng khí 360° theo nhịp bước chạy.',
-    tag: 'UPPER TECH',
-  },
-  traction: {
-    title: 'HYPER-HEX VIBRAM® TREAD',
-    metric: '4.5MM LUG DEPTH',
-    desc: 'Gai lốp cao su ma sát cao chống trơn trượt trên cả mặt đường ướt.',
-    tag: 'OUTSOLE GRIP',
-  },
-}
-
 export default function Hero({ onQuiz }) {
   const ref = useRef(null)
-  const [tilt, setTilt] = useState({ x: 0, y: 0 })
   const [exploded, setExploded] = useState(false)
   const [selectedColor, setSelectedColor] = useState(COLORWAYS[0].hex)
   const [activeHotspot, setActiveHotspot] = useState('cushion')
   const [soundOn, setSoundOn] = useState(() => !isAudioMuted())
   const [webgl] = useState(() => isWebGLAvailable())
   const realtime = webgl && !exploded
+  const quizBtn = useMagnetic(14)
+  const dropBtn = useMagnetic(14)
 
   const { profile } = useProfile()
   const { data: products } = useApi('/products?limit=100')
   const { greeting } = useMemo(() => timeContext(), [])
   const top = useMemo(() => sortProducts(profile, products || [])[0], [profile, products])
   const headline = profile && HEADLINE[profile.purpose]
+  const [l1, l2] = headline || ['MOVE', 'DIFFERENT']
 
   useEffect(() => {
     const el = ref.current
+    if (!el) return undefined
     const io = new IntersectionObserver(
       ([e]) => e.isIntersecting && e.target.classList.add('is-in'),
-      { threshold: 0.15 },
+      { threshold: 0.05 },
     )
-    if (el) io.observe(el)
-    // intro timeline: headline → HUD → viewer → CTA
+    io.observe(el)
     let cancelled = false
-    if (!window.matchMedia('(prefers-reduced-motion: reduce)').matches && el) {
+    if (!window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
       const parts = el.querySelectorAll('[data-intro]')
-      animate(parts, { opacity: 0, y: 34, duration: 1 })
+      animate(parts, { opacity: 0, y: 44, duration: 1 })
       requestAnimationFrame(() => {
         if (cancelled) return
         animate(parts, {
           opacity: [0, 1],
-          y: [34, 0],
-          duration: 900,
-          delay: stagger(110),
+          y: [44, 0],
+          duration: 1000,
+          delay: stagger(120),
           ease: 'outExpo',
         })
       })
     }
     return () => { cancelled = true; io.disconnect() }
   }, [])
-
-  // Mouse move tilt effect (chỉ SVG tilt — 3D realtime tự kéo xoay)
-  const onMove = (e) => {
-    if (exploded || realtime) return
-    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return
-    const r = e.currentTarget.getBoundingClientRect()
-    setTilt({
-      x: ((e.clientX - r.left) / r.width - 0.5) * 10,
-      y: ((e.clientY - r.top) / r.height - 0.5) * -8,
-    })
-  }
 
   const toggleSound = () => {
     const next = !soundOn
@@ -118,185 +83,135 @@ export default function Hero({ onQuiz }) {
   }
 
   const toggleExploded = () => {
-    setExploded((prev) => {
-      const next = !prev
-      if (next) setTilt({ x: 0, y: 0 })
-      playTechClick()
-      return next
-    })
+    playTechClick()
+    setExploded((prev) => !prev)
   }
 
-  const hotspot = HOTSPOTS_DATA[activeHotspot]
-
   return (
-    <section
-      ref={ref}
-      onMouseMove={onMove}
-      onMouseLeave={() => setTilt({ x: 0, y: 0 })}
-      className="reveal relative flex min-h-svh flex-col justify-between overflow-hidden pt-20 pb-10"
-    >
-      {/* Background oversized kinetic brand watermarks */}
+    <section ref={ref} className="reveal relative flex min-h-svh flex-col overflow-hidden pt-16">
+      {/* lưới kỹ thuật */}
+      <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(to_right,#ffffff05_1px,transparent_1px),linear-gradient(to_bottom,#ffffff05_1px,transparent_1px)] bg-[size:4rem_4rem]" />
+
+      {/* chữ outline khổng lồ sau canvas */}
       <div aria-hidden="true" className="pointer-events-none absolute inset-0 flex items-center justify-center">
-        <span className="display-xl select-none text-charcoal/25 tracking-tighter">
-          KINETIC
+        <span className="display-xl text-stroke select-none tracking-tighter">
+          {l1}
         </span>
       </div>
 
-      {/* Grid line accents kỹ thuật */}
-      <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(to_right,#ffffff05_1px,transparent_1px),linear-gradient(to_bottom,#ffffff05_1px,transparent_1px)] bg-[size:4rem_4rem]" />
-
-      {/* Hero Header & Split Title */}
-      <div className="relative z-10 mx-auto flex w-full max-w-7xl flex-col items-center px-4 text-center">
-        <div data-intro className="flex items-center gap-3">
-          <span className="h-1.5 w-1.5 rounded-full bg-accent animate-pulse" />
-          <p className="text-xs font-semibold tracking-[0.25em] text-paper/60 uppercase">
-            {greeting} · SS26 PROTOTYPE
-          </p>
-        </div>
-
-        <h1 data-intro className="display-xl mt-3 text-center transition-all duration-300">
-          {(headline || ['MOVE', 'DIFFERENT'])[0]}<br />
-          <span className="text-accent">{(headline || ['MOVE', 'DIFFERENT'])[1]}</span>
-        </h1>
+      {/* sân khấu 3D / X-ray */}
+      <div className="absolute inset-0">
+        {realtime ? (
+          <Suspense fallback={null}>
+            <ShoeViewer3D colorway={selectedColor} stage />
+          </Suspense>
+        ) : (
+          <div className="flex h-full items-center justify-center px-4">
+            <div className="w-full max-w-[560px]">
+              <HeroShoe
+                colorway={selectedColor}
+                exploded={exploded}
+                activeHotspot={activeHotspot}
+                setActiveHotspot={(h) => { setActiveHotspot(h); playTechClick() }}
+                onHotspotClick={(h) => { setActiveHotspot(h); playTechClick() }}
+              />
+            </div>
+          </div>
+        )}
       </div>
 
-      {/* Main Interactive Stage */}
-      <div className="relative z-10 mx-auto mt-2 flex w-full max-w-7xl flex-1 flex-col items-center justify-center px-4">
-        {/* Controls HUD trên đầu giày */}
-        <div data-intro className="mb-4 flex flex-wrap items-center justify-center gap-3">
-          {/* Mode Switcher: 3D Realtime vs X-Ray Exploded */}
-          <div className="flex items-center rounded border border-white/15 bg-charcoal/80 p-1 backdrop-blur-md">
-            <button
-              onClick={() => { if (exploded) toggleExploded() }}
-              className={`px-3 py-1.5 text-xs font-semibold tracking-wider transition-all duration-200 ${
-                !exploded ? 'bg-accent text-ink' : 'text-paper/60 hover:text-paper'
-              }`}
-            >
-              {webgl ? '3D REALTIME' : '3D TILT'}
-            </button>
-            <button
-              onClick={() => { if (!exploded) toggleExploded() }}
-              className={`px-3 py-1.5 text-xs font-semibold tracking-wider transition-all duration-200 ${
-                exploded ? 'bg-accent text-ink' : 'text-paper/60 hover:text-paper'
-              }`}
-            >
-              X-RAY ANATOMY
-            </button>
-          </div>
-
-          {/* Colorway Switcher */}
-          <div className="flex items-center gap-1.5 rounded border border-white/15 bg-charcoal/80 px-3 py-1.5 backdrop-blur-md">
-            <span className="mr-1 text-[10px] font-mono tracking-widest text-paper/50">COLORWAY</span>
-            {COLORWAYS.map((c) => (
-              <button
-                key={c.id}
-                onClick={() => handleColorSelect(c.hex)}
-                aria-label={`Chọn màu ${c.name}`}
-                className={`h-5 w-5 rounded-full border transition-all duration-200 ${
-                  selectedColor === c.hex
-                    ? 'scale-125 border-white ring-2 ring-accent/60'
-                    : 'border-white/30 hover:scale-110'
-                }`}
-                style={{ backgroundColor: c.hex }}
-              />
-            ))}
-          </div>
-
-          {/* Audio FX Toggle */}
-          <button
-            onClick={toggleSound}
-            className={`flex items-center gap-1.5 rounded border border-white/15 bg-charcoal/80 px-3 py-1.5 text-xs font-mono tracking-widest backdrop-blur-md transition-colors ${
-              soundOn ? 'border-accent text-accent' : 'text-paper/50 hover:text-paper'
-            }`}
-            title={soundOn ? 'Âm thanh bật' : 'Âm thanh tắt'}
-          >
-            <span>{soundOn ? 'SFX: ON' : 'SFX: OFF'}</span>
-            <span className={`inline-block h-1.5 w-1.5 rounded-full ${soundOn ? 'bg-accent animate-ping' : 'bg-paper/30'}`} />
-          </button>
-        </div>
-
-        {/* Sneaker Protagonist: 3D realtime (kéo xoay) hoặc SVG X-Ray */}
-        <div
-          data-intro
-          className="relative w-full max-w-[620px]"
-          style={{
-            transform: exploded || realtime
-              ? 'none'
-              : `perspective(1000px) rotateY(${tilt.x}deg) rotateX(${tilt.y}deg)`,
-            transition: exploded ? 'transform 600ms var(--ease-out)' : 'transform 200ms ease-out',
-          }}
-        >
-          {realtime ? (
-            <Suspense fallback={<p className="py-20 text-center font-mono text-xs tracking-widest text-paper/40">ĐANG DỰNG 3D…</p>}>
-              <ShoeViewer3D colorway={selectedColor} />
-            </Suspense>
-          ) : (
-            <HeroShoe
-              colorway={selectedColor}
-              exploded={exploded}
-              activeHotspot={activeHotspot}
-              setActiveHotspot={(h) => { setActiveHotspot(h); playTechClick() }}
-              onHotspotClick={(h) => { setActiveHotspot(h); playTechClick() }}
-            />
-          )}
-          {realtime && (
-            <p className="pointer-events-none absolute bottom-1 left-1/2 -translate-x-1/2 font-mono text-[10px] tracking-widest whitespace-nowrap text-paper/40">
-              KÉO ĐỂ XOAY · TỰ XOAY KHI RẢNH
+      {/* lớp chữ trước canvas */}
+      <div className="pointer-events-none relative z-10 flex flex-1 flex-col justify-end">
+        <div className="mx-auto w-full max-w-7xl px-4 md:px-8">
+          <p data-intro className="flex items-center gap-3 text-xs font-semibold tracking-[0.25em] text-paper/60 uppercase">
+            <span className="h-1.5 w-1.5 rounded-full bg-accent animate-pulse" />
+            {greeting} · SS26 PROTOTYPE · DROP 004 LIVE
+          </p>
+          <h1 data-intro className="display-xl mt-2 mix-blend-screen">
+            {l1}<br />
+            <span className="text-accent">{l2}</span>
+          </h1>
+          {top && (
+            <p data-intro className="mt-3 text-xs tracking-wide text-paper/60">
+              {matchScore(profile, top)?.pct}% MATCH CHO BẠN —{' '}
+              <a href={`#/san-pham/${top.slug}`} className="pointer-events-auto text-accent underline underline-offset-4 hover:text-accent-hot">
+                {top.name}
+              </a>
             </p>
           )}
         </div>
 
-        {/* Interactive Hotspot HUD Detail Card (chế độ SVG tilt) */}
-        {hotspot && !exploded && !realtime && (
-          <div className="mt-4 flex max-w-lg items-center gap-4 rounded border border-white/10 bg-charcoal/90 p-4 backdrop-blur-md animate-fadeIn">
-            <div className="shrink-0 border-r border-white/10 pr-4">
-              <span className="block font-mono text-[9px] tracking-widest text-accent">{hotspot.tag}</span>
-              <span className="font-display text-sm font-bold text-paper">{hotspot.metric}</span>
+        {/* thanh điều khiển đáy */}
+        <div data-intro className="mt-6 border-t border-white/10 bg-ink/60 backdrop-blur-md">
+          <div className="mx-auto flex w-full max-w-7xl flex-wrap items-center justify-between gap-3 px-4 py-3 md:px-8">
+            {/* mode + colorway */}
+            <div className="flex flex-wrap items-center gap-2">
+              <div className="flex items-center rounded border border-white/15 p-1">
+                <button
+                  onClick={() => { if (exploded) toggleExploded() }}
+                  className={`px-3 py-1.5 text-xs font-semibold tracking-wider transition-all ${!exploded ? 'bg-accent text-ink' : 'text-paper/60 hover:text-paper'}`}
+                >
+                  {webgl ? '3D' : 'TILT'}
+                </button>
+                <button
+                  onClick={() => { if (!exploded) toggleExploded() }}
+                  className={`px-3 py-1.5 text-xs font-semibold tracking-wider transition-all ${exploded ? 'bg-accent text-ink' : 'text-paper/60 hover:text-paper'}`}
+                >
+                  X-RAY
+                </button>
+              </div>
+              <div className="flex items-center gap-1.5 rounded border border-white/15 px-3 py-1.5">
+                {COLORWAYS.map((c) => (
+                  <button
+                    key={c.id}
+                    onClick={() => handleColorSelect(c.hex)}
+                    aria-label={`Chọn màu ${c.name}`}
+                    title={c.name}
+                    className={`h-5 w-5 rounded-full border transition-all ${selectedColor === c.hex ? 'scale-125 border-white ring-2 ring-accent/60' : 'border-white/30 hover:scale-110'}`}
+                    style={{ backgroundColor: c.hex }}
+                  />
+                ))}
+              </div>
+              <button
+                onClick={toggleSound}
+                title={soundOn ? 'Âm thanh bật' : 'Âm thanh tắt'}
+                className={`rounded border border-white/15 px-3 py-1.5 font-mono text-[11px] tracking-widest transition-colors ${soundOn ? 'text-accent' : 'text-paper/50 hover:text-paper'}`}
+              >
+                {soundOn ? 'SFX ON' : 'SFX OFF'}
+              </button>
             </div>
-            <div className="min-w-0 flex-1">
-              <p className="font-display text-xs font-bold text-paper">{hotspot.title}</p>
-              <p className="mt-0.5 text-xs text-paper/60">{hotspot.desc}</p>
+
+            {/* CTA */}
+            <div className="flex items-center gap-3">
+              <span className="hidden items-center gap-2 font-mono text-[11px] tracking-widest text-paper/40 lg:flex">
+                <span className="inline-block h-8 w-px animate-scrollcue bg-accent" />
+                CUỘN
+              </span>
+              <button
+                ref={quizBtn}
+                onClick={onQuiz}
+                className="border border-white/20 bg-ink-deep/60 px-6 py-3.5 text-xs font-bold tracking-widest text-paper/80 transition-colors hover:border-accent hover:text-accent"
+              >
+                DISCOVER YOUR STYLE →
+              </button>
+              <a
+                ref={dropBtn}
+                href="#drop"
+                className="group flex items-center gap-2 border border-accent bg-accent px-8 py-3.5 text-xs font-bold tracking-widest text-ink transition-colors hover:bg-transparent hover:text-accent"
+              >
+                XEM DROP
+                <span className="transition-transform group-hover:translate-x-1">→</span>
+              </a>
             </div>
           </div>
-        )}
-
-        {/* Top Product Recommendation Note */}
-        {top && (
-          <p className="mt-4 text-center text-xs tracking-wide text-paper/60">
-            {matchScore(profile, top)?.pct}% MATCH CHO BẠN —{' '}
-            <a href={`#/san-pham/${top.slug}`} className="text-accent underline underline-offset-4 hover:text-accent-hot">
-              {top.name}
-            </a>
-          </p>
-        )}
+        </div>
       </div>
 
-      {/* Bottom Metadata & CTAs */}
-      <div data-intro className="relative z-10 mx-auto mt-6 flex w-full max-w-7xl flex-wrap items-end justify-between gap-4 px-4 md:px-8">
-        <div className="flex flex-col gap-1 text-[11px] font-mono tracking-widest text-paper/50">
-          <span>DROP 004 // LIVE</span>
-          <span className="text-accent font-semibold">LIMITED: 120 PAIRS</span>
-        </div>
-
-        <div className="flex items-center gap-3">
-          <button
-            onClick={onQuiz}
-            className="border border-white/20 bg-ink-deep/60 px-6 py-3.5 text-xs font-bold tracking-widest text-paper/80 backdrop-blur-md transition-all duration-200 hover:border-accent hover:text-accent"
-          >
-            DISCOVER YOUR STYLE →
-          </button>
-          <a
-            href="#drop"
-            className="group flex items-center gap-2 border border-accent bg-accent px-8 py-3.5 text-xs font-bold tracking-widest text-ink transition-all duration-200 hover:bg-transparent hover:text-accent"
-          >
-            XEM DROP
-            <span className="transition-transform duration-200 group-hover:translate-x-1">→</span>
-          </a>
-        </div>
-
-        <div className="hidden font-mono text-[11px] tracking-widest text-paper/50 md:block">
-          <span>SPEC: 285G · 8MM DROP</span>
-        </div>
+      {/* spec dọc cạnh phải */}
+      <div aria-hidden="true" className="pointer-events-none absolute top-1/2 right-4 z-10 hidden -translate-y-1/2 rotate-90 xl:block">
+        <span className="font-mono text-[10px] tracking-[0.35em] whitespace-nowrap text-paper/35">
+          285G · 8MM DROP · LIMITED 120 PAIRS
+        </span>
       </div>
     </section>
   )

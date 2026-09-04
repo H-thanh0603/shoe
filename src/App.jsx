@@ -16,6 +16,7 @@ import TrackOrder from './pages/TrackOrder.jsx'
 import MyOrders from './pages/MyOrders.jsx'
 import ClaimCart from './pages/ClaimCart.jsx'
 import Admin from './pages/Admin.jsx'
+import Preloader from './components/Preloader.jsx'
 
 export default function App() {
   const route = useHashRoute()
@@ -43,6 +44,8 @@ export default function App() {
 
   return (
     <>
+      <Preloader />
+      <div className="grain" aria-hidden="true" />
       <Nav
         onQuiz={openQuiz}
         onLogoTap={toggleSecret}

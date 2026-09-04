@@ -94,7 +94,7 @@ function buildShoe(colorway) {
   return { group: g, accentMats: [matOut] }
 }
 
-export default function ShoeViewer3D({ colorway = '#d43a2a', onReady }) {
+export default function ShoeViewer3D({ colorway = '#d43a2a', onReady, stage = false }) {
   const mountRef = useRef(null)
   const apiRef = useRef(null)
 
@@ -121,7 +121,8 @@ export default function ShoeViewer3D({ colorway = '#d43a2a', onReady }) {
 
     const scene = new THREE.Scene()
     const camera = new THREE.PerspectiveCamera(32, 1, 0.1, 100)
-    camera.position.set(0.4, 2.2, 8.2)
+    const baseZ = stage ? 7.4 : 8.2
+    camera.position.set(0.4, 2.2, baseZ)
     camera.lookAt(0, 1.0, 0)
 
     scene.add(new THREE.HemisphereLight('#ffffff', '#1a1a1e', 1.1))
@@ -151,10 +152,19 @@ export default function ShoeViewer3D({ colorway = '#d43a2a', onReady }) {
     scene.add(glow)
 
     const { group: shoe, accentMats } = buildShoe(colorway)
+    if (stage) shoe.scale.setScalar(1.18)
     shoe.position.y = 0.35
     shoe.rotation.y = -0.5
     scene.add(shoe)
     apiRef.current = { accentMats, glow }
+
+    // scroll dolly: cuộn xuống → camera tiến vào + giày xoay theo
+    let scrollP = 0
+    const onScroll = () => {
+      scrollP = THREE.MathUtils.clamp(window.scrollY / Math.max(window.innerHeight, 1), 0, 1)
+    }
+    onScroll()
+    window.addEventListener('scroll', onScroll, { passive: true })
 
     // tương tác: kéo xoay + auto-xoay khi rảnh
     let targetY = shoe.rotation.y
@@ -195,8 +205,9 @@ export default function ShoeViewer3D({ colorway = '#d43a2a', onReady }) {
       raf = requestAnimationFrame(tick)
       t += 0.016
       if (!dragging && !reduceMotion && performance.now() - idleAt > 2500) targetY += 0.0035
-      shoe.rotation.y += (targetY - shoe.rotation.y) * 0.08
+      shoe.rotation.y += (targetY + scrollP * 1.1 - shoe.rotation.y) * 0.06
       shoe.rotation.x += (targetX - shoe.rotation.x) * 0.08
+      camera.position.z += (baseZ - scrollP * 2.4 - camera.position.z) * 0.06
       if (!reduceMotion) shoe.position.y = 0.35 + Math.sin(t * 1.4) * 0.07
       renderer.render(scene, camera)
     }
@@ -205,6 +216,7 @@ export default function ShoeViewer3D({ colorway = '#d43a2a', onReady }) {
 
     return () => {
       cancelAnimationFrame(raf)
+      window.removeEventListener('scroll', onScroll)
       ro.disconnect()
       mount.removeEventListener('pointerdown', down)
       mount.removeEventListener('pointermove', move)
@@ -218,5 +230,5 @@ export default function ShoeViewer3D({ colorway = '#d43a2a', onReady }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  return <div ref={mountRef} className="h-[300px] w-full cursor-grab active:cursor-grabbing md:h-[380px]" aria-label="Xem giày 3D — kéo để xoay" role="img" />
+  return <div ref={mountRef} className={stage ? 'h-full w-full cursor-grab active:cursor-grabbing' : 'h-[300px] w-full cursor-grab active:cursor-grabbing md:h-[380px]'} aria-label="Xem giày 3D — kéo để xoay" role="img" />
 }
