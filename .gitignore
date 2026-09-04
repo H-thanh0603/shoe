@@ -7,3 +7,6 @@ __pycache__/
 !.env.example
 agents/.env
 server/.env
+
+# dump Postgres (service backup) — không commit
+backups/

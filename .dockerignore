@@ -3,3 +3,4 @@ dist/
 .git/
 server/node_modules/
 server/.env
+backups/

@@ -80,6 +80,20 @@ services:
       JOBS_ENABLED: "false"
     command: ["sh", "-c", "while true; do node cron.js; sleep 21600; done"]
 
+  # Backup Postgres mỗi 24h (pg_dump custom format), giữ 7 bản mới nhất trong ./backups/.
+  # Quy trình restore xem docs/BACKUP.md. KHÔNG backup root .env (chứa JWT_SECRET) — giữ riêng.
+  backup:
+    image: postgres:18-alpine
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      PGPASSWORD: kinetic
+    volumes:
+      - ./backups:/backups
+    command: ["sh", "-c", "mkdir -p /backups && while true; do F=/backups/kinetic-$$(date +%F_%H%M).dump; pg_dump -h postgres -U kinetic -Fc kinetic > $$F && echo \"backup ok: $$F\" && ls -t /backups/*.dump | tail -n +8 | xargs -r rm -f; sleep 86400; done"]
+
 volumes:
   pgdata:
   redisdata:
