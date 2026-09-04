@@ -94,6 +94,10 @@ async def main():
         merch = KineticMerchant()
         m = MerchantSessionContext(session_id="smoke-m", merchant_id="kinetic",
                                    operator="smoke", timezone="Asia/Ho_Chi_Minh")
+        # dọn change smoke còn sót từ lần chạy crash trước
+        for c in await merch.get_pending_changes(m):
+            if c.created_by == "smoke":
+                await merch.discard_change(m, c.change_id)
         snap = await merch.get_business_snapshot(m)
         check("business_snapshot", snap.orders >= 0, f"(doanh thu={snap.sales})")
         series = await merch.query_metrics(m, "sales")
@@ -127,8 +131,38 @@ async def main():
         ]
         check("stage 5 changes", all(c.status.value == "staged" for c in staged))
         pend = await merch.get_pending_changes(m)
-        check("pending_changes", len(pend) == 5)
-        for c in staged:
+        check("pending_changes", len(pend) >= 5)
+
+        # persist: change sống trong DB, adapter mới vẫn thấy
+        merch2 = KineticMerchant()
+        check("persist across restart", any(
+            c.change_id == staged[0].change_id
+            for c in await merch2.get_pending_changes(m)))
+
+        # apply khi chưa duyệt → từ chối
+        try:
+            await merch.apply_change(m, staged[1].change_id)
+            check("apply chưa duyệt → từ chối", False)
+        except Exception as e:
+            check("apply chưa duyệt → từ chối", "duyệt" in str(e))
+
+        # duyệt qua API (như Admin UI) rồi apply nhập kho +1
+        admin = merch.api
+        admin.post(f"/api/v1/admin/agent-changes/{staged[1].change_id}/approve",
+                   {"approved": True})
+        slug, size = v1.split("::")
+        variants = admin.get(f"/api/v1/admin/products/{full.listing_id}/variants")
+        vid = next(v["id"] for v in variants if str(v["size"]) == size)
+        stock0 = next(v["stock"] for v in variants if str(v["size"]) == size)
+        applied = await merch.apply_change(m, staged[1].change_id)
+        stock1 = next(v["stock"] for v in admin.get(
+            f"/api/v1/admin/products/{full.listing_id}/variants")
+            if str(v["size"]) == size)
+        check("apply sau duyệt (+1 kho)", applied.status.value == "applied"
+              and stock1 == stock0 + 1, f"({stock0}→{stock1})")
+        # hoàn kho −1 trực tiếp (giữ số liệu sạch sau test)
+        admin.post("/api/v1/admin/inventory", {"variantId": vid, "qty": -1})
+        for c in [staged[0], staged[2], staged[3], staged[4]]:
             await merch.discard_change(m, c.change_id)
         check("discard all", await merch.get_pending_changes(m) == [])
         mc = await merch.get_merchant_context(m)

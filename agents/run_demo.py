@@ -73,6 +73,9 @@ async def chat(role: str):
         from shopping_agent.types import ShoppingSessionContext, ShoppingSessionState
         session, state = ShoppingSessionContext(**ctx_kw), ShoppingSessionState()
     print(f"[{role}] gõ 'quit' để thoát. VD shopping: 'giày chạy bộ dưới 3 triệu còn size 42'")
+    if role == "merchant":
+        print("  lệnh host: /changes (liệt kê chờ duyệt) · /duyệt CHG-XXX · /bỏ CHG-XXX")
+    merch = agent.backend if role == "merchant" else None
     while True:
         try:
             text = input("bạn> ").strip()
@@ -81,6 +84,26 @@ async def chat(role: str):
         if text.lower() in ("quit", "exit"):
             break
         if not text:
+            continue
+        if text.startswith("/") and merch is not None:
+            parts = text.split()
+            try:
+                if parts[0] == "/changes":
+                    for c in await merch.get_pending_changes(session):
+                        print(f"  {c.change_id} [{c.kind.value}] {c.summary}")
+                elif parts[0] in ("/duyệt", "/bỏ") and len(parts) == 2:
+                    api = merch.api
+                    if parts[0] == "/duyệt":
+                        api.post(f"/api/v1/admin/agent-changes/{parts[1]}/approve",
+                                 {"approved": True})
+                        print(f"  đã duyệt {parts[1]} — bảo agent apply")
+                    else:
+                        await merch.discard_change(session, parts[1])
+                        print(f"  đã bỏ {parts[1]}")
+                else:
+                    print("  lệnh: /changes · /duyệt ID · /bỏ ID")
+            except Exception as e:
+                print(f"  lỗi: {e}")
             continue
         async for event in agent.stream_turn([{"role": "user", "content": text}],
                                              session, state):

@@ -222,11 +222,73 @@ router.patch('/coupons/:id', validate(z.object({
   ok(res, c)
 })
 
+// ——— Agent staged changes (persist thay RAM — restart không mất) ———
+const changeBody = z.object({
+  kind: z.enum(['listing_update', 'price_update', 'inventory_action', 'promotion', 'campaign']),
+  status: z.enum(['staged', 'applied', 'discarded']).optional(),
+  summary: z.string().max(200),
+  items: z.array(z.record(z.string(), z.unknown())).optional(),
+  payload: z.record(z.string(), z.unknown()).optional(),
+  notes: z.array(z.string()).optional(),
+  createdBy: z.string().max(200).optional(),
+  operator: z.string().max(200).optional(),
+  appliedBy: z.string().max(200).nullable().optional(),
+  discardedBy: z.string().max(200).nullable().optional(),
+})
+
+router.get('/agent-changes', async (req, res) => {
+  const status = req.query.status
+  const { rows } = await pool.query(
+    `SELECT * FROM agent_changes ${status ? 'WHERE status = $1' : ''} ORDER BY created_at DESC LIMIT 100`,
+    status ? [status] : [])
+  ok(res, rows)
+})
+
+// upsert theo change_id — adapter ghi khi stage/apply/discard
+router.put('/agent-changes/:id', validate(changeBody), async (req, res) => {
+  const b = req.body
+  const { rows: [c] } = await pool.query(
+    `INSERT INTO agent_changes (change_id, kind, status, summary, items, payload, notes, created_by, operator, applied_by, discarded_by, updated_at)
+     VALUES ($1,$2,COALESCE($3,'staged'),$4,$5,$6,$7,$8,$9,$10,$11, now())
+     ON CONFLICT (change_id) DO UPDATE SET
+       status = COALESCE(EXCLUDED.status, agent_changes.status),
+       summary = EXCLUDED.summary, items = EXCLUDED.items, payload = EXCLUDED.payload,
+       notes = EXCLUDED.notes, applied_by = EXCLUDED.applied_by,
+       discarded_by = EXCLUDED.discarded_by, updated_at = now()
+     RETURNING *`,
+    [req.params.id, b.kind, b.status ?? null, b.summary, JSON.stringify(b.items ?? []),
+     JSON.stringify(b.payload ?? {}), JSON.stringify(b.notes ?? []),
+     b.createdBy ?? '', b.operator ?? '', b.appliedBy ?? null, b.discardedBy ?? null])
+  ok(res, c)
+})
+
+// duyệt / gỡ duyệt — chỉ admin (route này đã requireRole), approved_by = user id
+router.post('/agent-changes/:id/approve', validate(z.object({ approved: z.boolean() })), async (req, res) => {
+  const { rows: [c] } = await pool.query(
+    `UPDATE agent_changes SET approved = $2, approved_by = CASE WHEN $2 THEN $3 ELSE NULL END,
+      updated_at = now() WHERE change_id = $1 RETURNING *`,
+    [req.params.id, req.body.approved, String(req.user.id)])
+  if (!c) return bad(res, 'CHANGE_NOT_FOUND', 'Không tìm thấy change', 404)
+  ok(res, c)
+})
+
+router.post('/agent-changes/:id/discard', async (req, res) => {
+  const { rows: [c] } = await pool.query(
+    `UPDATE agent_changes SET status = 'discarded', discarded_by = $2, updated_at = now()
+     WHERE change_id = $1 RETURNING *`,
+    [req.params.id, String(req.user.id)])
+  if (!c) return bad(res, 'CHANGE_NOT_FOUND', 'Không tìm thấy change', 404)
+  ok(res, c)
+})
+
 // ——— Variants của 1 product (để admin xem/sửa stock) ———
 router.get('/products/:id/variants', async (req, res) => {
+  const { rows: [p] } = await pool.query(
+    'SELECT id FROM products WHERE id::text = $1 OR slug = $1', [req.params.id])
+  if (!p) return bad(res, 'PRODUCT_NOT_FOUND', 'Không tìm thấy sản phẩm', 404)
   const { rows } = await pool.query(
     'SELECT pv.id, pv.size, pv.stock, p.name FROM product_variants pv JOIN products p ON p.id = pv.product_id WHERE pv.product_id = $1 ORDER BY pv.size',
-    [req.params.id])
+    [p.id])
   ok(res, rows)
 })
 

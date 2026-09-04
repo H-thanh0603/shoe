@@ -130,6 +130,9 @@ class KineticClient:
     def patch(self, path: str, body: dict | None = None, **kw):
         return self.call("PATCH", path, json=body or {}, **kw)
 
+    def put(self, path: str, body: dict | None = None, **kw):
+        return self.call("PUT", path, json=body or {}, **kw)
+
     def delete(self, path: str, **kw):
         return self.call("DELETE", path, **kw)
 
@@ -402,16 +405,56 @@ def _listing_of(p: dict, variants: list[dict] | None = None) -> Listing:
     )
 
 
+def _parse_dt(value):
+    if not value:
+        return None
+    if isinstance(value, datetime):
+        return value
+    dt = datetime.fromisoformat(str(value))
+    return dt if dt.tzinfo else dt.replace(tzinfo=timezone.utc)
+
+
+def _jsonable(obj):
+    import json
+    return json.loads(json.dumps(obj, default=str))
+
+
 class KineticMerchant(MerchantBackend):
+    # Ledger nằm ở bảng agent_changes (REST), không còn RAM — restart không mất.
     def __init__(self, client: KineticClient | None = None):
         self.api = client or KineticClient()
-        self._changes: dict[str, StagedChange] = {}
-        self._seq = 0
 
     def _admin(self) -> KineticClient:
         if not self.api._admin:
             self.api.login_admin()
         return self.api
+
+    def _row_to_change(self, r: dict) -> StagedChange:
+        return StagedChange(
+            change_id=r["change_id"], kind=ChangeKind(r["kind"]),
+            status=ChangeStatus(r["status"]), summary=r["summary"],
+            items=[ChangeItem(**i) for i in (r.get("items") or [])],
+            created_at=_parse_dt(r.get("created_at")) or datetime.now(timezone.utc),
+            created_by=r.get("created_by") or "",
+            created_by_kind=ActorKind.AGENT,
+            applied_at=_parse_dt(r.get("updated_at")) if r.get("status") == "applied" else None,
+            applied_by=r.get("applied_by"),
+            discarded_at=_parse_dt(r.get("updated_at")) if r.get("status") == "discarded" else None,
+            discarded_by=r.get("discarded_by"),
+            discarded_by_kind=ActorKind.OPERATOR if r.get("discarded_by") else None,
+            guardrail_notes=r.get("notes") or [],
+            currency="VND",
+        )
+
+    def _pending_rows(self) -> list[dict]:
+        return self._admin().get("/api/v1/admin/agent-changes", params={"status": "staged"})
+
+    def _raw(self, change_id: str) -> dict:
+        rows = self._admin().get("/api/v1/admin/agent-changes")
+        row = next((r for r in rows if r["change_id"] == change_id), None)
+        if row is None:
+            raise ChangeNotApplicable(f"no change {change_id!r}")
+        return row
 
     def _products(self) -> list[dict]:
         return self._admin().get("/api/v1/admin/products")
@@ -433,23 +476,25 @@ class KineticMerchant(MerchantBackend):
 
     def _stage(self, session, kind: ChangeKind, summary: str,
                items: list[ChangeItem], payload: dict) -> StagedChange:
-        self._seq += 1
-        change = StagedChange(
-            change_id=f"CHG-{self._seq:03d}",
-            kind=kind, summary=summary, items=items,
-            created_at=datetime.now(timezone.utc),
-            created_by=session.operator, created_by_kind=ActorKind.AGENT,
-            currency="VND",
-            guardrail_notes=[f"payload:{k}={v}" for k, v in payload.items()],
-        )
-        self._changes[change.change_id] = (change, payload)
+        change_id = f"CHG-{uuid.uuid4().hex[:6].upper()}"
+        notes = [f"payload:{k}={v}" for k, v in payload.items()]
+        row = self._admin().put(f"/api/v1/admin/agent-changes/{change_id}", {
+            "kind": kind.value, "status": "staged", "summary": summary,
+            "items": [i.model_dump() for i in items], "payload": _jsonable(payload),
+            "notes": notes, "createdBy": session.operator, "operator": session.operator,
+        })
+        change = self._row_to_change(row)
+        change.guardrail_notes = notes
         return change
 
     def _get_staged(self, change_id: str):
-        entry = self._changes.get(change_id)
-        if entry is None or entry[0].status != ChangeStatus.STAGED:
-            raise ChangeNotApplicable(f"no staged change {change_id!r}")
-        return entry
+        row = self._raw(change_id)
+        if row["status"] != "staged":
+            raise ChangeNotApplicable(f"change {change_id!r} is {row['status']}")
+        if not row.get("approved"):
+            raise ChangeNotApplicable(
+                f"change {change_id!r} chưa được duyệt — duyệt ở Admin → Duyệt change")
+        return self._row_to_change(row), row.get("payload") or {}
 
     # -- Performance --
 
@@ -467,8 +512,7 @@ class KineticMerchant(MerchantBackend):
             currency="VND",
             alerts=AlertCounts(low_stock=len(a["lowStock"]),
                                order_issues=a["pendingOrders"],
-                               pending_changes=sum(1 for c, _ in self._changes.values()
-                                                   if c.status == ChangeStatus.STAGED)),
+                               pending_changes=len(self._pending_rows())),
             note=None if f["sessions"] else "chưa có traffic 30 ngày",
         )
 
@@ -666,7 +710,7 @@ class KineticMerchant(MerchantBackend):
         return change
 
     async def get_pending_changes(self, session):
-        return [c for c, _ in self._changes.values() if c.status == ChangeStatus.STAGED]
+        return [self._row_to_change(r) for r in self._pending_rows()]
 
     async def apply_change(self, session, change_id):
         change, payload = self._get_staged(change_id)
@@ -693,19 +737,23 @@ class KineticMerchant(MerchantBackend):
             raise
         except KineticError as e:
             raise RuntimeError(f"apply thất bại: {e}") from e
+        self._admin().put(f"/api/v1/admin/agent-changes/{change_id}", {
+            "kind": change.kind.value, "status": "applied", "summary": change.summary,
+            "items": [i.model_dump() for i in change.items],
+            "payload": _jsonable(payload), "notes": change.guardrail_notes,
+            "createdBy": change.created_by, "operator": session.operator,
+            "appliedBy": session.operator,
+        })
         change.status = ChangeStatus.APPLIED
         change.applied_at = datetime.now(timezone.utc)
         change.applied_by = session.operator
         return change
 
     async def discard_change(self, session, change_id, actor_kind=ActorKind.OPERATOR):
-        entry = self._changes.get(change_id)
-        if entry is None:
-            raise ChangeNotApplicable(f"no change {change_id!r}")
-        change, _ = entry
-        change.status = ChangeStatus.DISCARDED
-        change.discarded_at = datetime.now(timezone.utc)
-        change.discarded_by = session.operator
+        row = self._raw(change_id)  # 404 khi id lạ
+        self._admin().post(f"/api/v1/admin/agent-changes/{change_id}/discard")
+        change = self._row_to_change({**row, "status": "discarded",
+                                      "discarded_by": session.operator})
         change.discarded_by_kind = actor_kind
         return change
 

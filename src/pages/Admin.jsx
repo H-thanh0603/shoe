@@ -284,7 +284,49 @@ function Coupons() {
   )
 }
 
-const TABS = [['dash', 'TỔNG QUAN'], ['orders', 'ĐƠN HÀNG'], ['products', 'SẢN PHẨM'], ['coupons', 'MÃ GIẢM GIÁ']]
+function ChangeApprovals() {
+  const [rows, setRows] = useState([])
+  const load = useCallback(() => {
+    apiGet('/admin/agent-changes?status=staged').then(setRows).catch(() => {})
+  }, [])
+  useEffect(load, [load])
+
+  const act = async (id, op) => {
+    if (op === 'approve' && !confirm(`Duyệt ${id}? Agent sẽ được apply.`)) return
+    try {
+      if (op === 'approve') await apiFetch(`/admin/agent-changes/${id}/approve`, { method: 'POST', body: { approved: true } })
+      else await apiFetch(`/admin/agent-changes/${id}/discard`, { method: 'POST' })
+      playTechClick(); load()
+    } catch (e) { alert(e.message) }
+  }
+
+  if (!rows.length) return <p className="font-mono text-xs text-paper/50">Không có change nào chờ duyệt.</p>
+  return (
+    <div className="flex flex-col gap-3">
+      {rows.map((c) => (
+        <div key={c.change_id} className="border border-white/10 bg-charcoal p-4">
+          <div className="flex flex-wrap items-baseline justify-between gap-2">
+            <p className="font-mono text-sm font-bold text-paper">{c.change_id} <span className="text-[11px] font-normal text-paper/50">[{c.kind}] · bởi {c.created_by || '?'} · {new Date(c.created_at).toLocaleString('vi-VN')}</span></p>
+            <span className="flex gap-1.5">
+              <button onClick={() => act(c.change_id, 'approve')} className="border border-accent bg-accent px-3 py-1 font-mono text-[11px] font-bold text-ink hover:bg-transparent hover:text-accent">DUYỆT</button>
+              <button onClick={() => act(c.change_id, 'discard')} className={btn}>BỎ</button>
+            </span>
+          </div>
+          <p className="mt-1 text-sm text-paper/80">{c.summary}</p>
+          <ul className="mt-2 flex flex-col gap-1">
+            {(c.items || []).map((it, i) => (
+              <li key={i} className="font-mono text-xs text-paper/60">
+                {it.target} · {it.field}: {JSON.stringify(it.before)} → {JSON.stringify(it.after)}
+              </li>
+            ))}
+          </ul>
+        </div>
+      ))}
+    </div>
+  )
+}
+
+const TABS = [['dash', 'TỔNG QUAN'], ['orders', 'ĐƠN HÀNG'], ['products', 'SẢN PHẨM'], ['coupons', 'MÃ GIẢM GIÁ'], ['changes', 'DUYỆT CHANGE']]
 
 export default function Admin() {
   const [me, setMe] = useState(null)
@@ -328,6 +370,7 @@ export default function Admin() {
       {tab === 'orders' && <Orders />}
       {tab === 'products' && <Products />}
       {tab === 'coupons' && <Coupons />}
+      {tab === 'changes' && <ChangeApprovals />}
     </main>
   )
 }
