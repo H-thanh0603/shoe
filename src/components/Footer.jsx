@@ -48,6 +48,9 @@ export default function Footer() {
           <span>© 2026 KINETIC. ALL RIGHTS RESERVED.</span>
           <span>HANOI — SEOUL — TOKYO</span>
         </div>
+        <p className="mt-4 font-mono text-[10px] tracking-wider text-paper/30">
+          Model giày 3D: “Sneakers” bởi Poly by Google, CC-BY 3.0.
+        </p>
       </div>
     </footer>
   )

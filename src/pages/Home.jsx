@@ -1,6 +1,7 @@
 import Hero from '../components/Hero.jsx'
 import Marquee from '../components/Marquee.jsx'
 import WeatherStrip from '../components/WeatherStrip.jsx'
+import ShopByMood from '../components/ShopByMood.jsx'
 import ProductGrid from '../components/ProductGrid.jsx'
 import TechLab from '../components/TechLab.jsx'
 import Collections from '../components/Collections.jsx'
@@ -13,6 +14,7 @@ export default function Home({ onQuiz, secret, onToggleCompare, compareIds }) {
       <Hero onQuiz={onQuiz} />
       <Marquee secret={secret} />
       <WeatherStrip />
+      <ShopByMood />
       <ProductGrid onToggleCompare={onToggleCompare} compareIds={compareIds} />
       <TechLab />
       <Collections />

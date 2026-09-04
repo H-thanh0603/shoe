@@ -1,5 +1,6 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import * as THREE from 'three'
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js'
 
 // Giày procedural — không cần file model ngoài.
 // Side profile extrude: đế + thân, chi tiết carbon/laces/swoosh theo colorway.
@@ -97,6 +98,7 @@ function buildShoe(colorway) {
 export default function ShoeViewer3D({ colorway = '#d43a2a', onReady, stage = false }) {
   const mountRef = useRef(null)
   const apiRef = useRef(null)
+  const [loading, setLoading] = useState(true)
 
   // đổi màu live không rebuild geometry
   useEffect(() => {
@@ -151,12 +153,50 @@ export default function ShoeViewer3D({ colorway = '#d43a2a', onReady, stage = fa
     glow.position.y = 0.01
     scene.add(glow)
 
-    const { group: shoe, accentMats } = buildShoe(colorway)
-    if (stage) shoe.scale.setScalar(1.18)
-    shoe.position.y = 0.35
-    shoe.rotation.y = -0.5
-    scene.add(shoe)
-    apiRef.current = { accentMats, glow }
+    // rig thay được: model GLB thật, lỗi thì rơi về procedural
+    const rig = { shoe: null }
+    let targetY = -0.5
+    let targetX = 0
+    const placeShoe = (group, accentMats = []) => {
+      if (stage) group.scale.setScalar(1.18)
+      group.position.y = 0.35
+      group.rotation.y = targetY
+      scene.add(group)
+      rig.shoe = group
+      apiRef.current = { accentMats, glow }
+      setLoading(false)
+      onReady?.()
+    }
+    // chuẩn hóa model ngoài: vừa khung ~5 đơn vị, chân chạm đất
+    const normalize = (model) => {
+      const box = new THREE.Box3().setFromObject(model)
+      const size = box.getSize(new THREE.Vector3())
+      const sc = 5.0 / Math.max(size.x, size.y, size.z, 0.001)
+      model.scale.setScalar(sc)
+      const b2 = new THREE.Box3().setFromObject(model)
+      const c2 = b2.getCenter(new THREE.Vector3())
+      model.position.x -= c2.x
+      model.position.z -= c2.z
+      model.position.y -= b2.min.y
+      const shoe = new THREE.Group()
+      shoe.add(model)
+      return shoe
+    }
+    let cancelled = false
+    new GLTFLoader()
+      .loadAsync(`${import.meta.env.BASE_URL}models/sneakers.glb`)
+      .then((gltf) => {
+        if (cancelled) return
+        const shoe = normalize(gltf.scene)
+        shoe.traverse((o) => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true } })
+        placeShoe(shoe)
+      })
+      .catch(() => {
+        if (cancelled) return
+        const { group, accentMats } = buildShoe(colorway)
+        group.traverse((o) => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true } })
+        placeShoe(group, accentMats)
+      })
 
     // scroll dolly: cuộn xuống → camera tiến vào + giày xoay theo
     let scrollP = 0
@@ -167,8 +207,6 @@ export default function ShoeViewer3D({ colorway = '#d43a2a', onReady, stage = fa
     window.addEventListener('scroll', onScroll, { passive: true })
 
     // tương tác: kéo xoay + auto-xoay khi rảnh
-    let targetY = shoe.rotation.y
-    let targetX = 0
     let dragging = false
     let lastX = 0
     let lastY = 0
@@ -205,16 +243,18 @@ export default function ShoeViewer3D({ colorway = '#d43a2a', onReady, stage = fa
       raf = requestAnimationFrame(tick)
       t += 0.016
       if (!dragging && !reduceMotion && performance.now() - idleAt > 2500) targetY += 0.0035
-      shoe.rotation.y += (targetY + scrollP * 1.1 - shoe.rotation.y) * 0.06
-      shoe.rotation.x += (targetX - shoe.rotation.x) * 0.08
+      if (rig.shoe) {
+        rig.shoe.rotation.y += (targetY + scrollP * 1.1 - rig.shoe.rotation.y) * 0.06
+        rig.shoe.rotation.x += (targetX - rig.shoe.rotation.x) * 0.08
+        if (!reduceMotion) rig.shoe.position.y = 0.35 + Math.sin(t * 1.4) * 0.07
+      }
       camera.position.z += (baseZ - scrollP * 2.4 - camera.position.z) * 0.06
-      if (!reduceMotion) shoe.position.y = 0.35 + Math.sin(t * 1.4) * 0.07
       renderer.render(scene, camera)
     }
     tick()
-    onReady?.()
 
     return () => {
+      cancelled = true
       cancelAnimationFrame(raf)
       window.removeEventListener('scroll', onScroll)
       ro.disconnect()
@@ -230,5 +270,14 @@ export default function ShoeViewer3D({ colorway = '#d43a2a', onReady, stage = fa
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  return <div ref={mountRef} className={stage ? 'h-full w-full cursor-grab active:cursor-grabbing' : 'h-[300px] w-full cursor-grab active:cursor-grabbing md:h-[380px]'} aria-label="Xem giày 3D — kéo để xoay" role="img" />
+  return (
+    <div className={`relative ${stage ? 'h-full w-full' : 'h-[300px] w-full md:h-[380px]'}`}>
+      <div ref={mountRef} className="h-full w-full cursor-grab active:cursor-grabbing" aria-label="Xem giày 3D — kéo để xoay" role="img" />
+      {loading && (
+        <p className="pointer-events-none absolute inset-0 flex items-center justify-center font-mono text-[11px] tracking-widest text-paper/40">
+          ĐANG TẢI MODEL 3D…
+        </p>
+      )}
+    </div>
+  )
 }

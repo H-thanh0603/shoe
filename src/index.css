@@ -141,6 +141,18 @@ body.secret .text-stroke {
   color: var(--color-ink);
 }
 
+/* aurora trôi */
+@keyframes aurora-a {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  50% { transform: translate(60px, 30px) scale(1.12); }
+}
+@keyframes aurora-b {
+  0%, 100% { transform: translate(0, 0) scale(1.05); }
+  50% { transform: translate(-50px, -40px) scale(0.95); }
+}
+.animate-aurora-a { animation: aurora-a 14s ease-in-out infinite; }
+.animate-aurora-b { animation: aurora-b 18s ease-in-out infinite; }
+
 /* cue cuộn */
 @keyframes scrollcue {
   0% { transform: scaleY(0); transform-origin: top; }

@@ -36,36 +36,39 @@ export default function Drop() {
     <section
       id="drop"
       ref={ref}
-      className="reveal relative overflow-hidden border-t border-accent/30 bg-charcoal"
+      className="reveal relative overflow-hidden bg-gradient-to-br from-[#d9f99d] via-[#a3e635] to-[#22d3ee]"
     >
-      <div className="mx-auto grid max-w-7xl items-center gap-12 px-4 py-24 md:grid-cols-2 md:px-8 md:py-32">
+      {/* deco circles */}
+      <div aria-hidden="true" className="pointer-events-none absolute -top-20 -right-20 h-72 w-72 rounded-full bg-white/25 blur-2xl" />
+      <div aria-hidden="true" className="pointer-events-none absolute -bottom-24 -left-16 h-80 w-80 rounded-full bg-[#d43a2a]/20 blur-3xl" />
+      <div className="relative mx-auto grid max-w-7xl items-center gap-12 px-4 py-24 md:grid-cols-2 md:px-8 md:py-32">
         <div>
-          <p className="text-[11px] tracking-[0.3em] text-accent">DROP 004</p>
-          <h2 className="display-l mt-4 text-paper">
+          <p className="inline-block bg-ink px-3 py-1 text-[11px] font-bold tracking-[0.3em] text-[#a3e635]">DROP 004 · LIMITED</p>
+          <h2 className="display-l mt-4 text-ink">
             AIR<br />VECTOR 01
           </h2>
-          <p className="mt-6 max-w-sm text-sm text-paper/60">
+          <p className="mt-6 max-w-sm text-sm font-medium text-ink/70">
             Chỉ 120 đôi. Không restock. Không thông báo trước.
           </p>
           <a
             href="#"
-            className="mt-8 inline-flex items-center gap-2 border border-accent bg-accent px-10 py-4 text-sm font-semibold tracking-widest text-ink transition-colors duration-200 hover:bg-transparent hover:text-accent focus-visible:bg-transparent focus-visible:text-accent"
+            className="mt-8 inline-flex items-center gap-2 bg-ink px-10 py-4 text-sm font-semibold tracking-widest text-[#e8e6e1] transition-transform duration-200 hover:-translate-y-0.5 focus-visible:-translate-y-0.5"
           >
             ĐẶT TRƯỚC NGAY
           </a>
         </div>
 
         <div className="flex flex-col items-start gap-8 md:items-end">
-          <p className="text-[11px] tracking-[0.3em] text-paper/50">CHỈ CÒN</p>
+          <p className="text-[11px] font-bold tracking-[0.3em] text-ink/60">CHỈ CÒN</p>
           <div className="flex items-baseline gap-2 font-display font-bold tabular-nums" role="timer" aria-label="Thời gian còn lại">
-            <span className="display-l text-paper">{h}</span>
-            <span className="display-l text-accent">:</span>
-            <span className="display-l text-paper">{m}</span>
-            <span className="display-l text-accent">:</span>
-            <span className="display-l text-paper">{s}</span>
+            <span className="display-l text-ink">{h}</span>
+            <span className="display-l text-ink/40">:</span>
+            <span className="display-l text-ink">{m}</span>
+            <span className="display-l text-ink/40">:</span>
+            <span className="display-l text-ink">{s}</span>
           </div>
-          <p className="font-display text-6xl font-bold leading-none text-paper md:text-8xl">
-            {drop?.pairs ?? 120}<span className="text-accent">/</span>ĐÔI
+          <p className="font-display text-6xl font-bold leading-none text-ink md:text-8xl">
+            {drop?.pairs ?? 120}<span className="text-ink/40">/</span>ĐÔI
           </p>
         </div>
       </div>

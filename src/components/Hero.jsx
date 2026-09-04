@@ -92,6 +92,13 @@ export default function Hero({ onQuiz }) {
       {/* lưới kỹ thuật */}
       <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(to_right,#ffffff05_1px,transparent_1px),linear-gradient(to_bottom,#ffffff05_1px,transparent_1px)] bg-[size:4rem_4rem]" />
 
+      {/* aurora nhiều màu sau canvas */}
+      <div aria-hidden="true" className="pointer-events-none absolute inset-0 overflow-hidden">
+        <div className="absolute -top-24 -left-24 h-[420px] w-[420px] rounded-full bg-accent/25 blur-[110px] animate-aurora-a" />
+        <div className="absolute top-1/3 -right-28 h-[460px] w-[460px] rounded-full bg-[#7c5cff]/20 blur-[120px] animate-aurora-b" />
+        <div className="absolute -bottom-32 left-1/3 h-[380px] w-[520px] rounded-full bg-[#37d67a]/15 blur-[120px] animate-aurora-a" />
+      </div>
+
       {/* chữ outline khổng lồ sau canvas */}
       <div aria-hidden="true" className="pointer-events-none absolute inset-0 flex items-center justify-center">
         <span className="display-xl text-stroke select-none tracking-tighter">
