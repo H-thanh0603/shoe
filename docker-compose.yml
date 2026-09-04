@@ -11,6 +11,17 @@ services:
       - "5433:5432" # debug/test local trỏ vào DB container (app trong compose vẫn dùng host `postgres`)
     volumes:
       - pgdata:/var/lib/postgresql # PG18+: mount cha, data nằm trong subdir (pg_upgrade-safe)
+      - ./backups:/backups # WAL archive cho PITR (xem docs/BACKUP.md)
+    # WAL archiving: mọi thay đổi ship ra /backups/wal liên tục, segment xoay tối đa 5 phút
+    # → RPO ~5 phút thay vì ~24h như pg_dump. Kết hợp base backup hàng tuần để PITR.
+    # (dòng host replication: cho pg_basebackup của service `backup` — image PG18 mặc định thiếu)
+    command: >
+      sh -c "mkdir -p /backups/wal && chown -R postgres:postgres /backups/wal &&
+      grep -q '^host replication' \"$${PGDATA:-/var/lib/postgresql/data}/pg_hba.conf\"
+      || echo 'host replication kinetic all scram-sha-256' >> \"$${PGDATA:-/var/lib/postgresql/data}/pg_hba.conf\";
+      exec docker-entrypoint.sh postgres
+      -c wal_level=replica -c archive_mode=on -c archive_timeout=300
+      -c \"archive_command=test ! -f /backups/wal/%f && cp %p /backups/wal/%f\""
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U kinetic"]
       interval: 5s
@@ -87,7 +98,8 @@ services:
       JOBS_ENABLED: "false"
     command: ["sh", "-c", "while true; do node cron.js; sleep 21600; done"]
 
-  # Backup Postgres mỗi 24h (pg_dump custom format), giữ 7 bản mới nhất trong ./backups/.
+  # Backup Postgres: dump logic mỗi 24h (giữ 7 bản) + base backup vật lý mỗi 7 ngày (giữ 2 bản).
+  # Base + WAL archive (/backups/wal) cho phép PITR về bất kỳ thời điểm nào — xem docs/BACKUP.md.
   # Quy trình restore xem docs/BACKUP.md. KHÔNG backup root .env (chứa JWT_SECRET) — giữ riêng.
   backup:
     image: postgres:18-alpine
@@ -99,7 +111,7 @@ services:
       PGPASSWORD: kinetic
     volumes:
       - ./backups:/backups
-    command: ["sh", "-c", "mkdir -p /backups && while true; do F=/backups/kinetic-$$(date +%F_%H%M).dump; pg_dump -h postgres -U kinetic -Fc kinetic > $$F && echo \"backup ok: $$F\" && ls -t /backups/*.dump | tail -n +8 | xargs -r rm -f; sleep 86400; done"]
+    command: ["sh", "-c", "mkdir -p /backups/base && while true; do F=/backups/kinetic-$$(date +%F_%H%M).dump; pg_dump -h postgres -U kinetic -Fc kinetic > $$F && echo \"backup ok: $$F\" && ls -t /backups/*.dump | tail -n +8 | xargs -r rm -f; if [ -z \"$$(find /backups/base -maxdepth 1 -mtime -7 -name 'base-*' 2>/dev/null)\" ]; then B=/backups/base/base-$$(date +%F); pg_basebackup -h postgres -U kinetic -Ft -z -D $$B && echo \"base ok: $$B\" && ls -dt /backups/base/base-* | tail -n +3 | xargs -r rm -rf; fi; sleep 86400; done"]
 
 volumes:
   pgdata:
