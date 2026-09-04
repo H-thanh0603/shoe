@@ -84,13 +84,15 @@ router.post('/', validate(orderSchema), async (req, res) => {
     let discount = 0
     let freeShipping = false
     if (req.body.couponCode) {
+      // FOR UPDATE lock row coupon: 2 checkout cùng dùng lượt cuối → 1 thắng,
+      // không vượt usage_limit (giống chống oversell kho §16)
       const { rows: [c] } = await client.query(
         `SELECT c.*, COUNT(cu.order_id) AS used_count,
                 COUNT(cu.order_id) FILTER (WHERE o.user_id = $2) AS user_used_count
          FROM coupons c
          LEFT JOIN coupon_usages cu ON cu.coupon_id = c.id
          LEFT JOIN orders o ON o.id = cu.order_id
-         WHERE c.code = $1 GROUP BY c.id`,
+         WHERE c.code = $1 GROUP BY c.id FOR UPDATE OF c`,
         [req.body.couponCode, req.user?.id ?? null],
       )
       if (!c) throw Object.assign(new Error('Mã giảm giá không tồn tại'), { status: 400, code: 'COUPON_NOT_FOUND' })

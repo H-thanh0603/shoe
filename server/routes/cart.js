@@ -31,7 +31,7 @@ async function ensureCart(req, res, next) {
   }
   token = crypto.randomUUID()
   const { rows } = await pool.query('INSERT INTO carts (session_token) VALUES ($1) RETURNING id', [token])
-  res.cookie(COOKIE, token, { httpOnly: true, sameSite: 'lax', maxAge: 1000 * 60 * 60 * 24 * 30 })
+  res.cookie(COOKIE, token, { httpOnly: true, sameSite: 'lax', secure: process.env.NODE_ENV === 'production', maxAge: 1000 * 60 * 60 * 24 * 30 })
   req.cartId = rows[0].id
   next()
 }
@@ -123,14 +123,18 @@ router.delete('/', async (req, res) => {
   res.json({ success: true, data: await cartPayload(req.cartId) })
 })
 
-// GET /cart/share — lấy token chia sẻ giỏ hiện tại (chính là session_token).
+// GET /cart/share — tạo token chia sẻ giỏ (single-use, hết hạn 24h).
 // Agent đưa token này cho khách dưới dạng link web/#/gio-hang/:token.
+// Không dùng session_token trực tiếp để link rò rỉ không lộ phiên 30 ngày.
 router.get('/share', async (req, res) => {
-  const { rows: [c] } = await pool.query('SELECT session_token FROM carts WHERE id = $1', [req.cartId])
-  if (!c?.session_token) return res.status(404).json({ success: false, error: { code: 'CART_EMPTY', message: 'Giỏ trống, không có gì để chia sẻ' } })
   const { rows: [{ count }] } = await pool.query('SELECT COUNT(*) FROM cart_items WHERE cart_id = $1', [req.cartId])
   if (Number(count) === 0) return res.status(404).json({ success: false, error: { code: 'CART_EMPTY', message: 'Giỏ trống, không có gì để chia sẻ' } })
-  res.json({ success: true, data: { token: c.session_token } })
+  const token = crypto.randomUUID()
+  await pool.query(
+    'INSERT INTO cart_share_tokens (token, cart_id) VALUES ($1, $2)',
+    [token, req.cartId],
+  )
+  res.json({ success: true, data: { token, expiresInHours: 24 } })
 })
 
 // POST /cart/claim {token} — nhận giỏ được chia sẻ: gộp vào giỏ mình (MOVE,
@@ -139,8 +143,24 @@ router.post('/claim', validate(z.object({ token: z.string().trim().min(1).max(10
   const client = await pool.connect()
   try {
     await client.query('BEGIN')
-    const { rows: [src] } = await client.query(
-      'SELECT id FROM carts WHERE session_token = $1 FOR UPDATE', [req.body.token])
+    // token share mới (single-use, 24h) trước, session_token cũ (tương thích link cũ) sau
+    let src = null
+    const { rows: [t] } = await client.query(
+      'SELECT cart_id, used, expires_at FROM cart_share_tokens WHERE token = $1 FOR UPDATE',
+      [req.body.token],
+    )
+    if (t) {
+      if (t.used || t.expires_at < new Date()) {
+        await client.query('ROLLBACK')
+        return res.status(404).json({ success: false, error: { code: 'SHARE_NOT_FOUND', message: 'Link nhận giỏ hết hạn hoặc đã dùng' } })
+      }
+      await client.query('UPDATE cart_share_tokens SET used = true WHERE token = $1', [req.body.token])
+      ;({ rows: [src] } = await client.query('SELECT id FROM carts WHERE id = $1 FOR UPDATE', [t.cart_id]))
+    } else {
+      // tương thích link cũ trỏ thẳng session_token (sẽ bỏ ở bản sau)
+      ;({ rows: [src] } = await client.query(
+        'SELECT id FROM carts WHERE session_token = $1 FOR UPDATE', [req.body.token]))
+    }
     if (!src) {
       await client.query('ROLLBACK')
       return res.status(404).json({ success: false, error: { code: 'SHARE_NOT_FOUND', message: 'Link nhận giỏ hết hạn hoặc đã dùng' } })

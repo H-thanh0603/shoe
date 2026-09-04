@@ -8,8 +8,11 @@ Node 20+, PostgreSQL 15+.
 
 ```
 DATABASE_URL=postgresql://kinetic:kinetic@localhost:5432/kinetic
-JWT_SECRET=đổi-chuỗi-này-khi-deploy
+JWT_SECRET=đổi-chuỗi-này-khi-deploy   # BẮT BUỘC đổi (xem checklist)
 PORT=3000
+NODE_ENV=production                   # bật cookie secure + tắt stack trace
+BRIDGE_URL=http://127.0.0.1:4001
+BRIDGE_SECRET=đổi-chuỗi-này           # phải khớp agents/.env
 ```
 
 **`JWT_SECRET` bắt buộc đổi khi deploy** — fallback dev-secret trong code chỉ chạy local.
@@ -33,11 +36,13 @@ Kiểm: `curl localhost:3000/api/v1/products` trả envelope JSON; mở `http://
 
 ## Kiểm tra trước khi lên production
 
-1. `JWT_SECRET` random dài (≥32 ký tự).
-2. Sau proxy/nginx: `app.set('trust proxy', 1)` trong server.js — không thì rate-limit đếm IP proxy cho tất cả user như nhau.
-3. HTTPS terminate ở proxy (nginx/caddy) — cookies `sameSite: 'lax'` giữ nguyên.
-4. DB user chỉ genug quyền trên schema `kinetic` (migrations chỉ CREATE TABLE/INDEX).
-5. Không commit `.env` (đã trong .gitignore).
+1. `JWT_SECRET` random dài (≥32 ký tự). Đổi pass admin seed `kinetic-admin` ngay sau deploy đầu tiên (seed không tự rotate).
+2. `NODE_ENV=production` — bật cookie `secure`, tắt stack trace lỗi.
+3. Sau proxy/nginx: `app.set('trust proxy', 1)` trong server.js — không thì rate-limit đếm IP proxy cho tất cả user như nhau.
+4. HTTPS terminate ở proxy (nginx/caddy).
+5. DB user ít quyền (chỉ DML +DDL migrations trên schema shop), **backup Postgres định kỳ** (chưa có là mất đơn/kho khi sập đĩa).
+6. Không commit `.env` (server + agents đều đã gitignore).
+7. AI (nếu bật chat/agent): `BRIDGE_SECRET` khớp 2 bên, bridge + proxy bind loopback, điền key LLM thật, đặt ngân sách/ngày cho provider.
 
 ## Chạy nhiều instance (khi cần scale)
 

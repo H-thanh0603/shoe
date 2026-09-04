@@ -136,14 +136,6 @@ class KineticClient:
     def delete(self, path: str, **kw):
         return self.call("DELETE", path, **kw)
 
-    @property
-    def share_token(self) -> str | None:
-        """session_token của phiên này — chính là token chia sẻ giỏ."""
-        for c in self.session.cookies:
-            if c.name == "session_token":
-                return c.value
-        return None
-
     def login_admin(self):
         email = os.environ.get("KINETIC_ADMIN_EMAIL", "admin@kinetic.vn")
         password = os.environ.get("KINETIC_ADMIN_PASSWORD", "")
@@ -349,19 +341,15 @@ class KineticStorefront(StorefrontBackend):
     async def checkout_handoff(self, session, cart):
         # Link nhận giỏ: khách bấm vào, web gộp giỏ agent vào giỏ trình duyệt
         # (POST /cart/claim, MOVE để khỏi mua trùng) rồi thanh toán như thường.
+        # Token single-use 24h — không lộ session_token.
         if cart.item_count == 0:
             return [CheckoutHandoff(url=f"{WEB}/#shop", label="Mở giỏ hàng & thanh toán")]
-        token = self.api.share_token
-        if not token:
-            try:
-                self.api.get("/api/v1/cart/share")
-                token = self.api.share_token
-            except KineticError:
-                token = None
-        if token:
+        try:
+            token = self.api.get("/api/v1/cart/share")["token"]
             return [CheckoutHandoff(url=f"{WEB}/#/gio-hang/{token}",
                                     label="Nhận giỏ hàng & thanh toán")]
-        return [CheckoutHandoff(url=f"{WEB}/#shop", label="Mở giỏ hàng & thanh toán")]
+        except KineticError:
+            return [CheckoutHandoff(url=f"{WEB}/#shop", label="Mở giỏ hàng & thanh toán")]
 
     # -- Orders and policies --
 
@@ -597,9 +585,11 @@ class KineticMerchant(MerchantBackend):
 
     async def get_inventory_alerts(self, session):
         a = self._admin().get("/api/v1/admin/analytics")
+        products = self._products()  # 1 query duy nhất, không N+1 theo từng alert
+        by_name = {p["name"]: p["slug"] for p in products}
         alerts = []
         for v in a["lowStock"]:
-            slug = next((p["slug"] for p in self._products() if p["name"] == v["name"]), "")
+            slug = by_name.get(v["name"], "")
             alerts.append(InventoryAlert(
                 listing_id=f"{slug}::{v['size']}" if slug else str(v["id"]),
                 title=f"{v['name']} (size {v['size']})",

@@ -22,7 +22,7 @@ router.post('/', validate(schema), async (req, res) => {
   let sessionToken = req.cookies?.session_token
   if (!sessionToken) {
     sessionToken = crypto.randomUUID()
-    res.cookie('session_token', sessionToken, { httpOnly: true, sameSite: 'lax', maxAge: 30 * 24 * 3600 * 1000 })
+    res.cookie('session_token', sessionToken, { httpOnly: true, sameSite: 'lax', secure: process.env.NODE_ENV === 'production', maxAge: 30 * 24 * 3600 * 1000 })
   }
 
   const rows = events.map((e) => [

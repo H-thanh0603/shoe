@@ -11,8 +11,10 @@ const { z } = require('zod')
 const SECRET = process.env.JWT_SECRET || 'dev-secret-đổi-khi-deploy'
 
 const router = express.Router()
-const COOKIE_OPTS = { httpOnly: true, sameSite: 'lax', maxAge: 7 * 24 * 3600 * 1000 }
-const ACCESS_OPTS = { httpOnly: true, sameSite: 'lax', maxAge: 3600 * 1000 }
+// secure chỉ bật ở production (HTTPS) — bật ở local sẽ mất cookie vì http
+const SECURE = process.env.NODE_ENV === 'production'
+const COOKIE_OPTS = { httpOnly: true, sameSite: 'lax', secure: SECURE, maxAge: 7 * 24 * 3600 * 1000 }
+const ACCESS_OPTS = { httpOnly: true, sameSite: 'lax', secure: SECURE, maxAge: 3600 * 1000 }
 
 // set access (1h) + refresh (7d) cookies
 function setAuthCookies(res, user) {
@@ -111,8 +113,8 @@ router.post('/refresh', async (req, res) => {
 })
 
 router.post('/logout', (_req, res) => {
-  res.clearCookie('token')
-  res.clearCookie('refresh_token')
+  res.clearCookie('token', { ...ACCESS_OPTS, maxAge: undefined })
+  res.clearCookie('refresh_token', { ...COOKIE_OPTS, maxAge: undefined })
   res.json({ success: true, data: { ok: true } })
 })
 
