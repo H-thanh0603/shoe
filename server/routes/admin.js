@@ -98,13 +98,39 @@ router.get('/products', async (_req, res) => {
   ok(res, rows)
 })
 
-router.post('/products', validate(productBody), async (req, res) => {
+const variantInput = z.object({ size: z.number().int().min(30).max(50), stock: z.number().int().min(0).max(10000) })
+
+// POST tạo sản phẩm KÈM variants — không variants thì không bán được nên
+// form admin luôn gửi sizes; thiếu = 400 rõ ràng thay vì tạo hàng chết
+router.post('/products', validate(productBody.extend({ variants: z.array(variantInput).min(1).max(20) })), async (req, res) => {
   const b = req.body
-  const { rows: [p] } = await pool.query(
-    `INSERT INTO products (name, slug, brand, description, price_vnd, colors, tag, collection_id, purpose)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING *`,
-    [b.name, b.slug, b.brand, b.description || '', b.priceVnd, JSON.stringify(b.colors), b.tag ?? null, b.collectionId ?? null, b.purpose ?? null])
-  res.status(201).json({ success: true, data: p })
+  const sizes = b.variants.map((v) => v.size)
+  if (new Set(sizes).size !== sizes.length) return bad(res, 'DUPLICATE_SIZE', 'Size trùng nhau', 400)
+  const client = await pool.connect()
+  try {
+    await client.query('BEGIN')
+    const { rows: [p] } = await client.query(
+      `INSERT INTO products (name, slug, brand, description, price_vnd, colors, tag, collection_id, purpose)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING *`,
+      [b.name, b.slug, b.brand, b.description || '', b.priceVnd, JSON.stringify(b.colors), b.tag ?? null, b.collectionId ?? null, b.purpose ?? null])
+    const { rows: variants } = await client.query(
+      `INSERT INTO product_variants (product_id, size, stock)
+       SELECT $1, s, st FROM unnest($2::int[], $3::int[]) AS t(s, st) RETURNING id, size, stock`,
+      [p.id, b.variants.map((v) => v.size), b.variants.map((v) => v.stock)])
+    for (const v of variants) {
+      await client.query(
+        'INSERT INTO inventory_transactions (variant_id, qty, before_qty, after_qty, type, reference_id) VALUES ($1,$2,$3,$4,$5,$6)',
+        [v.id, v.stock, 0, v.stock, 'RESTOCK', null])
+    }
+    await client.query('COMMIT')
+    res.status(201).json({ success: true, data: { ...p, variants } })
+  } catch (e) {
+    await client.query('ROLLBACK').catch(() => {})
+    if (e.code === '23505') return bad(res, 'SLUG_EXISTS', 'Slug đã tồn tại', 409)
+    throw e
+  } finally {
+    client.release()
+  }
 })
 
 router.patch('/products/:id', validate(productBody.partial()), async (req, res) => {
@@ -157,16 +183,18 @@ router.post('/inventory', validate(z.object({
 
 // ——— Analytics (§71): revenue, orders, AOV, top products, low stock ———
 router.get('/analytics', async (_req, res) => {
+  // Doanh thu/đơn chỉ tính tiền thật (paid+) — pending chưa phải tiền về,
+  // số dashboard sẽ thấp hơn trước nhưng đúng
   const { rows: [summary] } = await pool.query(
-    `SELECT COUNT(*) FILTER (WHERE status != 'cancelled') AS orders,
-            COALESCE(SUM(total_vnd) FILTER (WHERE status != 'cancelled'), 0) AS revenue,
-            COALESCE(ROUND(AVG(total_vnd) FILTER (WHERE status != 'cancelled')), 0) AS aov,
+    `SELECT COUNT(*) FILTER (WHERE status IN ('paid','shipped','done')) AS orders,
+            COALESCE(SUM(total_vnd) FILTER (WHERE status IN ('paid','shipped','done')), 0) AS revenue,
+            COALESCE(ROUND(AVG(total_vnd) FILTER (WHERE status IN ('paid','shipped','done'))), 0) AS aov,
             COUNT(*) FILTER (WHERE status = 'pending') AS pending
      FROM orders`)
   const { rows: top } = await pool.query(
     `SELECT oi.name_snapshot AS name, SUM(oi.qty) AS qty, SUM(oi.qty * oi.unit_price_vnd) AS revenue
      FROM order_items oi JOIN orders o ON o.id = oi.order_id
-     WHERE o.status != 'cancelled' GROUP BY oi.name_snapshot ORDER BY revenue DESC LIMIT 5`)
+     WHERE o.status IN ('paid','shipped','done') GROUP BY oi.name_snapshot ORDER BY revenue DESC LIMIT 5`)
   const { rows: lowStock } = await pool.query(
     'SELECT pv.id, pv.size, pv.stock, p.name FROM product_variants pv JOIN products p ON p.id = pv.product_id WHERE pv.stock <= 3 ORDER BY pv.stock LIMIT 10')
   const { rows: [customers] } = await pool.query('SELECT COUNT(*) AS total FROM users')
@@ -298,8 +326,8 @@ router.get('/analytics/series', async (req, res) => {
   const days = Math.min(Math.max(Number(req.query.days) || 30, 1), 90)
   const { rows } = await pool.query(
     `SELECT to_char(d, 'YYYY-MM-DD') AS day,
-            COALESCE(SUM(o.total_vnd) FILTER (WHERE o.status != 'cancelled'), 0) AS revenue,
-            COUNT(o.id) FILTER (WHERE o.status != 'cancelled') AS orders
+            COALESCE(SUM(o.total_vnd) FILTER (WHERE o.status IN ('paid','shipped','done')), 0) AS revenue,
+            COUNT(o.id) FILTER (WHERE o.status IN ('paid','shipped','done')) AS orders
      FROM generate_series(now() - ($1 || ' days')::interval, now(), '1 day') d
      LEFT JOIN orders o ON date_trunc('day', o.created_at) = date_trunc('day', d)
      GROUP BY d ORDER BY d`,

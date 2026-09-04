@@ -165,7 +165,7 @@ function Products() {
   }
 
   const [editing, setEditing] = useState(null) // null | {…fields} | {id,…fields}
-  const blankForm = { name: '', slug: '', brand: 'KINETIC', description: '', priceVnd: '', colors: '#d43a2a,#0a0a0a', tag: '', purpose: 'daily' }
+  const blankForm = { name: '', slug: '', brand: 'KINETIC', description: '', priceVnd: '', colors: '#d43a2a,#0a0a0a', tag: '', purpose: 'daily', sizes: '39,40,41,42,43,44', stockEach: '10' }
 
   const saveProduct = async (e) => {
     e.preventDefault()
@@ -180,8 +180,16 @@ function Products() {
       purpose: editing.purpose || null,
     }
     try {
-      if (editing.id) await apiFetch(`/admin/products/${editing.id}`, { method: 'PATCH', body })
-      else await apiFetch('/admin/products', { method: 'POST', body })
+      if (editing.id) {
+        await apiFetch(`/admin/products/${editing.id}`, { method: 'PATCH', body })
+      } else {
+        // tạo mới bắt buộc kèm sizes + tồn (không variants = hàng chết)
+        const sizes = editing.sizes.split(',').map((s) => Number(s.trim())).filter((s) => s >= 30 && s <= 50)
+        if (!sizes.length) { alert('Nhập ít nhất 1 size (30–50), cách nhau bằng phẩy.'); return }
+        const stock = Math.max(0, Number(editing.stockEach) || 0)
+        body.variants = sizes.map((size) => ({ size, stock }))
+        await apiFetch('/admin/products', { method: 'POST', body })
+      }
       setEditing(null); playTechClick(); load()
     } catch (err) { alert(err.message) }
   }
@@ -211,6 +219,15 @@ function Products() {
               <option value="">—</option><option value="running">CHẠY BỘ</option><option value="street">STREET</option><option value="court">BÓNG RỔ</option><option value="daily">HẰNG NGÀY</option><option value="trail">TRAIL</option>
             </select>
           </label>
+          {!editing.id && (
+            <>
+              <label className={labelCls}>SIZES* (phẩy)<input value={editing.sizes} onChange={fset('sizes')} required placeholder="39,40,41,42,43,44" className={`${inputCls} w-48`} /></label>
+              <label className={labelCls}>TỒN MỖI SIZE*<input value={editing.stockEach} onChange={fset('stockEach')} required inputMode="numeric" className={`${inputCls} w-24`} /></label>
+            </>
+          )}
+          {editing.id && (
+            <p className="font-mono text-[11px] text-paper/40 basis-full">Sửa tồn từng size ở nút KHO ngoài bảng — form này chỉ sửa thông tin.</p>
+          )}
           <label className={`${labelCls} basis-full`}>MÔ TẢ<textarea value={editing.description} onChange={fset('description')} rows={2} className={inputCls} /></label>
           <button type="submit" className="border border-accent bg-accent px-4 py-1.5 font-mono text-xs font-bold text-ink hover:bg-transparent hover:text-accent">{editing.id ? 'LƯU' : 'TẠO'}</button>
           <button type="button" onClick={() => setEditing(null)} className={btn}>HỦY</button>
