@@ -3,6 +3,7 @@
 // v1: non-streaming (bridge gom text_delta). Timeout 120s vì turn gọi nhiều tools.
 const express = require('express')
 const rateLimit = require('express-rate-limit')
+const { ipKeyGenerator } = require('express-rate-limit')
 const { requireRole } = require('../middleware/auth.js')
 const validate = require('../middleware/validate.js')
 const { asyncHandler, httpError } = require('../middleware/errorHandler.js')
@@ -20,7 +21,7 @@ const agentLimiter = rateLimit({
   limit: 30,
   standardHeaders: true,
   legacyHeaders: false,
-  keyGenerator: (req) => `agent:${req.user?.id ?? req.ip}`,
+  keyGenerator: (req) => `agent:${req.user?.id ?? ipKeyGenerator(req.ip)}`,
   message: { success: false, error: { code: 'RATE_LIMITED', message: 'Bạn chat agent quá nhanh — thử lại sau 10 phút' } },
 })
 router.use(agentLimiter)

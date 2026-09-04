@@ -1,5 +1,6 @@
 // Seed data shop. Idempotent: chỉ chèn khi bảng trống.
 // Usage: npm run db:seed
+require('dotenv').config()
 const bcrypt = require('bcryptjs')
 const pool = require('./db.js')
 

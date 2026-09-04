@@ -1,5 +1,6 @@
 // Chạy migrations/*.sql theo thứ tự tên file. Track đã chạy trong bảng _migrations.
 // Usage: npm run db:migrate
+require('dotenv').config()
 const fs = require('node:fs')
 const path = require('node:path')
 const pool = require('./db.js')

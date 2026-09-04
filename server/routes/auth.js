@@ -8,7 +8,7 @@ const validate = require('../middleware/validate.js')
 const { signAccess, signRefresh, signReset, requireAuth } = require('../middleware/auth.js')
 const { z } = require('zod')
 
-const SECRET = process.env.JWT_SECRET || 'dev-secret-đổi-khi-deploy'
+const { jwtSecret: SECRET } = require('../config.js')
 
 const router = express.Router()
 // secure chỉ bật ở production (HTTPS) — bật ở local sẽ mất cookie vì http

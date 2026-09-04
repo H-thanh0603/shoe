@@ -1,3 +1,4 @@
+require('dotenv').config() // nạp server/.env TRƯỚC mọi require đọc env (config.js)
 const express = require('express')
 const cookieParser = require('cookie-parser')
 const helmet = require('helmet')
