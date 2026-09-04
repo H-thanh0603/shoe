@@ -31,6 +31,10 @@ services:
   app:
     build: .
     restart: unless-stopped # crash bất ngờ (vd DB failover) → tự lên lại, LB /readyz gating traffic
+    deploy:
+      resources:
+        limits: { cpus: "1.0", memory: 512M }
+        reservations: { memory: 256M }
     depends_on:
       postgres:
         condition: service_healthy
@@ -55,6 +59,9 @@ services:
   worker:
     build: .
     restart: unless-stopped
+    deploy:
+      resources:
+        limits: { cpus: "0.5", memory: 256M }
     depends_on:
       postgres:
         condition: service_healthy

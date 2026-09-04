@@ -15,6 +15,8 @@ function buildApp() {
 
   // Sau nginx/LB/Docker: req.ip đúng IP client để rate-limit không gom nhầm cả cụm
   if (trustProxy) app.set('trust proxy', 1)
+  // request id sớm nhất để mọi log/handler sau đều có req.id
+  app.use(require('./middleware/requestId.js').requestId)
 
   // CSP: cho phép fetch open-meteo (weather của match engine), styles inline (Tailwind inject)
   app.use(helmet({
@@ -43,6 +45,18 @@ function buildApp() {
     } catch (e) {
       res.status(503).json({ ok: false, error: e.message })
     }
+  })
+  // /metrics: số liệu tối giản cho Prometheus/người trực (fail-open từng phần)
+  app.get('/metrics', async (_req, res) => {
+    const { snapshot } = require('./middleware/requestId.js')
+    const out = { app: snapshot(), cache: null, jobs: null }
+    try { out.cache = require('./services/cache.js').info() } catch { /* không có cache vẫn trả app */ }
+    try {
+      const { rows } = await require('./db.js').query(
+        `SELECT status, COUNT(*) AS n FROM jobs GROUP BY status`)
+      out.jobs = Object.fromEntries(rows.map((r) => [r.status, Number(r.n)]))
+    } catch { /* bảng jobs chưa migrate — bỏ qua */ }
+    res.json(out)
   })
 
   // rate-limit (§17): store shared qua cache layer — có REDIS_URL thì đếm chung cả cụm,

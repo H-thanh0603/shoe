@@ -21,5 +21,8 @@ COPY server/routes/ routes/
 COPY server/services/ services/
 COPY server/migrations/ migrations/
 COPY --from=frontend /app/dist/ /app/dist/
+# chạy non-root (image node có sẵn user `node`): giảm thiệt hại nếu RCE
+RUN chown -R node:node /app
+USER node
 EXPOSE 3000
 CMD ["sh", "-c", "node migrate.js && node server.js"]
