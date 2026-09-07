@@ -94,6 +94,16 @@ body {
   to { opacity: 1; }
 }
 
+/* Live stock ticker — nhấp nháy nhẹ để mắt tự bắt dấu (≤5 đôi) */
+@keyframes pulseStock {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.45; }
+}
+
+.animate-pulseStock {
+  animation: pulseStock 1.6s ease-in-out infinite;
+}
+
 @keyframes slideUp {
   from { opacity: 0; transform: translateY(16px); }
   to { opacity: 1; transform: translateY(0); }

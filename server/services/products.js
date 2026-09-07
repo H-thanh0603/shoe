@@ -17,10 +17,14 @@ async function attachImages(items) {
   return items.map((p) => ({ ...p, images: byId[p.id] || [] }))
 }
 
+// tổng tồn kho product cho badge "CHỈ CÒN X ĐÔI" trên Card — subquery 1 lần, không join thêm
+const STOCK_TOTAL_SQL =
+  '(SELECT COALESCE(SUM(pv.stock), 0) FROM product_variants pv WHERE pv.product_id = products.id) AS stock_total'
+
 async function listProducts({ limit = 24, page = 1, q } = {}) {
   if (!q) {
     const { rows } = await pool.query(
-      'SELECT * FROM products WHERE is_active ORDER BY id LIMIT $1 OFFSET $2',
+      `SELECT *, ${STOCK_TOTAL_SQL} FROM products WHERE is_active ORDER BY id LIMIT $1 OFFSET $2`,
       [limit, (page - 1) * limit],
     )
     const { rows: [{ count }] } = await pool.query(
@@ -35,7 +39,7 @@ async function listProducts({ limit = 24, page = 1, q } = {}) {
   const term = `%${q.slice(0, 50)}%`
   const plain = q.slice(0, 50).toLowerCase()
   const { rows } = await pool.query(
-    `SELECT *, GREATEST(similarity(lower(name), $4), similarity(lower(brand), $4)) AS sim
+    `SELECT *, ${STOCK_TOTAL_SQL}, GREATEST(similarity(lower(name), $4), similarity(lower(brand), $4)) AS sim
      FROM products
      WHERE is_active AND (name ILIKE $3 OR brand ILIKE $3 OR slug ILIKE $3
        OR similarity(lower(name), $4) > 0.2 OR similarity(lower(brand), $4) > 0.2)

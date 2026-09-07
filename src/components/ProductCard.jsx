@@ -97,10 +97,12 @@ export function Card({ p, match, onWishlist, isWishlisted, onToggleCompare, isCo
             {p.tag}
           </span>
         )}
-        {variants.length > 0 && (() => {
-          const total = variants.reduce((s, v) => s + v.stock, 0)
-          return total > 0 && total <= 5 ? (
-            <span className="border border-accent bg-ink/85 px-2 py-0.5 font-mono text-[10px] font-bold tracking-widest text-accent">
+        {/* Live stock ticker — dùng stock_total từ API list (không cần hover);
+            fallback tổng variants lazy-load cho link cũ/cache cũ */}
+        {(() => {
+          const total = p.stock_total ?? (variants.length > 0 ? variants.reduce((s, v) => s + v.stock, 0) : null)
+          return total != null && total > 0 && total <= 5 ? (
+            <span className="border border-accent bg-ink/85 px-2 py-0.5 font-mono text-[10px] font-bold tracking-widest text-accent animate-pulseStock">
               CHỈ CÒN {total} ĐÔI
             </span>
           ) : null
