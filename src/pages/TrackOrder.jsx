@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { apiFetch, apiGet } from '../lib/api.js'
 import { playTechClick } from '../lib/sound.js'
+import { CITIES, HANOI, findCity, journeyProgress, route, project, VN_OUTLINE } from '../lib/journey.js'
 
 const STEPS = ['pending', 'paid', 'shipped', 'done']
 const LABEL = {
@@ -11,6 +12,65 @@ const LABEL = {
   cancelled: 'ĐÃ HỦY',
 }
 const vnd = (n) => Number(n || 0).toLocaleString('vi-VN') + '₫'
+
+// SVG bản đồ Việt Nam + tuyến Hà Nội → đích + xe chạy theo tiến độ (feature #8)
+function JourneyMap({ order }) {
+  const dest = findCity(order.shipCity) || findCity(order.shipCityRaw) || HANOI
+  const prog = journeyProgress(order)
+  const { d, at } = route(HANOI, dest)
+  const [x, y] = at(Math.min(Math.max(prog ?? 0.1, 0), 1))
+  const [hx, hy] = project(HANOI.ll)
+  const [dx2, dy2] = project(dest.ll)
+  const arrived = prog >= 1
+
+  return (
+    <div className="mt-6 border border-white/10 bg-ink-deep">
+      <svg viewBox="0 0 600 520" className="w-full" role="img" aria-label={`Hành trình từ kho Hà Nội tới ${dest.name}`}>
+        <path d={VN_OUTLINE} fill="rgba(255,255,255,0.04)" stroke="rgba(232,230,225,0.25)" strokeWidth="1.5" />
+        {CITIES.map((c) => {
+          const [cx, cy] = project(c.ll)
+          const isEnd = c.key === dest.key
+          return (
+            <g key={c.key}>
+              <circle cx={cx} cy={cy} r={isEnd ? 4 : 2.5} fill={isEnd ? '#d43a2a' : 'rgba(232,230,225,0.55)'} />
+              <text x={cx + 6} y={cy + 3} fontSize="11" fill={isEnd ? '#d43a2a' : 'rgba(232,230,225,0.45)'} fontFamily="ui-monospace, monospace">
+                {c.name}
+              </text>
+            </g>
+          )
+        })}
+        {/* tuyến đường: phần chưa đi mờ, phần đã đi accent */}
+        <path d={d} fill="none" stroke="rgba(232,230,225,0.18)" strokeWidth="2.5" strokeDasharray="5 5" />
+        <path d={d} fill="none" stroke="#d43a2a" strokeWidth="3" strokeDasharray={`${Math.min(Math.max(prog ?? 0.1, 0), 1) * 760} 760`} />
+        {/* marker kho + đích */}
+        <circle cx={hx} cy={hy} r="5" fill="none" stroke="#d43a2a" strokeWidth="2" />
+        <text x={hx - 8} y={hy - 10} fontSize="11" fill="#d43a2a" fontFamily="ui-monospace, monospace">KHO HN</text>
+        <circle cx={dx2} cy={dy2} r="5" fill="none" stroke="#d43a2a" strokeWidth="2" strokeDasharray="2 2" />
+        {/* xe giao hàng chạy trên tuyến */}
+        {!arrived && prog != null && (
+          <g transform={`translate(${x.toFixed(1)} ${y.toFixed(1)})`}>
+            <circle r="10" fill="#d43a2a" opacity="0.25">
+              <animate attributeName="r" values="8;14;8" dur="1.6s" repeatCount="indefinite" />
+            </circle>
+            <circle r="5.5" fill="#d43a2a" stroke="#141414" strokeWidth="1.5" />
+          </g>
+        )}
+        {arrived && (
+          <g transform={`translate(${dx2.toFixed(1)} ${(dy2 - 14).toFixed(1)})`}>
+            <text textAnchor="middle" fontSize="14" fill="#d43a2a">✓</text>
+          </g>
+        )}
+      </svg>
+      <p className="border-t border-white/10 px-4 py-2 font-mono text-[11px] text-paper/60">
+        {prog == null
+          ? 'Đơn đã hủy — không có hành trình.'
+          : arrived
+            ? `ĐÃ GIAO ĐẾN ${dest.name.toUpperCase()}`
+            : `ĐANG TRÊN ĐƯỜNG → ${dest.name.toUpperCase()} · ${Math.round((prog ?? 0) * 100)}%`}
+      </p>
+    </div>
+  )
+}
 
 export default function TrackOrder({ initialCode }) {
   const [code, setCode] = useState(initialCode || '')
@@ -106,6 +166,9 @@ export default function TrackOrder({ initialCode }) {
               ))}
             </ol>
           )}
+
+          {/* Bản đồ hành trình (feature #8) — SVG, không map SDK */}
+          <JourneyMap order={order} />
 
           <ul className="mt-6 flex flex-col gap-2 border-t border-white/10 pt-4">
             {order.items.map((it, i) => (

@@ -208,7 +208,7 @@ router.post('/ref/:code/cancel', requireAuth, async (req, res) => {
 
 router.get('/ref/:code', async (req, res) => {
   const { rows: [o] } = await pool.query(
-    'SELECT id, ref_code, status, total_vnd, payment_status, shipping_fee_vnd, discount_vnd, created_at FROM orders WHERE ref_code = $1',
+    'SELECT id, ref_code, status, total_vnd, payment_status, shipping_fee_vnd, discount_vnd, shipping_address, created_at FROM orders WHERE ref_code = $1',
     [req.params.code],
   )
   if (!o) return res.status(404).json({ success: false, error: { code: 'ORDER_NOT_FOUND', message: 'Không tìm thấy đơn hàng' } })
@@ -218,7 +218,11 @@ router.get('/ref/:code', async (req, res) => {
   )
   const { subtotalVnd } = items.reduce((a, i) => ({ subtotalVnd: a.subtotalVnd + i.qty * i.unit_price_vnd }), { subtotalVnd: 0 })
   delete o.id
-  res.json({ success: true, data: { ...o, items, subtotalVnd } })
+  // map hành trình chỉ cần tỉnh/TP — KHÔNG trả địa chỉ đầy đủ (§IDOR)
+  const rawCity = String(o.shipping_address || '').split(',').pop()?.trim() || ''
+  const shipCity = rawCity
+  delete o.shipping_address
+  res.json({ success: true, data: { ...o, items, subtotalVnd, shipCity } })
 })
 
 module.exports = router
