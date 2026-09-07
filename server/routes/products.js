@@ -5,6 +5,7 @@ const validate = require('../middleware/validate.js')
 const { asyncHandler } = require('../middleware/errorHandler.js')
 const { requireAuth } = require('../middleware/auth.js')
 const { cacheGet, bust } = require('../middleware/cache.js')
+const pool = require('../db.js')
 const { z } = require('zod')
 const products = require('../services/products.js')
 
@@ -29,6 +30,33 @@ router.get('/:slug',
   asyncHandler(async (req, res) => {
   ok(res, await products.getProductDetail(req.params.slug))
 }))
+
+// GET /api/v1/products/:slug/size-stats — dữ liệu thật cho gợi ý size (feature #6):
+// trả về size bán chạy nhất (mode), số đôi đã bán và tổng reviews. Public, cache ngắn.
+router.get('/:slug/size-stats',
+  cacheGet('products:size', 300, (req) => req.params.slug.slice(0, 120)),
+  asyncHandler(async (req, res) => {
+    const { rows } = await pool.query(
+      `SELECT oi.size_snapshot AS size, SUM(oi.qty) AS sold
+       FROM order_items oi
+       JOIN product_variants pv ON pv.id = oi.variant_id
+       JOIN products p ON p.id = pv.product_id
+       WHERE p.slug = $1 AND oi.size_snapshot IS NOT NULL
+         AND EXISTS (SELECT 1 FROM product_variants pv2
+                     WHERE pv2.product_id = p.id AND pv2.size = oi.size_snapshot)
+       GROUP BY oi.size_snapshot ORDER BY sold DESC LIMIT 1`,
+      [req.params.slug],
+    )
+    const { rows: [rc] } = await pool.query(
+      `SELECT COUNT(*)::int AS count FROM reviews r JOIN products p ON p.id = r.product_id WHERE p.slug = $1`,
+      [req.params.slug],
+    )
+    ok(res, {
+      topSize: rows[0]?.size ?? null,
+      topSold: Number(rows[0]?.sold ?? 0),
+      reviewCount: rc?.count ?? 0,
+    })
+  }))
 
 // GET reviews theo slug — public, kèm tên reviewer; login thì kèm voted (đã vote chưa)
 router.get('/:slug/reviews', asyncHandler(async (req, res) => {

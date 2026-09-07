@@ -7,6 +7,7 @@ import { useRecentlyViewed } from '../hooks/useRecentlyViewed.js'
 import { matchScore } from '../lib/match.js'
 import { track } from '../lib/track.js'
 import { haptic } from '../lib/haptic.js'
+import { apiGet } from '../lib/api.js'
 import { RelatedProducts, RecentlyViewed } from './RelatedProducts.jsx'
 import Reviews from './Reviews.jsx'
 import { playTechClick, playSwitch } from '../lib/sound.js'
@@ -42,8 +43,18 @@ export default function ProductDetail({ slug, back }) {
   const [photoOk, setPhotoOk] = useState(true)
   const [sizeHelper, setSizeHelper] = useState(false)
   const [otherBrand, setOtherBrand] = useState('NIKE')
+  const [sizeStats, setSizeStats] = useState(null)
 
   useEffect(() => { setSize(null); setMsg(null); setPhotoIdx(0); setPhotoOk(true) }, [slug])
+  // Gợi ý size (feature #6): fetch stats đúng lúc mở helper — không mất request khi chưa cần
+  useEffect(() => {
+    if (!sizeHelper) return undefined
+    let alive = true
+    apiGet(`/products/${slug}/size-stats`)
+      .then((d) => { if (alive) setSizeStats(d) })
+      .catch(() => {})
+    return () => { alive = false }
+  }, [sizeHelper, slug])
   const tracked = useRef(null)
   const { wishlist, toggle: toggleWishlist } = useWishlist()
   const { items: recent, push: pushRecent } = useRecentlyViewed(slug)
@@ -219,6 +230,41 @@ export default function ProductDetail({ slug, back }) {
                 <p className="text-[11px] text-accent">
                   → Phom dáng KINETIC thiết kế chuẩn True To Size so với {otherBrand}. Hãy chọn size bạn hay đi nhất.
                 </p>
+
+                {/* Quy đổi nhanh theo thương hiệu (EU) */}
+                <div className="mt-2 grid grid-cols-2 gap-x-4 gap-y-0.5 border-t border-white/10 pt-2 text-[10px] text-paper/50">
+                  <span>Nike / Adidas EU</span><span className="text-paper/70">= size KINETIC</span>
+                  <span>NB US {otherBrand === 'NB' ? '→ của bạn' : '9 / 9.5 / 10'}</span>
+                  <span className="text-paper/70">EU 42.5 / 43 / 44</span>
+                  <span>Asics US {otherBrand === 'ASICS' ? '→ của bạn' : '8.5 / 9 / 9.5'}</span>
+                  <span className="text-paper/70">EU 42 / 42.5 / 43</span>
+                </div>
+
+                {/* Gợi ý từ dữ liệu bán hàng thật (GET /size-stats) */}
+                {sizeStats?.topSize != null && (
+                  <div className="mt-3 border-t border-white/10 pt-2">
+                    <p className="text-[10px] text-paper/50">
+                      {sizeStats.reviewCount > 0 && `${sizeStats.reviewCount} đánh giá · `}
+                      size bán chạy nhất:
+                    </p>
+                    <div className="mt-1.5 flex items-center gap-3">
+                      <span className="bg-accent px-2 py-0.5 text-sm font-bold text-ink">EU {sizeStats.topSize}</span>
+                      {(() => {
+                        const v = p.variants.find((x) => x.size === sizeStats.topSize)
+                        if (!v || v.stock <= 0) return <span className="text-[10px] text-paper/40">(hết size này)</span>
+                        return (
+                          <button
+                            type="button"
+                            onClick={() => { setSize(v); playSwitch(); haptic(10) }}
+                            className="border border-accent px-2 py-1 text-[10px] font-bold text-accent transition-colors hover:bg-accent hover:text-ink"
+                          >
+                            CHỌN SIZE {v.size} — CÒN {v.stock} ĐÔI
+                          </button>
+                        )
+                      })()}
+                    </div>
+                  </div>
+                )}
               </div>
             )}
 
