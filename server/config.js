@@ -23,4 +23,6 @@ module.exports = {
   workerOnly: process.env.WORKER_ONLY === 'true',
   // TRUST_PROXY=1 khi chạy sau nginx/LB/Docker để req.ip + rate-limit đúng client
   trustProxy: process.env.TRUST_PROXY === '1' || isProd,
+  // Ngưỡng rate-limit auth (login/register). CI chạy cả bộ test trên 1 IP → cần nâng.
+  authRateLimit: Number(process.env.AUTH_RATE_LIMIT) || 10,
 }

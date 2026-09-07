@@ -21,11 +21,43 @@ jobs:
     defaults:
       run:
         working-directory: server
+    services:
+      postgres:
+        image: postgres:18-alpine
+        env:
+          POSTGRES_USER: kinetic
+          POSTGRES_PASSWORD: kinetic
+          POSTGRES_DB: kinetic
+        ports:
+          - 5432:5432
+        # healthcheck chờ ready trước khi bước tiếp theo chạy
+        options: >-
+          --health-cmd "pg_isready -U kinetic"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgresql://kinetic:kinetic@localhost:5432/kinetic
+      JWT_SECRET: ci-secret
+      PORT: "3100"
+      JOBS_ENABLED: "false" # không cần worker nền trong test
+      AUTH_RATE_LIMIT: "100" # cả bộ test chạy trên 1 IP runner — mặc định 10 sẽ 429 giữa chừng
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      # test pricing thuần túy — không cần Postgres
-      - run: node --test test/pricing.test.js
+          cache: npm
+          cache-dependency-path: server/package-lock.json
+      - run: npm ci
+      - run: npm run db:migrate
+      - run: npm run db:seed
+      # unit test không cần server: pricing, cache, jobs queue, search
+      - run: node --test test/pricing.test.js test/cache.test.js test/jobs.test.js test/search.test.js
+      # API test cần server chạy trên :3100
+      - run: node server.js &
+      - run: sleep 2
+      - run: node --test test/api.test.js test/auth.test.js test/rbac.test.js
+        env:
+          API_URL: http://localhost:3100
       - run: node --check server.js && node --check routes/admin.js && node --check routes/orders.js

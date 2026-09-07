@@ -6,7 +6,7 @@ const cookieParser = require('cookie-parser')
 const helmet = require('helmet')
 const rateLimit = require('express-rate-limit')
 const path = require('node:path')
-const { port: PORT, trustProxy, clusterWorkers, jobsEnabled, workerOnly } = require('./config.js')
+const { port: PORT, trustProxy, clusterWorkers, jobsEnabled, workerOnly, authRateLimit } = require('./config.js')
 const { apiNotFound, errorHandler } = require('./middleware/errorHandler.js')
 const { sharedStore } = require('./middleware/rateStore.js')
 
@@ -61,7 +61,7 @@ function buildApp() {
 
   // rate-limit (§17): store shared qua cache layer — có REDIS_URL thì đếm chung cả cụm,
   // memory-only thì mỗi process/instance đếm riêng (đủ chống spam tay, không chống DDoS)
-  const authLimiter = rateLimit({ windowMs: 15 * 60 * 1000, limit: 10, standardHeaders: true, legacyHeaders: false, store: sharedStore('auth', 15 * 60 * 1000), message: { success: false, error: { code: 'RATE_LIMITED', message: 'Quá nhiều lần thử — thử lại sau 15 phút' } } })
+  const authLimiter = rateLimit({ windowMs: 15 * 60 * 1000, limit: authRateLimit, standardHeaders: true, legacyHeaders: false, store: sharedStore('auth', 15 * 60 * 1000), message: { success: false, error: { code: 'RATE_LIMITED', message: 'Quá nhiều lần thử — thử lại sau 15 phút' } } })
   const checkoutLimiter = rateLimit({ windowMs: 60 * 1000, limit: 20, standardHeaders: true, legacyHeaders: false, store: sharedStore('checkout', 60 * 1000), message: { success: false, error: { code: 'RATE_LIMITED', message: 'Quá nhiều request — thử lại sau 1 phút' } } })
   app.use('/api/v1/auth/login', authLimiter)
   app.use('/api/v1/auth/register', authLimiter)

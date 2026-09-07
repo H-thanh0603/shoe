@@ -1,9 +1,16 @@
 // Test job queue trên DB thật (cần Postgres local + đã migrate 012).
 // Run: npm run test:jobs trong server/
-const { test, after } = require('node:test')
+const { test, before, after } = require('node:test')
 const assert = require('node:assert/strict')
 const pool = require('../db.js')
 const jobs = require('../services/jobs.js')
+
+// tickOnce claim job pending nhỏ nhất theo id — job cũ sót từ lần chạy trước
+// (order_confirmation của checkout test) sẽ ăn slot trước job test này.
+// Dọn hết queue pending cũ để test chỉ thấy job của chính nó.
+before(async () => {
+  await pool.query("DELETE FROM jobs WHERE payload->>'ut' IS DISTINCT FROM '1' AND status IN ('pending', 'running')")
+})
 
 after(async () => {
   await pool.query(`DELETE FROM jobs WHERE payload->>'ut' = '1'`)
