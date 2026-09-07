@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useCart } from '../store/CartContext.jsx'
 import { useVariants } from '../hooks/useVariants.js'
 import { playTechClick } from '../lib/sound.js'
+import { haptic } from '../lib/haptic.js'
 
 const FALLBACK_SIZES = [39, 40, 41, 42, 43, 44].map((s) => ({ id: `temp-${s}`, size: s, stock: 10 }))
 
@@ -27,6 +28,7 @@ export function Card({ p, match, onWishlist, isWishlisted, onToggleCompare, isCo
     if (variant.stock <= 0 || String(variant.id).startsWith('temp-')) return
 
     playTechClick()
+    haptic(10)
     try {
       await add(variant.id)
       setAddedMsg(`ĐÃ THÊM SIZE ${variant.size}`)

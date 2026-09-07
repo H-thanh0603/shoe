@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { useKonami } from './useKonami.js'
 import { track } from '../lib/track.js'
+import { haptic } from '../lib/haptic.js'
 
 // Secret mode — sessionStorage: sống sót hash nav, mất khi đóng tab
 export function useSecret() {
@@ -10,6 +11,7 @@ export function useSecret() {
 
   const toggle = useCallback(() => {
     track('secret_mode')
+    haptic([10, 30, 10])
     setSecret((s) => {
       const next = !s
       try { next ? sessionStorage.setItem('secret_v1', '1') : sessionStorage.removeItem('secret_v1') } catch {}

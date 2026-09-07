@@ -1,6 +1,8 @@
 import { useMemo, useState } from 'react'
 import { computeProfile, saveProfile } from '../store/profile.js'
 import { track } from '../lib/track.js'
+import { playUnlock, playTick } from '../lib/sound.js'
+import { haptic } from '../lib/haptic.js'
 
 // Shoe Personality Quiz (DESIGN.md §44-45) — 7 câu, 1 câu/step, không bắt đăng ký.
 // Kết quả = Shoe Profile → localStorage → website biến đổi theo profile.
@@ -102,6 +104,8 @@ export default function Quiz({ onClose }) {
 
   // chọn option: multi cho phép tối đa `multi` chọn, single auto next
   const pick = (v) => {
+    haptic(8)
+    playTick(0)
     if (cur.multi) {
       const list = ans[cur.key] || []
       const next = list.includes(v) ? list.filter((x) => x !== v) : [...list, v].slice(-cur.multi)
@@ -115,6 +119,8 @@ export default function Quiz({ onClose }) {
   const finish = () => {
     saveProfile(profile)
     track('quiz_complete', null, { purpose: profile.purpose, accent: profile.accent })
+    playUnlock()
+    haptic([15, 40, 15])
     onClose()
   }
 

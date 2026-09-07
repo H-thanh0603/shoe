@@ -6,6 +6,7 @@ import { useWishlist } from '../hooks/useWishlist.js'
 import { useRecentlyViewed } from '../hooks/useRecentlyViewed.js'
 import { matchScore } from '../lib/match.js'
 import { track } from '../lib/track.js'
+import { haptic } from '../lib/haptic.js'
 import { RelatedProducts, RecentlyViewed } from './RelatedProducts.jsx'
 import Reviews from './Reviews.jsx'
 import { playTechClick, playSwitch } from '../lib/sound.js'
@@ -77,6 +78,7 @@ export default function ProductDetail({ slug, back }) {
     }
     setAdding(true)
     playSwitch()
+    haptic(15)
     try {
       await add(size.id)
       openCart()

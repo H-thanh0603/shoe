@@ -1,11 +1,19 @@
 import { useEffect, useRef, useState } from 'react'
 import { useApi } from '../hooks/useApi.js'
+import { playTick } from '../lib/sound.js'
 
 // Limited drop (DESIGN.md §48-49): event feel, countdown monospaced, no glow spam.
+// Mỗi giây tick (pitch tăng khi < 10% thời gian) — chỉ khi tab đang nhìn.
 function useCountdown(target) {
   const [left, setLeft] = useState(() => target - Date.now())
   useEffect(() => {
-    const t = setInterval(() => setLeft(target - Date.now()), 1000)
+    const t = setInterval(() => {
+      const next = target - Date.now()
+      setLeft(next)
+      if (next > 0 && document.visibilityState === 'visible') {
+        playTick(Math.max(0, 1 - next / (10 * 60 * 1000)))
+      }
+    }, 1000)
     return () => clearInterval(t)
   }, [target])
   const s = Math.max(0, Math.floor(left / 1000))
