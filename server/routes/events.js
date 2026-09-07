@@ -10,7 +10,7 @@ const router = express.Router()
 
 const schema = z.object({
   events: z.array(z.object({
-    type: z.enum(['view', 'cart_add', 'quiz_complete', 'secret_mode']),
+    type: z.enum(['view', 'cart_add', 'quiz_complete', 'secret_mode', 'ar_snapshot']),
     productId: z.number().int().optional(),
     meta: z.record(z.string(), z.unknown()).optional(),
   })).min(1).max(20),

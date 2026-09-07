@@ -10,6 +10,7 @@ import { haptic } from '../lib/haptic.js'
 import { apiGet } from '../lib/api.js'
 import { RelatedProducts, RecentlyViewed } from './RelatedProducts.jsx'
 import Reviews from './Reviews.jsx'
+import TryOnAR from './TryOnAR.jsx'
 import { playTechClick, playSwitch } from '../lib/sound.js'
 
 function ShoeArt({ colors, large }) {
@@ -44,6 +45,7 @@ export default function ProductDetail({ slug, back }) {
   const [sizeHelper, setSizeHelper] = useState(false)
   const [otherBrand, setOtherBrand] = useState('NIKE')
   const [sizeStats, setSizeStats] = useState(null)
+  const [showAR, setShowAR] = useState(false)
 
   useEffect(() => { setSize(null); setMsg(null); setPhotoIdx(0); setPhotoOk(true) }, [slug])
   // Gợi ý size (feature #6): fetch stats đúng lúc mở helper — không mất request khi chưa cần
@@ -162,6 +164,14 @@ export default function ProductDetail({ slug, back }) {
               <span>Hoàn 200% nếu fake</span>
             </div>
           </div>
+
+          {/* Try-on AR (feature #1) */}
+          <button
+            onClick={() => { setShowAR(true); playSwitch(); track('view', p.id, { ar: 1 }) }}
+            className="border border-white/20 py-3 font-display text-xs font-bold tracking-widest text-paper transition-colors hover:border-accent hover:text-accent"
+          >
+            📷 THỬ GIÀY BẰNG AR
+          </button>
         </div>
 
         {/* Right column: Info, Sizing, CTA */}
@@ -370,6 +380,8 @@ export default function ProductDetail({ slug, back }) {
 
       <RelatedProducts current={p} wishlist={wishlist} onWishlist={toggleWishlist} />
       <RecentlyViewed items={recent} wishlist={wishlist} onWishlist={toggleWishlist} />
+
+      {showAR && <TryOnAR colors={p.colors} onClose={() => setShowAR(false)} />}
 
       {/* Sticky Mobile Bar for quick add */}
       <div className="fixed inset-x-0 bottom-0 z-40 border-t border-white/15 bg-charcoal/95 p-3 backdrop-blur-md md:hidden flex items-center justify-between">

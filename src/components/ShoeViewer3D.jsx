@@ -25,7 +25,7 @@ function upperShape() {
   return s
 }
 
-function buildShoe(colorway) {
+export function buildShoe(colorway) {
   const g = new THREE.Group()
   const accent = new THREE.Color(colorway)
 
