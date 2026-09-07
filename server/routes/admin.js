@@ -170,6 +170,57 @@ function setActive(req, res, _next, isActive) {
     .catch(() => bad(res, 'INVALID_INPUT', 'id không hợp lệ'))
 }
 
+// ——— Ảnh sản phẩm (product_images) — binary upload, không cần multer ———
+// Frontend gửi file thô (Content-Type: image/*), server lưu vào uploads/,
+// serve qua /uploads/… (static mount trong server.js), url ghi vào bảng.
+const fs = require('node:fs')
+const path = require('node:path')
+const UPLOAD_DIR = path.join(__dirname, '..', 'uploads')
+const IMAGE_TYPES = { 'image/jpeg': '.jpg', 'image/png': '.png', 'image/webp': '.webp' }
+const MAX_UPLOAD_BYTES = 5 * 1024 * 1024 // 5MB — ảnh gốc admin, to hơn data-URL review
+
+router.get('/products/:id/images', requirePerm('products:read'), async (req, res) => {
+  const { rows } = await pool.query(
+    'SELECT id, url, sort FROM product_images WHERE product_id = $1 ORDER BY sort, id', [req.params.id])
+  ok(res, rows)
+})
+
+// express.raw đón binary (type lọc đúng content-type ảnh) — multer thừa cho 1 file/lần
+router.post('/products/:id/images', requirePerm('products:write'),
+  express.raw({ type: Object.keys(IMAGE_TYPES), limit: MAX_UPLOAD_BYTES }),
+  async (req, res) => {
+    if (!req.body || !req.body.length) return bad(res, 'INVALID_IMAGE', 'Thiếu dữ liệu ảnh')
+    const ext = IMAGE_TYPES[req.headers['content-type']] // khớp type đã lọc ở express.raw
+    const name = `p${req.params.id}-${Date.now()}-${crypto.randomUUID().slice(0, 8)}${ext}`
+    try {
+      fs.mkdirSync(UPLOAD_DIR, { recursive: true })
+      fs.writeFileSync(path.join(UPLOAD_DIR, name), req.body)
+      const { rows } = await pool.query('SELECT COALESCE(MAX(sort), -1) + 1 AS next FROM product_images WHERE product_id = $1', [req.params.id])
+      const { rows: [img] } = await pool.query(
+        'INSERT INTO product_images (product_id, url, sort) VALUES ($1, $2, $3) RETURNING id, url, sort',
+        [req.params.id, `/uploads/${name}`, rows[0].next])
+      await bust('products:list', 'products:detail')
+      await audit(req, 'product.image.add', 'product', Number(req.params.id), { url: img.url })
+      res.status(201).json({ success: true, data: img })
+    } catch (e) {
+      if (e.code === '23503') return bad(res, 'PRODUCT_NOT_FOUND', 'Không tìm thấy sản phẩm', 404)
+      if (e.type === 'entity.too.large') return bad(res, 'INVALID_IMAGE', 'Ảnh quá lớn (tối đa 5MB)', 413)
+      throw e
+    }
+  })
+
+// xóa: bỏ row DB + thử xóa file (file thiếu thì bỏ qua)
+router.delete('/products/:id/images/:imgId', requirePerm('products:write'), async (req, res) => {
+  const { rows: [img] } = await pool.query(
+    'DELETE FROM product_images WHERE id = $1 AND product_id = $2 RETURNING id, url',
+    [req.params.imgId, req.params.id])
+  if (!img) return bad(res, 'IMAGE_NOT_FOUND', 'Không tìm thấy ảnh', 404)
+  try { fs.unlinkSync(path.join(UPLOAD_DIR, path.basename(img.url))) } catch { /* file thiếu thì thôi */ }
+  await bust('products:list', 'products:detail')
+  await audit(req, 'product.image.remove', 'product', Number(req.params.id), { url: img.url })
+  ok(res, img)
+})
+
 // ——— Inventory (§69): restock/adjust + bắt buộc InventoryTransaction ———
 router.post('/inventory', requirePerm('inventory:write'), validate(z.object({
   variantId: z.number().int().positive(),

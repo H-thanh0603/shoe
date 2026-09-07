@@ -139,6 +139,7 @@ function Orders() {
 function Products() {
   const [rows, setRows] = useState([])
   const [variants, setVariants] = useState(null) // { name, list }
+  const [images, setImages] = useState(null) // { id, name, list, busy }
   const [adjust, setAdjust] = useState({})
   const load = useCallback(() => {
     apiGet('/admin/products').then(setRows).catch(() => {})
@@ -152,6 +153,35 @@ function Products() {
   const openVariants = async (p) => {
     const list = await apiGet(`/admin/products/${p.id}/variants`).catch(() => [])
     setVariants({ id: p.id, name: p.name, list })
+  }
+  const openImages = async (p) => {
+    const list = await apiGet(`/admin/products/${p.id}/images`).catch(() => [])
+    setImages({ id: p.id, name: p.name, list, busy: false })
+  }
+  const uploadImage = async (file) => {
+    if (!file || !/^image\/(jpeg|png|webp)$/.test(file.type)) { alert('Chỉ nhận JPG/PNG/WebP.'); return }
+    if (file.size > 5 * 1024 * 1024) { alert('Tối đa 5MB.'); return }
+    setImages((s) => ({ ...s, busy: true }))
+    try {
+      // apiFetch ép Content-Type JSON — upload binary đi fetch thẳng
+      const res = await fetch(`/api/v1/admin/products/${images.id}/images`, {
+        method: 'POST',
+        headers: { 'Content-Type': file.type },
+        body: file,
+        credentials: 'same-origin',
+      })
+      const body = await res.json().catch(() => null)
+      if (!res.ok || !body?.success) throw new Error(body?.error?.message || `HTTP ${res.status}`)
+      setImages((s) => ({ ...s, list: [...s.list, body.data], busy: false }))
+      playTechClick(); load()
+    } catch (e) { setImages((s) => ({ ...s, busy: false })); alert(e.message) }
+  }
+  const removeImage = async (img) => {
+    try {
+      await apiFetch(`/admin/products/${images.id}/images/${img.id}`, { method: 'DELETE' })
+      setImages((s) => ({ ...s, list: s.list.filter((i) => i.id !== img.id) }))
+      playTechClick(); load()
+    } catch (e) { alert(e.message) }
   }
   const restock = async (v) => {
     const qty = Number(adjust[v.id])
@@ -247,6 +277,7 @@ function Products() {
                 <td className={td}>
                   <span className="flex flex-wrap gap-1.5">
                     <button onClick={() => openVariants(p)} className={btn}>KHO</button>
+                    <button onClick={() => openImages(p)} className={btn}>ẢNH</button>
                     <button
                       onClick={() => setEditing({
                         id: p.id, name: p.name, slug: p.slug, brand: p.brand,
@@ -287,6 +318,34 @@ function Products() {
             ))}
           </ul>
           <button onClick={() => setVariants(null)} className="mt-3 font-mono text-xs text-paper/50 hover:text-paper">ĐÓNG ✕</button>
+        </div>
+      )}
+
+      {images && (
+        <div className="border border-accent/40 bg-charcoal p-4">
+          <p className="font-mono text-xs font-bold tracking-widest text-paper">ẢNH — {images.name}</p>
+          <div className="mt-3 flex flex-wrap items-center gap-2">
+            {images.list.map((img) => (
+              <figure key={img.id} className="relative border border-white/10">
+                <img src={img.url} alt="" className="h-24 w-24 object-cover" />
+                <button
+                  onClick={() => removeImage(img)}
+                  className="absolute right-0 top-0 bg-ink/80 px-1 font-mono text-[10px] text-accent hover:bg-accent hover:text-ink"
+                >✕</button>
+              </figure>
+            ))}
+            {images.list.length === 0 && <p className="font-mono text-xs text-paper/40">Chưa có ảnh — ảnh đầu tiên là ảnh chính.</p>}
+            <label className={`${btn} cursor-pointer ${images.busy ? 'pointer-events-none opacity-40' : ''}`}>
+              {images.busy ? 'ĐANG TẢI…' : '+ THÊM ẢNH'}
+              <input
+                type="file"
+                accept="image/jpeg,image/png,image/webp"
+                className="hidden"
+                onChange={(e) => { uploadImage(e.target.files[0]); e.target.value = '' }}
+              />
+            </label>
+          </div>
+          <button onClick={() => setImages(null)} className="mt-3 font-mono text-xs text-paper/50 hover:text-paper">ĐÓNG ✕</button>
         </div>
       )}
     </div>

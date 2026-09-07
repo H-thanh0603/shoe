@@ -51,6 +51,8 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+    volumes:
+      - uploads:/app/server/uploads # ảnh admin upload — sống qua recreate container
     environment:
       PORT: 3000
       DATABASE_URL: postgresql://kinetic:kinetic@postgres:5432/kinetic
@@ -133,4 +135,5 @@ services:
 
 volumes:
   pgdata:
+  uploads:
   redisdata:

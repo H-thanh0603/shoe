@@ -86,6 +86,8 @@ function buildApp() {
   app.use(errorHandler)
 
   if (!workerOnly) {
+    // uploads/ (ảnh sản phẩm admin upload) — TRƯỚC dist để không bị SPA catch-all
+    app.use('/uploads', express.static(path.join(__dirname, 'uploads'), { maxAge: '30d', immutable: true }))
     // static frontend (dist/) — build root trước: npm run build
     app.use(express.static(path.join(__dirname, '..', 'dist')))
     app.get(/^\/(?!api).*/, (_req, res) => {

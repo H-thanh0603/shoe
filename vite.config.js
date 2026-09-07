@@ -6,5 +6,8 @@ export default defineConfig({
   plugins: [react(), tailwindcss()],
   // proxy tới API backend (mặc định 3000 = server/config.js) — đổi khi PORT khác:
   // VITE_API_TARGET=http://localhost:3100 npm run dev
-  server: { proxy: { '/api': process.env.VITE_API_TARGET || 'http://localhost:3000' } },
+  server: { proxy: {
+    '/api': process.env.VITE_API_TARGET || 'http://localhost:3000',
+    '/uploads': process.env.VITE_API_TARGET || 'http://localhost:3000', // ảnh sản phẩm do admin upload
+  } },
 })

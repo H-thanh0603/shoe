@@ -86,6 +86,9 @@ Lỗi checkout: 400 `CART_EMPTY` / `COUPON_NOT_FOUND` / `COUPON_INACTIVE` / `COU
 | PATCH | `/admin/products/:id` | Sửa product. |
 | PATCH | `/admin/products/:id/archive` | Ẩn (is_active=false). |
 | PATCH | `/admin/products/:id/restore` | Hiện lại. |
+| GET | `/admin/products/:id/images` | List ảnh của product. |
+| POST | `/admin/products/:id/images` | Upload ảnh (body = binary JPG/PNG/WebP, tối đa 5MB, `Content-Type: image/*`). Lưu `server/uploads/`, serve tại `/uploads/…`, ghi `product_images`. |
+| DELETE | `/admin/products/:id/images/:imgId` | Xóa ảnh (row DB + file). |
 | POST | `/admin/inventory` | `{variantId, delta}` ±qty, log ADJUSTMENT. |
 | GET | `/admin/analytics` | Revenue, orders, AOV, pending, customers, topProducts, lowStock. |
 
