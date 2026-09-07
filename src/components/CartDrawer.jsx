@@ -1,11 +1,15 @@
 import { useEffect, useState } from 'react'
 import { useCart } from '../store/CartContext.jsx'
 import CheckoutForm from './CheckoutForm.jsx'
+import { renderReceipt } from '../lib/receipt.js'
+import { playTechClick } from '../lib/sound.js'
+import { haptic } from '../lib/haptic.js'
 
 // Slide-over cart (DESIGN.md cùng visual language: ink/paper/accent, display font)
 export default function CartDrawer() {
   const { cart, setQty, remove, clear, close } = useCart()
   const [checkout, setCheckout] = useState(false)
+  const [sharing, setSharing] = useState(false)
   useEffect(() => { if (!cart.open) setCheckout(false) }, [cart.open])
   if (!cart.open) return null
 
@@ -65,9 +69,41 @@ export default function CartDrawer() {
                 {cart.totalVnd.toLocaleString('vi-VN')}₫
               </span>
             </div>
-            <button onClick={() => setCheckout(true)} className="w-full bg-accent py-4 font-display text-sm font-bold tracking-widest text-ink transition-opacity hover:opacity-90">
-              THANH TOÁN
-            </button>
+            <div className="mb-2 flex gap-2">
+              <button
+                onClick={async () => {
+                  setSharing(true)
+                  playTechClick()
+                  haptic(10)
+                  try {
+                    const canvas = await renderReceipt(cart)
+                    const blob = await new Promise((r) => canvas.toBlob(r, 'image/png'))
+                    const file = new File([blob], 'kinetic-receipt.png', { type: 'image/png' })
+                    const nav = navigator
+                    if (nav.canShare?.({ files: [file] })) {
+                      await nav.share({ files: [file], title: 'Giỏ hàng KINETIC của tôi', text: `${cart.count} món — ${cart.totalVnd.toLocaleString('vi-VN')}₫. Vote giúp mình xem nên chốt không!` })
+                    } else {
+                      const a = document.createElement('a')
+                      a.href = URL.createObjectURL(blob)
+                      a.download = 'kinetic-receipt.png'
+                      a.click()
+                      setTimeout(() => URL.revokeObjectURL(a.href), 4000)
+                    }
+                  } catch {
+                    // user hủy share sheet hoặc canvas lỗi — im lặng
+                  } finally {
+                    setSharing(false)
+                  }
+                }}
+                disabled={sharing}
+                className="flex-1 border border-white/20 py-4 font-display text-xs font-bold tracking-widest text-paper transition-colors hover:border-accent hover:text-accent disabled:opacity-50"
+              >
+                {sharing ? 'ĐANG TẠO ẢNH…' : 'CHIA SẺ HOÁ ĐƠN'}
+              </button>
+              <button onClick={() => setCheckout(true)} className="flex-1 bg-accent py-4 font-display text-sm font-bold tracking-widest text-ink transition-opacity hover:opacity-90">
+                THANH TOÁN
+              </button>
+            </div>
           </footer>
         )}
       </aside>
