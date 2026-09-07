@@ -53,6 +53,8 @@ from merchant_agent.types import (
     StagedChange,
 )
 from shopping_agent.backend import NotOffered, StorefrontBackend, Unavailable
+from shopping_agent.executor import ShoppingToolExecutor
+from commerce_common.execution import parse_argument
 from shopping_agent.types import (
     Cart,
     CartItem,
@@ -76,6 +78,164 @@ WEB = os.environ.get("KINETIC_WEB_URL", "http://localhost:3000")
 MAX_RESTOCK = 500
 PRICE_DELTA_CAP_PCT = 20.0
 PROMO_DISCOUNT_CAP_PCT = 50.0
+
+# -- External product link reader (feature #9) --------------------------------
+# Thuần stdlib: urllib fetch + HTMLParser rút gọn. Không dep mới.
+# SSRF: chặn host nội bộ/localhost/metadata cloud, chỉ http(s), timeout ngắn.
+_PRIVATE_HOSTS = {"localhost", "127.0.0.1", "0.0.0.0", "::1", "metadata.google.internal"}
+_PRIVATE_SUFFIXES = (".local", ".internal", ".lan", ".home", ".localhost")
+
+
+def _host_is_private(host: str) -> bool:
+    import ipaddress
+
+    host = (host or "").lower().strip("[]")
+    if host in _PRIVATE_HOSTS or host.endswith(_PRIVATE_SUFFIXES):
+        return True
+    try:
+        ip = ipaddress.ip_address(host)
+        return ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_reserved
+    except ValueError:
+        return False
+
+
+def _match_kinetic_products(name: str, client):
+    """Tìm trong catalog KINETIC vài sản phẩm giống theo tên trang ngoài (best effort)."""
+    import re as _re
+
+    q = _re.sub(r"[^\w\sÀ-ỹ]", " ", name or " ", flags=_re.UNICODE).strip()
+    if len(q) < 3:
+        return []
+    for attempt in (q, " ".join(q.split()[:2])):
+        try:
+            data = client.get("/api/v1/products", params={"q": attempt, "limit": 4})
+        except Exception:  # catalog chạm không được → match là best effort, bỏ qua
+            return []
+        items = data.get("items", []) if isinstance(data, dict) else (data or [])
+        if items:
+            return [
+                {"slug": i.get("slug"), "name": i.get("name"), "price": i.get("price")}
+                for i in items[:4]
+            ]
+    return []
+
+
+def _page_text(html: str) -> str:
+    """Text thấy được của trang, bỏ script/style — chỉ để trích giá dự phòng."""
+    from html.parser import HTMLParser
+
+    skip = {"script", "style", "noscript", "svg"}
+    out: list[str] = []
+
+    class P(HTMLParser):
+        def __init__(self):
+            super().__init__()
+            self._skip = 0
+
+        def handle_starttag(self, tag, attrs):
+            if tag in skip:
+                self._skip += 1
+
+        def handle_endtag(self, tag):
+            if tag in skip and self._skip:
+                self._skip -= 1
+
+        def handle_data(self, data):
+            if not self._skip and data.strip():
+                out.append(data.strip())
+
+    P().feed(html)
+    return " ".join(out)
+
+
+def read_external_product_page(url: str, client, timeout: float = 12.0) -> dict:
+    """Đọc 1 trang sản phẩm ngoài: og: tags + fallback H1/brand/giá trong text.
+    Mọi lỗi mạng/nội dung → Unavailable (tool báo khách, không sập turn)."""
+    import re as _re
+    import socket
+    import urllib.request
+    from urllib.parse import urlparse
+
+    parsed = urlparse(url)
+    if parsed.scheme not in ("http", "https") or not parsed.netloc:
+        raise Unavailable("Link không hợp lệ — cần URL http(s) đầy đủ.")
+    if _host_is_private(parsed.hostname or ""):
+        raise Unavailable("Không đọc được link nội bộ.")
+    req = urllib.request.Request(
+        url, headers={"User-Agent": "Mozilla/5.0 (compatible; KineticShoppingAgent/1.0)"}
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
+            ctype = (resp.headers.get("Content-Type") or "").lower()
+            raw = resp.read(2_000_000)
+            charset = resp.headers.get_content_charset() or "utf-8"
+            final_url = resp.geturl()
+    except (OSError, socket.timeout, ValueError) as e:
+        raise Unavailable(f"Không mở được trang ({e.__class__.__name__}).") from e
+    if ctype and "html" not in ctype and "xml" not in ctype:
+        raise Unavailable(f"Nội dung {ctype.split(';')[0]} — chỉ đọc được trang HTML.")
+
+    from html.parser import HTMLParser
+
+    metas: dict[str, str] = {}
+    title: list[str] = []
+    h1: list[str] = []
+
+    class Meta(HTMLParser):
+        def handle_starttag(self, tag, attrs):
+            a = dict(attrs)
+            if tag == "meta":
+                key = a.get("property") or a.get("name")
+                if key and a.get("content"):
+                    metas.setdefault(key.lower(), a["content"].strip())
+            elif tag == "title":
+                title.append("")
+            elif tag == "h1" and not h1:
+                h1.append("")
+
+        def handle_data(self, data):
+            if title and title[-1] == "":
+                title[0] = (title[0] or "") + data.strip()
+            elif h1 and h1[-1] == "":
+                h1[-1] = (h1[-1] + " " + data.strip()).strip()
+
+    try:
+        html = raw.decode(charset, errors="replace")
+        Meta().feed(html)
+    except Exception as e:
+        raise Unavailable("Không đọc được nội dung trang.") from e
+
+    meta = lambda k: metas.get(k, "")
+    page_title = meta("og:title") or (title[0] if title else "") or (h1[0] if h1 else "")
+    description = meta("og:description") or meta("description")
+    brand = meta("product:brand") or meta("og:site_name")
+    price = meta("product:price:amount") or meta("og:price:amount")
+    currency = meta("product:price:currency") or meta("og:price:currency")
+
+    guess_name = page_title or (h1[0] if h1 else "")
+    if (not price or not brand) and guess_name:
+        body_text = _page_text(html)[:6000]
+        if not price:
+            m = _re.search(r"[\d][\d.,\s]{2,}", body_text)
+            if m:
+                price = m.group(0).strip()
+        if not brand:
+            m = _re.search(r'class="[^"]*brand[^"]*"[^>]*>([^<]{2,40})<', html, _re.I)
+            if m:
+                brand = m.group(1).strip()
+
+    return {
+        "url": final_url,
+        "title": guess_name[:120] or None,
+        "brand": brand[:60] or None,
+        "price": price or None,
+        "currency": currency or None,
+        "image": meta("og:image") or None,
+        "description": (description or "")[:280] or None,
+        "h1": (h1[0] if h1 else "")[:120] or None,
+        "kineticMatches": _match_kinetic_products(guess_name, client),
+    }
+
 
 
 class KineticError(Exception):
@@ -331,6 +491,14 @@ class KineticStorefront(StorefrontBackend):
             if line:
                 self.api.delete(f"/api/v1/cart/items/{line['itemId']}")
         return self._cart()
+
+    # -- External link reader (feature #9) --
+
+    async def read_product_link(self, session, url):
+        """Đọc trang sản phẩm ngoài khách gửi vào chat: og: tags + fallback,
+        kèm vài sản phẩm KINETIC giống theo tên. Lỗi → Unavailable (tool
+        trả lời 'chưa đọc được' thay vì sập turn)."""
+        return read_external_product_page(url, self.api)
 
     # -- Customer context --
 
@@ -913,3 +1081,63 @@ def kinetic_merchant_config():
         queue_grounding_gate=True,
         apply_intent_phrases=tuple(base.apply_intent_phrases) + VI_APPLY_PHRASES,
     )
+
+
+# -- Feature #9: tool 'read_product_link' cho shopping agent -------------------
+
+try:  # runtime-messages-api có trong path khi chạy bridge/demo (run_smoke thì không)
+    from shopping_agent_runtime import ShoppingAgent
+except ImportError:  # pragma: no cover
+    ShoppingAgent = object
+
+
+class KineticShoppingExecutor(ShoppingToolExecutor):
+    """Executor mặc định + handler đọc link sản phẩm ngoài (route qua backend)."""
+
+    def handlers(self):
+        return {
+            **super().handlers(),
+            "read_product_link": self._read_product_link,
+        }
+
+    async def _read_product_link(self, tool_input):
+        from pydantic import BaseModel
+
+        class _LinkArgs(BaseModel):
+            url: str
+
+        args = parse_argument(_LinkArgs, tool_input)
+        payload = await self._backend.read_product_link(self._session, args.url)
+        return self._fenced(payload)
+
+
+class KineticShoppingAgent(ShoppingAgent):
+
+    def __init__(self, **kw):
+        kw["executor_class"] = KineticShoppingExecutor
+        super().__init__(**kw)
+        self._tools = [
+            *self._tools,
+            {
+                "name": "read_product_link",
+                "description": (
+                    "Read one external product page the customer pastes as a link "
+                    "(a competitor or marketplace listing). Returns its title, brand, "
+                    "price and description when available, plus the closest KINETIC "
+                    "products for comparison. Use it only for http(s) links the "
+                    "customer shared; one call per link; never guess a URL yourself."
+                ),
+                "input_schema": {
+                    "type": "object",
+                    "properties": {
+                        "url": {
+                            "type": "string",
+                            "format": "uri",
+                            "description": "Full http(s) URL of the external product page.",
+                        },
+                    },
+                    "required": ["url"],
+                    "additionalProperties": False,
+                },
+            },
+        ]

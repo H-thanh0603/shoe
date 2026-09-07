@@ -48,7 +48,7 @@ def _build(role: str):
                 "shopping-agent/runtime-messages-api", "merchant-agent/runtime-messages-api"):
         if str(blueprint / sub) not in sys.path:
             sys.path.insert(0, str(blueprint / sub))
-    from kinetic_agents import (KineticMerchant, KineticStorefront,
+    from kinetic_agents import (KineticMerchant, KineticStorefront, KineticShoppingAgent,
                                 kinetic_merchant_config, kinetic_shopping_config,
                                 make_llm_client)
     client = make_llm_client()
@@ -60,10 +60,9 @@ def _build(role: str):
                               config=kinetic_merchant_config(), client=client)
         return agent, MerchantSessionState
     from shopping_agent.types import ShoppingSessionState
-    from shopping_agent_runtime import ShoppingAgent
-    agent = ShoppingAgent(backend=KineticStorefront(),
-                          skills_dir=blueprint / "shopping-agent" / "skills",
-                          config=kinetic_shopping_config(), client=client)
+    agent = KineticShoppingAgent(backend=KineticStorefront(),
+                                 skills_dir=blueprint / "shopping-agent" / "skills",
+                                 config=kinetic_shopping_config(), client=client)
     return agent, ShoppingSessionState
 
 
