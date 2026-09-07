@@ -26,8 +26,11 @@ router.get('/feed',
 
     const [orders, reviews, views, stock] = await Promise.all([
       pool.query(
-        `SELECT oi.name_snapshot AS name, oi.size_snapshot AS size, o.customer_name, o.shipping_address, o.created_at
+        `SELECT COALESCE(NULLIF(oi.name_snapshot, ''), p.name) AS name,
+                oi.size_snapshot AS size, o.customer_name, o.shipping_address, o.created_at
          FROM orders o JOIN order_items oi ON oi.order_id = o.id
+         JOIN product_variants pv ON pv.id = oi.variant_id
+         JOIN products p ON p.id = pv.product_id
          WHERE o.created_at > $1 ORDER BY o.created_at DESC LIMIT 10`,
         [since24h],
       ),
@@ -60,7 +63,7 @@ router.get('/feed',
     const feed = [
       ...orders.rows.map((o) => ({
         kind: 'order',
-        text: `${firstName(o.customer_name)} · ${city(o.shipping_address)} vừa đặt ${o.name_snapshot}${o.size_snapshot ? ` (size ${o.size_snapshot})` : ''}`,
+        text: `${firstName(o.customer_name)} · ${city(o.shipping_address)} vừa đặt ${o.name}${o.size ? ` (size ${o.size})` : ''}`,
         at: o.created_at,
       })),
       ...reviews.rows.map((r) => ({

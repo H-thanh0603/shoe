@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { useApi } from '../hooks/useApi.js'
+import { useRemaining } from '../hooks/useRemaining.js'
 import { playTick } from '../lib/sound.js'
 
 // Limited drop (DESIGN.md §48-49): event feel, countdown monospaced, no glow spam.
@@ -30,6 +31,8 @@ export default function Drop() {
   // fallback +72h nếu API chưa lên — tránh countdown đứng
   const target = drop ? new Date(drop.ends_at).getTime() : Date.now() + 72 * 3600 * 1000
   const { h, m, s } = useCountdown(target)
+  // heartbeat tồn kho drop — poll 15s, hiện badge khi còn <= 40 đôi
+  const remaining = useRemaining(1)
 
   useEffect(() => {
     const io = new IntersectionObserver(
@@ -58,6 +61,11 @@ export default function Drop() {
           <p className="mt-6 max-w-sm text-sm font-medium text-ink/70">
             Chỉ 120 đôi. Không restock. Không thông báo trước.
           </p>
+          {remaining != null && remaining <= 40 && (
+            <p className="mt-2 inline-block bg-ink/85 px-2 py-0.5 font-mono text-[11px] font-bold text-[#a3e635] animate-pulseStock">
+              CHỈ CÒN {remaining}/{drop.pairs} ĐÔI
+            </p>
+          )}
           <a
             href="#"
             className="mt-8 inline-flex items-center gap-2 bg-ink px-10 py-4 text-sm font-semibold tracking-widest text-[#e8e6e1] transition-transform duration-200 hover:-translate-y-0.5 focus-visible:-translate-y-0.5"

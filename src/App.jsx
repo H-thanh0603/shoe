@@ -21,6 +21,7 @@ import CollectionDetail from './pages/CollectionDetail.jsx'
 import Collections from './components/Collections.jsx'
 import Admin from './pages/Admin.jsx'
 import Preloader from './components/Preloader.jsx'
+import LiveFeed from './components/LiveFeed.jsx'
 
 export default function App() {
   const route = useHashRoute()
@@ -85,6 +86,7 @@ export default function App() {
       )}
 
       <Footer />
+      {route.name !== 'admin' && <LiveFeed />}
       <CartDrawer />
       {quiz && <Quiz onClose={() => setQuiz(false)} />}
       <SearchPalette open={showSearch} onClose={() => setShowSearch(false)} />
