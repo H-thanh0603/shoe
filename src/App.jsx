@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useProfile, applyAccent } from './store/profile.js'
 import { useHashRoute } from './hooks/useHashRoute.js'
+import { useDocumentTitle } from './hooks/useDocumentTitle.js'
 import { useCompare } from './hooks/useCompare.js'
 import { useSecret } from './hooks/useSecret.js'
 import Nav from './components/Nav.jsx'
@@ -25,6 +26,11 @@ import LiveFeed from './components/LiveFeed.jsx'
 
 export default function App() {
   const route = useHashRoute()
+  const TITLES = {
+    product: 'Sản phẩm', track: 'Tra cứu đơn hàng', myorders: 'Đơn của tôi',
+    shop: 'Shop', new: 'New Drops', collections: 'Bộ sưu tập', collection: 'Bộ sưu tập', admin: 'Admin',
+  }
+  useDocumentTitle(route.name in TITLES ? `KINETIC — ${TITLES[route.name]}` : 'KINETIC — Move Different')
   const [quiz, setQuiz] = useState(false)
   const openQuiz = () => setQuiz(true)
   const { profile } = useProfile()

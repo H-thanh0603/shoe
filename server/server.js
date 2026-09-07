@@ -18,13 +18,15 @@ function buildApp() {
   // request id sớm nhất để mọi log/handler sau đều có req.id
   app.use(require('./middleware/requestId.js').requestId)
 
-  // CSP: cho phép fetch open-meteo (weather của match engine), styles inline (Tailwind inject)
+  // CSP: cho phép fetch open-meteo (weather của match engine), styles inline (Tailwind inject),
+  // ảnh ngoài https (admin có thể dán URL ảnh từ CDN khác — mặc định helmet chỉ cho 'self' data:)
   app.use(helmet({
     contentSecurityPolicy: {
       directives: {
         ...helmet.contentSecurityPolicy.getDefaultDirectives(),
         'connect-src': ["'self'", 'https://api.open-meteo.com'],
         'style-src': ["'self'", "'unsafe-inline'", 'https:'],
+        'img-src': ["'self'", 'data:', 'https:'],
       },
     },
   }))
@@ -80,6 +82,8 @@ function buildApp() {
   app.use('/api/v1/events', require('./routes/events.js'))
   app.use('/api/v1/live', require('./routes/live.js'))
   app.use('/api/v1', require('./routes/meta.js'))
+  // Sitemap SEO ở root — robots.txt trỏ tới đây
+  app.get('/sitemap.xml', require('./routes/meta.js').renderSitemap)
 
   // 404 JSON cho /api/* lạ + error handler tập trung (envelope) — TRƯỚC static
   app.use(apiNotFound)

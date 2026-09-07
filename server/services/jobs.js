@@ -3,6 +3,7 @@
 // Quy ước: enqueue() không bao giờ throw (fail-open — request chính không vỡ vì job).
 // Worker chạy poll mỗi 2s trong cùng process (server.js), hoặc process riêng với WORKER_ONLY=true.
 const pool = require('../db.js')
+const mailer = require('./mailer.js')
 
 const TYPES = ['order_confirmation', 'events_cleanup', 'low_stock_scan']
 const POLL_MS = 2000
@@ -61,10 +62,22 @@ async function finish(id, ok, errMsg = null) {
 
 // ——— handlers (mỗi type 1 hàm, throw = retry) ———
 const handlers = {
-  // Xác nhận đơn: hiện tại ghi log + bảng (móc gửi mail/SMS thật vào đây sau).
+  // Xác nhận đơn: gửi mail SMTP thật (thiếu cấu hình SMTP → mailer skip, vẫn done).
   async order_confirmation({ refCode, email, totalVnd }) {
     if (!refCode) throw new Error('Thiếu refCode')
-    console.log(`[job] order_confirmation ${refCode} → ${email || 'guest'} (${Number(totalVnd || 0).toLocaleString('vi-VN')}₫)`)
+    const fmt = Number(totalVnd || 0).toLocaleString('vi-VN')
+    await mailer.send({
+      to: email,
+      subject: `Xác nhận đơn ${refCode} — KINETIC`,
+      text: `Cảm ơn bạn đã đặt hàng tại KINETIC.\nMã đơn: ${refCode}\nTổng tiền: ${fmt}₫\nTra cứu: /track?code=${refCode}`,
+      html: `<div style="font-family:Inter,Arial,sans-serif;max-width:560px;margin:auto">
+        <h2 style="letter-spacing:.2em">KINETIC</h2>
+        <p>Cảm ơn bạn đã đặt hàng. Đơn <b>${refCode}</b> đã được ghi nhận.</p>
+        <p>Tổng tiền: <b>${fmt}₫</b></p>
+        <p>Tra cứu đơn: <a href="${process.env.SITE_URL || ''}/track?code=${refCode}">${refCode}</a></p>
+      </div>`,
+    })
+    console.log(`[job] order_confirmation ${refCode} → ${email || 'guest'} (${fmt}₫)`)
   },
   // Dọn event tracking >90 ngày (comment trong 005 đã hẹn).
   async events_cleanup({ olderThanDays = 90 } = {}) {
