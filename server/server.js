@@ -78,6 +78,7 @@ function buildApp() {
   app.use('/api/v1/agent', require('./routes/agent.js'))
   app.use('/api/v1/coupons', require('./routes/coupons.js'))
   app.use('/api/v1/events', require('./routes/events.js'))
+  app.use('/api/v1/live', require('./routes/live.js'))
   app.use('/api/v1', require('./routes/meta.js'))
 
   // 404 JSON cho /api/* lạ + error handler tập trung (envelope) — TRƯỚC static
