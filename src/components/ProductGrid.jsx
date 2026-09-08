@@ -7,6 +7,7 @@ import { matchScore } from '../lib/match.js'
 import { playTechClick, playSwitch } from '../lib/sound.js'
 import { Card } from './ProductCard.jsx'
 import { SearchBar, FilterBar } from './ProductFilters.jsx'
+import { useScrollReveal } from '../hooks/useScrollReveal.js'
 
 const PAGE_SIZES = [6, 9, 12, 18]
 
@@ -57,14 +58,7 @@ export default function ProductGrid({ onToggleCompare, compareIds = [], preset =
     }
   }
 
-  useEffect(() => {
-    const io = new IntersectionObserver(
-      ([e]) => e.isIntersecting && e.target.classList.add('is-in'),
-      { threshold: 0.1 },
-    )
-    if (ref.current) io.observe(ref.current)
-    return () => io.disconnect()
-  }, [])
+  useScrollReveal(ref)
 
   return (
     <section id="shop" ref={ref} className="reveal mx-auto max-w-7xl px-4 py-20 md:px-8 md:py-28">

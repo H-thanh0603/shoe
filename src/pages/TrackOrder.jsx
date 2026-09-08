@@ -78,6 +78,11 @@ export default function TrackOrder({ initialCode }) {
   const [loading, setLoading] = useState(false)
   const [err, setErr] = useState(null)
   const [cancelling, setCancelling] = useState(false)
+  // VNPay return redirect: #/tra-don/KIN-XXXX?payment=ok|fail → show result, clear on next lookup
+  const [payFlash, setPayFlash] = useState(() => {
+    const m = location.hash.match(/[?&]payment=(ok|fail)/)
+    return m ? { ok: m[1] === 'ok' } : null
+  })
 
   const cancelOrder = async () => {
     if (!order || order.status !== 'pending') return
@@ -97,7 +102,7 @@ export default function TrackOrder({ initialCode }) {
   const lookup = async (c) => {
     const q = (c ?? code).trim().toUpperCase()
     if (!q) return
-    setLoading(true); setErr(null); setOrder(null)
+    setLoading(true); setErr(null); setOrder(null); setPayFlash(null)
     try {
       setOrder(await apiGet(`/orders/ref/${encodeURIComponent(q)}`))
     } catch {
@@ -119,6 +124,17 @@ export default function TrackOrder({ initialCode }) {
     <main className="mx-auto max-w-3xl px-4 pt-24 pb-28 md:px-8 md:pt-32">
       <p className="font-mono text-xs tracking-widest text-accent">TRA CỨU // ĐƠN HÀNG</p>
       <h1 className="display-l mt-1 text-paper">ĐƠN CỦA BẠN<span className="text-accent">.</span></h1>
+
+      {payFlash && (
+        <p
+          className={`mt-6 border px-4 py-3 font-mono text-xs tracking-widest ${
+            payFlash.ok ? 'border-accent/60 bg-accent/10 text-accent' : 'border-white/20 bg-ink-deep text-paper/80'
+          }`}
+          role="status"
+        >
+          {payFlash.ok ? 'THANH TOAN OK ✓ — DON DANG XU LY.' : 'THANH TOAN FAIL — DON CHUA BAYAR. THU LAI HOAI CHON COD.'}
+        </p>
+      )}
 
       <form
         className="mt-8 flex gap-2"

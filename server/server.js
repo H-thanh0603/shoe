@@ -74,6 +74,7 @@ function buildApp() {
   app.use('/api/v1/products', require('./routes/products.js'))
   app.use('/api/v1/cart', require('./routes/cart.js'))
   app.use('/api/v1/orders', require('./routes/orders.js'))
+  app.use('/api/v1/payments', require('./routes/payments.js'))
   app.use('/api/v1/auth', require('./routes/auth.js'))
   app.use('/api/v1/wishlist', require('./routes/wishlist.js'))
   app.use('/api/v1/admin', require('./routes/admin.js'))

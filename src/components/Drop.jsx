@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useApi } from '../hooks/useApi.js'
 import { useRemaining } from '../hooks/useRemaining.js'
+import { useScrollReveal } from '../hooks/useScrollReveal.js'
 import { playTick } from '../lib/sound.js'
 
 // Limited drop (DESIGN.md §48-49): event feel, countdown monospaced, no glow spam.
@@ -34,14 +35,7 @@ export default function Drop() {
   // heartbeat tồn kho drop — poll 15s, hiện badge khi còn <= 40 đôi
   const remaining = useRemaining(1)
 
-  useEffect(() => {
-    const io = new IntersectionObserver(
-      ([e]) => e.isIntersecting && e.target.classList.add('is-in'),
-      { threshold: 0.2 },
-    )
-    if (ref.current) io.observe(ref.current)
-    return () => io.disconnect()
-  }, [])
+  useScrollReveal(ref, { threshold: 0.2 })
 
   return (
     <section

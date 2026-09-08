@@ -7,6 +7,7 @@ const validate = require('../middleware/validate.js')
 const { requireAuth } = require('../middleware/auth.js')
 const { couponDiscount, shippingFee } = require('../services/pricing.js')
 const { enqueue } = require('../services/jobs.js')
+const vnpay = require('../services/vnpay.js')
 const { bust } = require('../middleware/cache.js')
 const { z } = require('zod')
 
@@ -42,10 +43,9 @@ async function getCartId(req) {
 const err = (e) => ({ status: e.status || 500, body: { success: false, error: { code: e.code || 'INTERNAL', message: e.message } } })
 
 router.post('/', validate(orderSchema), async (req, res) => {
-  // VNPay chưa tích hợp (không có pay.js/verify) — từ chối rõ thay vì tạo
-  // đơn unpaid mà không có link thanh toán
-  if (req.body.paymentMethod === 'vnpay') {
-    return res.status(400).json({ success: false, error: { code: 'PAYMENT_UNAVAILABLE', message: 'VNPay đang tích hợp — vui lòng chọn COD' } })
+  // vnpay chưa cấu hình TMN_CODE → từ chối rõ (không tạo đơn unpaid không có link thanh toán)
+  if (req.body.paymentMethod === 'vnpay' && !vnpay.configured()) {
+    return res.status(400).json({ success: false, error: { code: 'PAYMENT_UNAVAILABLE', message: 'VNPay chưa cấu hình — vui lòng chọn COD' } })
   }
   const cartId = await getCartId(req)
   if (!cartId) return res.status(400).json({ success: false, error: { code: 'CART_EMPTY', message: 'Giỏ hàng trống' } })
@@ -143,7 +143,13 @@ router.post('/', validate(orderSchema), async (req, res) => {
     // Detail cache chứa stock → bust để lần đọc sau đúng.
     bust('products:detail', 'admin:analytics').catch(() => {})
     enqueue('order_confirmation', { refCode: ref, email: req.body.email, totalVnd: total })
-    res.status(201).json({ success: true, data: { refCode: ref, totalVnd: total, shippingFeeVnd, discountVnd: discount, subtotalVnd: subtotal } })
+
+    // Đơn VNPay: sinh link thanh toán ngay (txnRef = order id — duy nhất, khớp khi return).
+    let paymentUrl = null
+    if (req.body.paymentMethod === 'vnpay') {
+      paymentUrl = vnpay.buildPaymentUrl({ orderId: order.id, amountVnd: total, ip: req.ip, returnUrl: vnpay.returnUrlFor(req) })
+    }
+    res.status(201).json({ success: true, data: { refCode: ref, totalVnd: total, shippingFeeVnd, discountVnd: discount, subtotalVnd: subtotal, paymentUrl } })
   } catch (e) {
     await client.query('ROLLBACK').catch(() => {})
     const { status, body } = err(e)

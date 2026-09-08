@@ -1,5 +1,6 @@
-import { useEffect, useRef, useState } from 'react'
+import { useRef, useState } from 'react'
 import { useAnimeReveal } from '../hooks/useAnimeReveal.js'
+import { useScrollReveal } from '../hooks/useScrollReveal.js'
 import { playTechClick } from '../lib/sound.js'
 
 const LAB_TABS = [
@@ -71,14 +72,7 @@ export default function TechLab() {
 
   const cur = LAB_TABS.find((t) => t.id === activeTab) || LAB_TABS[0]
 
-  useEffect(() => {
-    const io = new IntersectionObserver(
-      ([e]) => e.isIntersecting && e.target.classList.add('is-in'),
-      { threshold: 0.1 },
-    )
-    if (ref.current) io.observe(ref.current)
-    return () => io.disconnect()
-  }, [])
+  useScrollReveal(ref)
   useAnimeReveal(ref)
 
   return (

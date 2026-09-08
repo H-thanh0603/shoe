@@ -16,7 +16,7 @@ export function useHashRoute() {
   const m = route.match(/^#\/san-pham\/(.+)/)
   if (m) return { name: 'product', param: m[1] }
   const t = route.match(/^#\/tra-don(?:\/([^/]+))?/)
-  if (t) return { name: 'track', param: t[1] ? decodeURIComponent(t[1]) : null }
+  if (t) return { name: 'track', param: t[1] ? decodeURIComponent(t[1]).split('?')[0] : null }
   if (route === '#/admin') return { name: 'admin' }
   if (route === '#/don-cua-toi') return { name: 'myorders' }
   if (route === '#/shop') return { name: 'shop' }

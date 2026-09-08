@@ -1,5 +1,6 @@
-import { useEffect, useMemo, useRef } from 'react'
+import { useMemo, useRef } from 'react'
 import { useAnimeReveal } from '../hooks/useAnimeReveal.js'
+import { useScrollReveal } from '../hooks/useScrollReveal.js'
 import { useApi } from '../hooks/useApi.js'
 import { useProfile } from '../store/profile.js'
 import { matchScore } from '../lib/match.js'
@@ -60,14 +61,7 @@ export default function Collections() {
     }
     return [...collections].sort((a, b) => avg(b) - avg(a))
   }, [profile, collections, products])
-  useEffect(() => {
-    const io = new IntersectionObserver(
-      ([e]) => e.isIntersecting && e.target.classList.add('is-in'),
-      { threshold: 0.1 },
-    )
-    if (ref.current) io.observe(ref.current)
-    return () => io.disconnect()
-  }, [])
+  useScrollReveal(ref)
   useAnimeReveal(ref)
 
   return (

@@ -9,6 +9,7 @@ const vnd = (n) => Number(n || 0).toLocaleString('vi-VN') + '₫'
 
 export default function CheckoutForm({ totalVnd, onDone, onBack }) {
   const [form, setForm] = useState({ customerName: '', phone: '', email: '', address: '', couponCode: '' })
+  const [payMethod, setPayMethod] = useState('cod')
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState(null)
   const [ok, setOk] = useState(null)
@@ -49,8 +50,10 @@ export default function CheckoutForm({ totalVnd, onDone, onBack }) {
       const data = await apiFetch('/orders', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Idempotency-Key': idemKey.current },
-        body: { ...form, couponCode: form.couponCode || undefined, paymentMethod: 'cod' },
+        body: { ...form, couponCode: form.couponCode || undefined, paymentMethod: payMethod },
       })
+      // VNPay: bay sang cổng thanh toán — return URL sẽ quay về #/tra-don/:code
+      if (data.paymentUrl) { location.href = data.paymentUrl; return }
       setOk(data)
     } catch (e2) {
       setErr(e2.message)
@@ -124,9 +127,25 @@ export default function CheckoutForm({ totalVnd, onDone, onBack }) {
       </div>
       <div>
         <label className={labelCls}>PHƯƠNG THỨC</label>
-        <p className="border border-accent/40 bg-ink-deep px-3 py-2.5 text-sm text-paper/80">
-          Thanh toán khi nhận hàng (COD)
-        </p>
+        <div className="grid grid-cols-2 gap-2">
+          {[
+            { id: 'cod', label: 'COD', desc: 'Thanh toán khi nhận hàng' },
+            { id: 'vnpay', label: 'VNPay', desc: 'Thẻ / QR / ATM' },
+          ].map((m) => (
+            <button
+              key={m.id}
+              type="button"
+              onClick={() => setPayMethod(m.id)}
+              className={`border px-3 py-2.5 text-left transition-colors ${
+                payMethod === m.id ? 'border-accent bg-accent/10' : 'border-white/15 bg-ink-deep hover:border-white/30'
+              }`}
+              aria-pressed={payMethod === m.id}
+            >
+              <span className="block text-sm font-bold text-paper">{m.label}</span>
+              <span className="block text-[10px] text-paper/50">{m.desc}</span>
+            </button>
+          ))}
+        </div>
       </div>
 
       {err && <p className="text-xs text-accent" role="alert">{err}</p>}
