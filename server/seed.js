@@ -48,9 +48,83 @@ const PRODS = [
   ['mb-lo', 'PUMA MB.01 LOW', 'PUMA', 'Chữ ký LaMelo Ball: nhẹ featherweight, đế explosive, style sáng sân.', 3090000, '["#d9a441","#1a5fb4","#e8e6e1"]', null, null, 4, 'court', 88, 72, 92, 78, 50, '[]'],
 ]
 
+// Users mẫu + reviews cho social proof. verified = user có order chứa product
+// (cùng logic createReview). [email, name, [[product_slug, rating, content], ...]]
+const REVIEWERS = [
+  ['minh@kinetic.vn', 'Minh Anh', [
+    ['air-vector-01', 5, 'Đi 2 tuần rồi — êm thật, chi tiết phản quang lên rất rõ lúc chạy đêm. Size chuẩn, mình 42 hay đi là 42.'],
+    ['hyper-drive-x', 4, 'Nhanh nhẹ đúng quảng cáo, nhưng đế cứng hơn mong đợi. Chạy tempo thì tuyệt.'],
+  ]],
+  ['bao@kinetic.vn', 'Quốc Bảo', [
+    ['night-pulse', 5, 'Mua để chạy tối, reflective dính đèn xe đẹp. Gel gót đỡ đau gót thật.'],
+    ['gel-kayano-31', 5, 'Chạy 300km, vòm chân không mỏi như đôi cũ. Đáng tiền.'],
+  ]],
+  ['lan@kinetic.vn', 'Lan Chi', [
+    ['street-flow', 4, 'Da đẹp, đường may chắc. Đi làm 8 tiếng không cấn. Trừ 1 sao vì hơi nóng mùa hè.'],
+    ['samba-og', 5, 'Phối với đồ gì cũng đẹp, đầu tư xứng đáng. Nhớ lên nửa size nếu mang tất dày.'],
+  ]],
+  ['tuan@kinetic.vn', 'Tuấn Kiệt', [
+    ['ultraboost-5', 5, 'Boost thật sự khác — êm như đi trên mây. Giá cao nhưng đáng.'],
+    ['550-white', 4, 'Dễ phối nhất tủ. Da hơi dễ bẩn nhưng lau là sạch.'],
+  ]],
+]
+
+async function seedReviews() {
+  const { rows: [r0] } = await pool.query('SELECT COUNT(*) n FROM reviews')
+  if (r0.n > 0) { console.log('reviews đã có — bỏ qua'); return }
+  const hash = bcrypt.hashSync('kinetic123', 10)
+  let count = 0
+  for (const [email, name, reviews] of REVIEWERS) {
+    const { rows: [u] } = await pool.query(
+      `INSERT INTO users (email, password_hash, role, name) VALUES ($1,$2,'customer',$3)
+       ON CONFLICT (email) DO UPDATE SET name = EXCLUDED.name RETURNING id`,
+      [email, hash, name],
+    )
+    // mỗi reviewer đặt 1 đơn delivered chứa đôi đầu → verified badge dựa order thật
+    const { rows: [first] } = await pool.query('SELECT id, price_vnd FROM products WHERE slug = $1', [reviews[0][0]])
+    if (first) {
+      const { rows: [v] } = await pool.query('SELECT id FROM product_variants WHERE product_id = $1 AND stock > 0 LIMIT 1', [first.id])
+      if (v) {
+        const { rows: [o] } = await pool.query(
+          `INSERT INTO orders (ref_code, user_id, status, total_vnd, customer_name, customer_phone, customer_email, shipping_address, payment_method, payment_status)
+           VALUES ($1,$2,'delivered',$3,$4,'0900000000',$5,'Hà Nội','cod','paid') RETURNING id`,
+          [`SEED-RV-${u.id}`, u.id, first.price_vnd, name, email],
+        )
+        await pool.query(
+          'INSERT INTO order_items (order_id, variant_id, qty, unit_price_vnd, name_snapshot, size_snapshot) SELECT $1, id, 1, $2, $3, size FROM product_variants WHERE id = $4',
+          [o.id, first.price_vnd, name, v.id],
+        )
+      }
+    }
+    for (const [slug, rating, content] of reviews) {
+      const { rows: [p] } = await pool.query('SELECT id FROM products WHERE slug = $1', [slug])
+      if (!p) continue
+      // verified tính lại theo order thật của user (chỉ đôi đầu có đơn)
+      const { rows: [ord] } = await pool.query(
+        `SELECT 1 FROM order_items oi JOIN orders o ON o.id = oi.order_id
+         WHERE oi.variant_id IN (SELECT id FROM product_variants WHERE product_id = $1)
+           AND o.user_id = $2 AND o.status != 'cancelled' LIMIT 1`,
+        [p.id, u.id],
+      )
+      await pool.query(
+        `INSERT INTO reviews (product_id, user_id, rating, content, verified, helpful_count, created_at)
+         VALUES ($1,$2,$3,$4,$5,$6, now() - ($7 || ' days')::interval)
+         ON CONFLICT (product_id, user_id) DO NOTHING`,
+        [p.id, u.id, rating, content, !!ord, Math.floor(Math.random() * 9), Math.floor(Math.random() * 20)],
+      )
+      count++
+    }
+  }
+  console.log(`reviews ok — ${count} bài`)
+}
+
 async function main() {
   const { rows: c0 } = await pool.query('SELECT COUNT(*) n FROM collections')
-  if (c0[0].n > 0) { console.log('seed đã chạy — bỏ qua'); return }
+  if (c0[0].n > 0) {
+    console.log('seed đã chạy — bỏ qua catalog')
+    await seedReviews()
+    return
+  }
 
   const cols = [
     ['street-future', 'STREET FUTURE', 'Dark. Metallic. Urban.', 'charcoal', false],
@@ -112,6 +186,7 @@ async function main() {
   )
 
   console.log(`seed ok — ${all.length} products, ${all.length * SIZES.length} variants, admin@kinetic.vn`)
+  await seedReviews()
 }
 
 main()
