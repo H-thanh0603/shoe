@@ -59,7 +59,12 @@ async function listProducts({ limit = 24, page = 1, q } = {}) {
 
 async function getProductDetail(slug) {
   const { rows } = await pool.query(
-    `SELECT p.*, c.slug AS collection_slug, c.name AS collection_name
+    `SELECT p.*, c.slug AS collection_slug, c.name AS collection_name,
+       (SELECT COUNT(*) FROM wishlist_items w WHERE w.product_id = p.id) AS wishlist_count,
+       (SELECT COALESCE(SUM(oi.qty), 0) FROM order_items oi
+          JOIN product_variants pv ON pv.id = oi.variant_id
+          JOIN orders o ON o.id = oi.order_id
+          WHERE pv.product_id = p.id AND o.status != 'cancelled') AS sold_count
      FROM products p LEFT JOIN collections c ON c.id = p.collection_id
      WHERE p.slug = $1 AND p.is_active`,
     [slug],
@@ -70,7 +75,7 @@ async function getProductDetail(slug) {
     [rows[0].id],
   )
   const [detail] = await attachImages([mapProduct(rows[0])])
-  return { ...detail, variants }
+  return { ...detail, variants, wishlist_count: Number(rows[0].wishlist_count), sold_count: Number(rows[0].sold_count) }
 }
 
 // Ảnh review: data-URL (jpeg/png/webp), tối đa 3 ảnh, mỗi ảnh ~500KB.

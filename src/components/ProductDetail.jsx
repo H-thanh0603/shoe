@@ -180,6 +180,14 @@ export default function ProductDetail({ slug, back }) {
             <span className="font-mono text-xs tracking-widest text-accent font-semibold">{p.brand}</span>
             <h1 className="display-l mt-1 text-paper">{p.name}</h1>
             <p className="mt-2 font-display text-2xl font-bold text-accent">{p.price}</p>
+            {/* Social proof — số thật từ DB, chỉ hiện khi > 0 (không bịa) */}
+            {(p.wishlist_count > 0 || p.sold_count > 0) && (
+              <p className="mt-2 font-mono text-xs text-paper/50">
+                {p.sold_count > 0 && <>Đã bán {p.sold_count} đôi</>}
+                {p.sold_count > 0 && p.wishlist_count > 0 && ' · '}
+                {p.wishlist_count > 0 && <>{p.wishlist_count} người yêu thích đôi này</>}
+              </p>
+            )}
             {(() => {
               const total = p.variants.reduce((s, v) => s + v.stock, 0)
               if (total <= 0) return <p className="mt-2 font-mono text-xs font-bold text-paper/60">HẾT HÀNG TẠM THỜI</p>
