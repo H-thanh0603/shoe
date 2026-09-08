@@ -1,5 +1,36 @@
 import { useState } from 'react'
+import { useProfile } from '../store/profile.js'
+import { matchScore } from '../lib/match.js'
 import { playTechClick } from '../lib/sound.js'
+
+function Verdict({ items }) {
+  const { profile } = useProfile()
+  if (!profile?.prefs) return null // chưa làm quiz → không đoán bừa
+  const scored = items
+    .map((p) => ({ p, m: matchScore(profile, p) }))
+    .filter((x) => x.m)
+  if (scored.length < 2) return null
+  scored.sort((a, b) => b.m.pct - a.m.pct)
+  const [win, ...rest] = scored
+  const gap = win.m.pct - scored[1].m.pct
+  const why = win.m.reasons?.[0] || 'khớp gu của bạn nhất'
+  return (
+    <div className="mx-auto mt-6 max-w-7xl border border-accent/40 bg-ink-deep p-5">
+      <p className="font-mono text-[10px] tracking-[0.3em] text-accent">ĐÔI NÀO HỢP BẠN HƠN?</p>
+      <p className="mt-2 font-display text-lg font-bold text-paper">
+        {win.p.name} — vì {why.toLowerCase()}.
+        {gap < 5 && <span className="ml-2 font-mono text-xs font-normal text-paper/40">(kịch tính: {gap}%)</span>}
+      </p>
+      <div className="mt-3 flex flex-wrap gap-3 font-mono text-xs text-paper/60">
+        {scored.map((x) => (
+          <span key={x.p.id} className={x === win ? 'text-accent font-bold' : ''}>
+            {x.p.name}: {x.m.pct}% MATCH
+          </span>
+        ))}
+      </div>
+    </div>
+  )
+}
 
 export default function CompareDrawer({ items = [], onRemove, onClear, open, setOpen }) {
   if (items.length === 0) return null
@@ -152,6 +183,8 @@ export default function CompareDrawer({ items = [], onRemove, onClear, open, set
                 </tbody>
               </table>
             </div>
+
+            <Verdict items={items} />
           </div>
         </div>
       )}
