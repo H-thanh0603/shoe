@@ -40,8 +40,11 @@ Zod schema mọi route có body (`validate` middleware, 400 `VALIDATION_ERROR`).
 - Coupon áp dụng sau khi validate: status, thời gian, min order, usage limit — server quyết.
 - `verified` review: server check order thật của user, không nhận từ client.
 
+## CSRF — double-submit token
+
+`middleware/csrf.js`: server set cookie `csrf` (không httpOnly), client echo qua header `X-CSRF-Token` trên mọi POST/PATCH/DELETE (`lib/api.js` gắn tự động). Enforce khi request có auth cookie + client đã từng nhận cookie csrf (fail-open request đầu để tương thích client cũ, cookie đã set để request sau phải echo).
+
 ## Còn thiếu (chưa làm — ghi nhận)
 
-- CSRF: sameSite=lax chặn cross-site POST từ site khác nhưng chưa có CSRF token. API thuần JSON + cookie lax = rủi ro thấp hiện tại.
 - HTTPS/forwarded headers: khi deploy sau proxy cần `app.set('trust proxy', 1)` cho rate-limit đếm đúng IP.
 - Refresh token rotation: refresh hiện không đổi mới refresh_token (chỉ cấp access mới). Khi cần revoke: thêm bảng `refresh_tokens` lưu hash + revoke được.

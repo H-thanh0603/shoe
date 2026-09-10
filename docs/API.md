@@ -35,7 +35,7 @@ Guest: cookie `session_token` tự sinh khi request đầu. User: cart theo `req
 | Method | Path | Mô tả |
 |---|---|---|
 | POST | `/orders` | Checkout. Body: `{customerName, phone, email, address, paymentMethod: cod\|vnpay, couponCode?}`. Header tùy chọn `Idempotency-Key` — trùng key trả order cũ (`duplicate: true`). Trả `{refCode}` (KIN-XXXXXX). VNPay configured → kèm `paymentUrl` (redirect sang cổng VNPay). Không cấu hình → 400 `PAYMENT_UNAVAILABLE`. |
-| GET | `/payments/vnpay/return` | VNPay redirect về sau thanh toán — verify HMAC SHA512, update `payment_status=paid`, 302 về `#/tra-don/:refCode?payment=ok\|fail`. |
+| GET | `/payments/vnpay/return` | VNPay redirect về sau thanh toán — verify HMAC SHA512, update `payment_status=paid`, 302 về `/tra-don/:refCode?payment=ok\|fail`. |
 | GET | `/payments/vnpay/ipn` | VNPay IPN server-to-server — trả JSON `{RspCode, Message}`. |
 | GET | `/orders/ref/:code` | Tra đơn theo refCode — public. |
 | GET | `/orders/me/orders` | Lịch sử đơn của user (login). Kèm `item_count`. |

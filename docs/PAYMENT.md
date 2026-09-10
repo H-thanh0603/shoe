@@ -30,8 +30,17 @@ Lưu `INTEGER` VND. VNPay amount = `total × 100` (minor unit), `vnp_TxnRef` = o
 
 1. Đăng ký sandbox TPUVN → env `VNPAY_TMN_CODE`, `VNPAY_HASH_SECRET`, optional `VNPAY_RETURN_URL` (default `/api/v1/payments/vnpay/return`).
 2. `POST /orders` paymentMethod=`vnpay` → order `pending`/`unpaid` + trả `paymentUrl`; frontend `location.href` sang cổng.
-3. `GET /api/v1/payments/vnpay/return` — browser redirect về sau thẻ: verify hash → `payment_status='paid'` → 302 sang SPA `#/tra-don/:refCode?payment=ok|fail`.
+3. `GET /api/v1/payments/vnpay/return` — browser redirect về sau thẻ: verify hash → `payment_status='paid'` → 302 sang SPA `/tra-don/:refCode?payment=ok|fail`.
 4. `GET /api/v1/payments/vnpay/ipn` — server-to-server: trả JSON `{RspCode, Message}`.
 5. Sandbox test: thẻ NCB 970419852619143388, tên NGUYEN VAN A, 07/15, OTP 123456.
 
 Signed data: toàn bô vnp_* param (incl. `vnp_SecureHashType`), sort key asc, exclude `vnp_SecureHash`, value encod PHP urlencode (space→`+`). Hash = HMAC-SHA512 hex.
+
+## Lên VNPay production (live)
+
+Code sign/verify/IPN đã đúng spec, không cần đổi. Khi có TMN code thật:
+
+1. Đăng ký merchant VNPay thật → nhận `VNPAY_TMN_CODE` + `VNPAY_HASH_SECRET` bản live.
+2. Đổi cổng sandbox → live trong `server/services/vnpay.js` (`c.payUrl`) — env hóa thành `VNPAY_PAY_URL` khi làm.
+3. `VNPAY_RETURN_URL` phải là URL public HTTPS (qua edge nginx), VNPay cần whitelist domain.
+4. Kiểm tra IPN: VNPay live push server-to-server — đảm bảo port 443 edge mở từ IP VNPay.
