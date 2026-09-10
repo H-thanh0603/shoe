@@ -158,15 +158,35 @@ function Products() {
     const list = await apiGet(`/admin/products/${p.id}/images`).catch(() => [])
     setImages({ id: p.id, name: p.name, list, busy: false })
   }
-  const uploadImage = async (file) => {
-    if (!file || !/^image\/(jpeg|png|webp)$/.test(file.type)) { alert('Chỉ nhận JPG/PNG/WebP.'); return }
-    if (file.size > 5 * 1024 * 1024) { alert('Tối đa 5MB.'); return }
+  // Resize client-side trước khi upload: max 1600px cạnh dài, JPEG q0.85 —
+  // tránh ship 5MB original (khoảng 400KB sau resize) thẳng mobile.
+  const resizeImage = (file, maxDim = 1600) => new Promise((resolve, reject) => {
+    const img = new Image()
+    const url = URL.createObjectURL(file)
+    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('Không đọc được ảnh.')) }
+    img.onload = () => {
+      URL.revokeObjectURL(url)
+      const scale = Math.min(1, maxDim / Math.max(img.width, img.height))
+      const canvas = document.createElement('canvas')
+      canvas.width = Math.round(img.width * scale)
+      canvas.height = Math.round(img.height * scale)
+      canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height)
+      canvas.toBlob((blob) => blob ? resolve(new File([blob], file.name.replace(/\.\w+$/, '.jpg'), { type: 'image/jpeg' }))
+        : reject(new Error('Không xử lý được ảnh.')), 'image/jpeg', 0.85)
+    }
+    img.src = url
+  })
+  const uploadImage = async (rawFile) => {
+    if (!rawFile || !/^image\/(jpeg|png|webp)$/.test(rawFile.type)) { alert('Chỉ nhận JPG/PNG/WebP.'); return }
+    if (rawFile.size > 15 * 1024 * 1024) { alert('Tối đa 15MB trước resize.'); return }
     setImages((s) => ({ ...s, busy: true }))
     try {
-      // apiFetch ép Content-Type JSON — upload binary đi fetch thẳng
+      const file = await resizeImage(rawFile)
+      const csrf = document.cookie.match(/(?:^|;\s*)csrf=([^;]+)/)?.[1] || ''
+      // apiFetch ép Content-Type JSON — upload binary đi fetch thẳng (+ CSRF header)
       const res = await fetch(`/api/v1/admin/products/${images.id}/images`, {
         method: 'POST',
-        headers: { 'Content-Type': file.type },
+        headers: { 'Content-Type': file.type, 'X-CSRF-Token': decodeURIComponent(csrf) },
         body: file,
         credentials: 'same-origin',
       })
