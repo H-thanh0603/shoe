@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useCart } from '../store/CartContext.jsx'
 import { useProfile, topTrait } from '../store/profile.js'
+import { useWishlist } from '../hooks/useWishlist.js'
 import { apiFetch } from '../lib/api.js'
 import AuthModal from './AuthModal.jsx'
 
@@ -32,6 +33,8 @@ export default function Nav({ onQuiz, onLogoTap, secret, onSearch }) {
   const [showAuth, setShowAuth] = useState(false)
   const { cart, open: openCart } = useCart()
   const { profile } = useProfile()
+  const { wishlist } = useWishlist()
+  const wishCount = wishlist.length
   const shoeId = topTrait(profile) || 'SHOE ID'
 
   // logo 5 tap trong 2s → secret toggle (mobile path, konami cho desktop)
@@ -111,6 +114,12 @@ export default function Nav({ onQuiz, onLogoTap, secret, onSearch }) {
           <a href="#/tra-don" className="hidden text-sm font-medium tracking-widest text-paper/80 transition-colors duration-200 hover:text-accent focus-visible:text-accent sm:inline">
             TRA ĐƠN
           </a>
+          <a href="#/yeu-thich" className="relative hidden text-sm font-medium tracking-widest text-paper/80 transition-colors duration-200 hover:text-accent focus-visible:text-accent md:inline">
+            YÊU THÍCH
+            {wishCount > 0 && (
+              <span className="absolute -top-2 -right-3 flex h-4 w-4 items-center justify-center rounded-full bg-accent text-[10px] font-bold text-ink">{wishCount}</span>
+            )}
+          </a>
           {user && (
             <a href="#/don-cua-toi" className="hidden text-sm font-medium tracking-widest text-paper/80 transition-colors duration-200 hover:text-accent focus-visible:text-accent sm:inline">
               ĐƠN CỦA TÔI
@@ -177,6 +186,7 @@ export default function Nav({ onQuiz, onLogoTap, secret, onSearch }) {
             </div>
           ))}
           <div className="flex flex-wrap gap-2 border-t border-white/10 pt-4">
+            <a href="#/yeu-thich" onClick={() => setOpen(null)} className="border border-white/15 px-3 py-1.5 font-mono text-xs text-paper/70">YÊU THÍCH</a>
             <a href="#/tra-don" onClick={() => setOpen(null)} className="border border-white/15 px-3 py-1.5 font-mono text-xs text-paper/70">TRA ĐƠN</a>
             {user && <a href="#/don-cua-toi" onClick={() => setOpen(null)} className="border border-white/15 px-3 py-1.5 font-mono text-xs text-paper/70">ĐƠN CỦA TÔI</a>}
             {user?.role === 'admin' && <a href="#/admin" onClick={() => setOpen(null)} className="border border-accent px-3 py-1.5 font-mono text-xs text-accent">ADMIN</a>}

@@ -18,6 +18,7 @@ import MyOrders from './pages/MyOrders.jsx'
 import ClaimCart from './pages/ClaimCart.jsx'
 import Shop from './pages/Shop.jsx'
 import NewDrops from './pages/NewDrops.jsx'
+import Wishlist from './pages/Wishlist.jsx'
 import CollectionDetail from './pages/CollectionDetail.jsx'
 import Collections from './components/Collections.jsx'
 import Admin from './pages/Admin.jsx'
@@ -28,7 +29,7 @@ export default function App() {
   const route = useHashRoute()
   const TITLES = {
     product: 'Sản phẩm', track: 'Tra cứu đơn hàng', myorders: 'Đơn của tôi',
-    shop: 'Shop', new: 'New Drops', collections: 'Bộ sưu tập', collection: 'Bộ sưu tập', admin: 'Admin',
+    shop: 'Shop', new: 'New Drops', wishlist: 'Yêu thích', collections: 'Bộ sưu tập', collection: 'Bộ sưu tập', admin: 'Admin',
   }
   useDocumentTitle(route.name in TITLES ? `KINETIC — ${TITLES[route.name]}` : 'KINETIC — Move Different')
   const [quiz, setQuiz] = useState(false)
@@ -80,6 +81,8 @@ export default function App() {
         <main className="pt-16"><Collections /></main>
       ) : route.name === 'collection' ? (
         <CollectionDetail slug={route.param} onToggleCompare={compare.toggle} compareIds={compare.ids} />
+      ) : route.name === 'wishlist' ? (
+        <Wishlist onToggleCompare={compare.toggle} compareIds={compare.ids} />
       ) : route.name === 'admin' ? (
         <Admin />
       ) : (

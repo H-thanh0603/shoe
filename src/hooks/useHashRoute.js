@@ -20,6 +20,7 @@ export function useHashRoute() {
   if (route === '#/admin') return { name: 'admin' }
   if (route === '#/don-cua-toi') return { name: 'myorders' }
   if (route === '#/shop') return { name: 'shop' }
+  if (route === '#/yeu-thich') return { name: 'wishlist' }
   if (route === '#/new') return { name: 'new' }
   if (route === '#/bo-suu-tap') return { name: 'collections' }
   const c = route.match(/^#\/bo-suu-tap\/(.+)/)

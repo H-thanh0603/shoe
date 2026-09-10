@@ -14,9 +14,17 @@ export default function Footer() {
           </div>
           <nav aria-label="Chân trang">
             <ul className="grid grid-cols-2 gap-x-8 gap-y-3 text-sm">
-              {['SHOP', 'NEW', 'COLLECTIONS', 'SIZE GUIDE', 'SHIPPING', 'RETURNS'].map((l) => (
+              {[
+                ['SHOP', '#/shop'],
+                ['NEW', '#/new'],
+                ['COLLECTIONS', '#/bo-suu-tap'],
+                ['YÊU THÍCH', '#/yeu-thich'],
+                ['SIZE GUIDE', '#'],
+                ['SHIPPING', '#'],
+                ['RETURNS', '#'],
+              ].map(([l, href]) => (
                 <li key={l}>
-                  <a href="#" className="text-paper/60 transition-colors duration-200 hover:text-accent focus-visible:text-accent">
+                  <a href={href} className="text-paper/60 transition-colors duration-200 hover:text-accent focus-visible:text-accent">
                     {l}
                   </a>
                 </li>
