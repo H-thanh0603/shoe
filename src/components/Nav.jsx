@@ -2,30 +2,31 @@ import { useEffect, useRef, useState } from 'react'
 import { useCart } from '../store/CartContext.jsx'
 import { useProfile, topTrait } from '../store/profile.js'
 import { useWishlist } from '../hooks/useWishlist.js'
+import { navigate } from '../hooks/useHashRoute.js'
 import { apiFetch } from '../lib/api.js'
 import AuthModal from './AuthModal.jsx'
 
 const menu = {
   SHOP: [
-    { label: 'Tất cả giày', href: '#/shop' },
-    { label: 'Running', href: '#/shop' },
-    { label: 'Street', href: '#/shop' },
-    { label: 'Hàng mới về', href: '#/new' },
+    { label: 'Tất cả giày', href: '/shop' },
+    { label: 'Running', href: '/shop' },
+    { label: 'Street', href: '/shop' },
+    { label: 'Hàng mới về', href: '/new' },
   ],
   NEW: [
-    { label: 'Vừa về', href: '#/new' },
+    { label: 'Vừa về', href: '/new' },
     { label: 'Sắp ra mắt', href: '#drop' },
   ],
   COLLECTIONS: [
-    { label: 'Tất cả BST', href: '#/bo-suu-tap' },
-    { label: 'Street Future', href: '#/bo-suu-tap/street-future' },
-    { label: 'Night Runner', href: '#/bo-suu-tap/night-runner' },
-    { label: 'Raw Motion', href: '#/bo-suu-tap/raw-motion' },
+    { label: 'Tất cả BST', href: '/bo-suu-tap' },
+    { label: 'Street Future', href: '/bo-suu-tap/street-future' },
+    { label: 'Night Runner', href: '/bo-suu-tap/night-runner' },
+    { label: 'Raw Motion', href: '/bo-suu-tap/raw-motion' },
   ],
 }
 
 // bấm vào tên mục → trang tổng (hover mới mở mega menu)
-const LANDING = { SHOP: '#/shop', NEW: '#/new', COLLECTIONS: '#/bo-suu-tap' }
+const LANDING = { SHOP: '/shop', NEW: '/new', COLLECTIONS: '/bo-suu-tap' }
 
 export default function Nav({ onQuiz, onLogoTap, secret, onSearch }) {
   const [open, setOpen] = useState(null)
@@ -77,7 +78,7 @@ export default function Nav({ onQuiz, onLogoTap, secret, onSearch }) {
                 className="flex items-center gap-1 text-sm font-medium tracking-widest text-paper/80 transition-colors duration-200 hover:text-accent focus-visible:text-accent"
                 onMouseEnter={() => setOpen(k)}
                 onFocus={() => setOpen(k)}
-                onClick={() => { setOpen(null); location.hash = LANDING[k] }}
+                onClick={() => { setOpen(null); navigate(LANDING[k]) }}
                 title={`Xem tất cả ${k}`}
               >
                 {k}
@@ -111,22 +112,22 @@ export default function Nav({ onQuiz, onLogoTap, secret, onSearch }) {
           <button onClick={onQuiz} className={`text-sm font-medium tracking-widest transition-colors duration-200 hover:text-accent focus-visible:text-accent ${profile ? 'text-accent' : 'text-paper/80'}`}>
             {shoeId}
           </button>
-          <a href="#/tra-don" className="hidden text-sm font-medium tracking-widest text-paper/80 transition-colors duration-200 hover:text-accent focus-visible:text-accent sm:inline">
+          <a href="/tra-don" className="hidden text-sm font-medium tracking-widest text-paper/80 transition-colors duration-200 hover:text-accent focus-visible:text-accent sm:inline">
             TRA ĐƠN
           </a>
-          <a href="#/yeu-thich" className="relative hidden text-sm font-medium tracking-widest text-paper/80 transition-colors duration-200 hover:text-accent focus-visible:text-accent md:inline">
+          <a href="/yeu-thich" className="relative hidden text-sm font-medium tracking-widest text-paper/80 transition-colors duration-200 hover:text-accent focus-visible:text-accent md:inline">
             YÊU THÍCH
             {wishCount > 0 && (
               <span className="absolute -top-2 -right-3 flex h-4 w-4 items-center justify-center rounded-full bg-accent text-[10px] font-bold text-ink">{wishCount}</span>
             )}
           </a>
           {user && (
-            <a href="#/don-cua-toi" className="hidden text-sm font-medium tracking-widest text-paper/80 transition-colors duration-200 hover:text-accent focus-visible:text-accent sm:inline">
+            <a href="/don-cua-toi" className="hidden text-sm font-medium tracking-widest text-paper/80 transition-colors duration-200 hover:text-accent focus-visible:text-accent sm:inline">
               ĐƠN CỦA TÔI
             </a>
           )}
           {user?.role === 'admin' && (
-            <a href="#/admin" className="hidden text-sm font-medium tracking-widest text-accent transition-colors duration-200 hover:text-accent-hot sm:inline">
+            <a href="/admin" className="hidden text-sm font-medium tracking-widest text-accent transition-colors duration-200 hover:text-accent-hot sm:inline">
               ADMIN
             </a>
           )}
@@ -186,10 +187,10 @@ export default function Nav({ onQuiz, onLogoTap, secret, onSearch }) {
             </div>
           ))}
           <div className="flex flex-wrap gap-2 border-t border-white/10 pt-4">
-            <a href="#/yeu-thich" onClick={() => setOpen(null)} className="border border-white/15 px-3 py-1.5 font-mono text-xs text-paper/70">YÊU THÍCH</a>
-            <a href="#/tra-don" onClick={() => setOpen(null)} className="border border-white/15 px-3 py-1.5 font-mono text-xs text-paper/70">TRA ĐƠN</a>
-            {user && <a href="#/don-cua-toi" onClick={() => setOpen(null)} className="border border-white/15 px-3 py-1.5 font-mono text-xs text-paper/70">ĐƠN CỦA TÔI</a>}
-            {user?.role === 'admin' && <a href="#/admin" onClick={() => setOpen(null)} className="border border-accent px-3 py-1.5 font-mono text-xs text-accent">ADMIN</a>}
+            <a href="/yeu-thich" onClick={() => setOpen(null)} className="border border-white/15 px-3 py-1.5 font-mono text-xs text-paper/70">YÊU THÍCH</a>
+            <a href="/tra-don" onClick={() => setOpen(null)} className="border border-white/15 px-3 py-1.5 font-mono text-xs text-paper/70">TRA ĐƠN</a>
+            {user && <a href="/don-cua-toi" onClick={() => setOpen(null)} className="border border-white/15 px-3 py-1.5 font-mono text-xs text-paper/70">ĐƠN CỦA TÔI</a>}
+            {user?.role === 'admin' && <a href="/admin" onClick={() => setOpen(null)} className="border border-accent px-3 py-1.5 font-mono text-xs text-accent">ADMIN</a>}
           </div>
         </div>
       )}

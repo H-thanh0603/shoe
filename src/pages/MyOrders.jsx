@@ -29,7 +29,7 @@ export default function MyOrders() {
         <ul className="mt-6 flex flex-col gap-3">
           {orders.map((o) => (
             <li key={o.id}>
-              <a href={`#/tra-don/${o.ref_code}`} className="flex items-center justify-between gap-3 border border-white/10 bg-charcoal px-4 py-3 transition-colors hover:border-accent">
+              <a href={`/tra-don/${o.ref_code}`} className="flex items-center justify-between gap-3 border border-white/10 bg-charcoal px-4 py-3 transition-colors hover:border-accent">
                 <span className="min-w-0">
                   <span className="block font-mono text-sm font-bold tracking-widest text-paper">{o.ref_code}</span>
                   <span className="font-mono text-[11px] text-paper/50">

@@ -15,10 +15,10 @@ export default function Footer() {
           <nav aria-label="Chân trang">
             <ul className="grid grid-cols-2 gap-x-8 gap-y-3 text-sm">
               {[
-                ['SHOP', '#/shop'],
-                ['NEW', '#/new'],
-                ['COLLECTIONS', '#/bo-suu-tap'],
-                ['YÊU THÍCH', '#/yeu-thich'],
+                ['SHOP', '/shop'],
+                ['NEW', '/new'],
+                ['COLLECTIONS', '/bo-suu-tap'],
+                ['YÊU THÍCH', '/yeu-thich'],
                 ['SIZE GUIDE', '#'],
                 ['SHIPPING', '#'],
                 ['RETURNS', '#'],

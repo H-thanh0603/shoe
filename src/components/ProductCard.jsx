@@ -50,7 +50,7 @@ export function Card({ p, match, onWishlist, isWishlisted, onToggleCompare, isCo
     >
       {/* Background Graphic & Sneaker Silhouette */}
       <a
-        href={`#/san-pham/${p.slug}`}
+        href={`/san-pham/${p.slug}`}
         className="relative flex flex-1 items-center justify-center overflow-hidden transition-transform duration-500 group-hover:scale-[1.04]"
         style={{ background: `color-mix(in oklab, ${activeColor} 25%, var(--color-charcoal-2))` }}
       >
@@ -183,7 +183,7 @@ export function Card({ p, match, onWishlist, isWishlisted, onToggleCompare, isCo
 
       {/* Info row */}
       <div className="relative z-10 flex items-end justify-between gap-3 border-t border-white/10 bg-charcoal px-4 py-3">
-        <a href={`#/san-pham/${p.slug}`} className="min-w-0 flex-1 group-hover:text-accent">
+        <a href={`/san-pham/${p.slug}`} className="min-w-0 flex-1 group-hover:text-accent">
           <p className="text-[10px] font-mono tracking-widest text-paper/50">{p.brand}</p>
           <h3 className="truncate font-display text-sm font-semibold text-paper group-hover:text-accent transition-colors">
             {p.name}

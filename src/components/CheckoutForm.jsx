@@ -73,7 +73,7 @@ export default function CheckoutForm({ totalVnd, onDone, onBack }) {
       </p>
       <p className="max-w-xs text-xs text-paper/40">Thanh toán khi nhận hàng (COD). Dùng mã trên để tra cứu đơn.</p>
       <a
-        href={`#/tra-don/${ok.refCode}`}
+        href={`/tra-don/${ok.refCode}`}
         className="mt-2 w-full border border-accent bg-transparent py-3 text-center text-sm font-bold tracking-widest text-accent transition-colors hover:bg-accent hover:text-ink"
       >
         THEO DÕI ĐƠN NÀY →

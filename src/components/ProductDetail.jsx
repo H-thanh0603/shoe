@@ -1,5 +1,6 @@
 import { lazy, Suspense, useEffect, useRef, useState } from 'react'
 import { useApi } from '../hooks/useApi.js'
+import { useDocumentTitle } from '../hooks/useDocumentTitle.js'
 import { useCart } from '../store/CartContext.jsx'
 import { useProfile } from '../store/profile.js'
 import { useWishlist } from '../hooks/useWishlist.js'
@@ -49,6 +50,12 @@ export default function ProductDetail({ slug, back }) {
   const [showAR, setShowAR] = useState(false)
 
   useEffect(() => { setSize(null); setMsg(null); setPhotoIdx(0); setPhotoOk(true) }, [slug])
+  // SEO: title + meta description theo từng sản phẩm
+  useDocumentTitle(p ? `KINETIC — ${p.name}` : 'KINETIC — Sản phẩm')
+  useEffect(() => {
+    const el = document.querySelector('meta[name="description"]')
+    if (el && p) el.content = `${p.name} — ${p.brand || 'KINETIC'}. ${p.price || ''}`.slice(0, 160)
+  }, [p])
   // Gợi ý size (feature #6): fetch stats đúng lúc mở helper — không mất request khi chưa cần
   useEffect(() => {
     if (!sizeHelper) return undefined

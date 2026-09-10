@@ -29,9 +29,10 @@ import LiveFeed from './components/LiveFeed.jsx'
 export default function App() {
   const route = useHashRoute()
   const TITLES = {
-    product: 'Sản phẩm', track: 'Tra cứu đơn hàng', myorders: 'Đơn của tôi',
+    track: 'Tra cứu đơn hàng', myorders: 'Đơn của tôi',
     shop: 'Shop', new: 'New Drops', wishlist: 'Yêu thích', collections: 'Bộ sưu tập', collection: 'Bộ sưu tập', admin: 'Admin',
   }
+  // Trang sản phẩm: ProductDetail tự set title theo tên giày (SEO từng URL)
   useDocumentTitle(route.name in TITLES ? `KINETIC — ${TITLES[route.name]}` : 'KINETIC — Move Different')
   const [quiz, setQuiz] = useState(false)
   const openQuiz = () => setQuiz(true)

@@ -42,7 +42,7 @@ export default function Wishlist({ onToggleCompare, compareIds = [] }) {
             Bấm biểu tượng tim trên từng giày để lưu lại đây — size sắp hết sẽ hiện badge trên card.
           </p>
           <a
-            href="#/shop"
+            href="/shop"
             className="mt-6 border border-accent bg-accent px-6 py-2.5 font-display text-xs font-bold tracking-widest text-ink transition-colors hover:bg-transparent hover:text-accent"
           >
             KHÁM PHÁ SHOP →

@@ -46,7 +46,7 @@ export default function CartDrawer() {
                     style={{ background: `linear-gradient(135deg, ${it.colors.join(', ')})` }}
                   />
                   <div className="min-w-0 flex-1">
-                    <a href={`#/san-pham/${it.slug}`} className="font-display text-sm font-semibold text-paper hover:text-accent">{it.name}</a>
+                    <a href={`/san-pham/${it.slug}`} className="font-display text-sm font-semibold text-paper hover:text-accent">{it.name}</a>
                     <p className="mt-1 text-xs tracking-widest text-paper/60">SIZE {it.size} — {it.price}</p>
                     <div className="mt-2 flex items-center gap-2">
                       <button onClick={() => setQty(it.itemId, it.qty - 1)} disabled={it.qty <= 1} aria-label="Giảm" className="h-7 w-7 border border-white/15 text-paper/80 transition-colors hover:border-accent hover:text-accent disabled:opacity-30">−</button>

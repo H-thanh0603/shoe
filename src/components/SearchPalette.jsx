@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { apiGet } from '../lib/api.js'
+import { navigate } from '../hooks/useHashRoute.js'
 import { playTechClick } from '../lib/sound.js'
 
 const QUICK_TAGS = [
@@ -43,7 +44,7 @@ export default function SearchPalette({ open, onClose }) {
         setActiveIndex((i) => Math.max(0, i - 1))
       } else if (e.key === 'Enter' && results[activeIndex]) {
         e.preventDefault()
-        location.hash = `#/san-pham/${results[activeIndex].slug}`
+        navigate(`/san-pham/${results[activeIndex].slug}`)
         onClose()
       }
     }
@@ -156,7 +157,7 @@ export default function SearchPalette({ open, onClose }) {
           {!loading && results.map((p, idx) => (
             <a
               key={p.id}
-              href={`#/san-pham/${p.slug}`}
+              href={`/san-pham/${p.slug}`}
               onClick={onClose}
               className={`flex items-center justify-between border border-transparent p-3 transition-colors ${
                 activeIndex === idx

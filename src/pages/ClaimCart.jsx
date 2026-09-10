@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { apiFetch } from '../lib/api.js'
+import { navigate } from '../hooks/useHashRoute.js'
 import { useCart } from '../store/CartContext.jsx'
 
 const vnd = (n) => Number(n || 0).toLocaleString('vi-VN') + '₫'
@@ -48,7 +49,7 @@ export default function ClaimCart({ token }) {
             ))}
           </ul>
           <button
-            onClick={() => { location.hash = ''; openCart() }}
+            onClick={() => { navigate('/'); openCart() }}
             className="mt-6 w-full border border-accent bg-accent py-3.5 font-display text-sm font-bold tracking-widest text-ink hover:bg-transparent hover:text-accent"
           >
             MỞ GIỎ & THANH TOÁN →

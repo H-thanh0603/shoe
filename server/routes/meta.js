@@ -18,7 +18,6 @@ router.get('/drop', cacheGet('meta', 300, () => 'drop'), async (_req, res) => {
 })
 
 // Sitemap động cho SEO — cache HTTP header đủ (bot kéo thưa), không cần cache app.
-// ponytail: hash URL SEO giới hạn — chuyển sang History API route khi cần SEO thật sâu.
 async function renderSitemap(req, res) {
   const base = `${req.protocol}://${req.get('host')}`
   const [{ rows: products }, { rows: collections }] = await Promise.all([
@@ -27,12 +26,12 @@ async function renderSitemap(req, res) {
   ])
   const urls = [
     { loc: `${base}/`, priority: '1.0' },
-    { loc: `${base}/#/shop`, priority: '0.9' },
-    { loc: `${base}/#/new`, priority: '0.8' },
-    { loc: `${base}/#/bo-suu-tap`, priority: '0.7' },
-    ...collections.map((c) => ({ loc: `${base}/#/bo-suu-tap/${c.slug}`, priority: '0.6' })),
+    { loc: `${base}/shop`, priority: '0.9' },
+    { loc: `${base}/new`, priority: '0.8' },
+    { loc: `${base}/bo-suu-tap`, priority: '0.7' },
+    ...collections.map((c) => ({ loc: `${base}/bo-suu-tap/${c.slug}`, priority: '0.6' })),
     ...products.map((p) => ({
-      loc: `${base}/#/san-pham/${p.slug}`, priority: '0.8', lastmod: p.created_at.toISOString().slice(0, 10),
+      loc: `${base}/san-pham/${p.slug}`, priority: '0.8', lastmod: p.created_at.toISOString().slice(0, 10),
     })),
   ]
   res.type('application/xml').set('Cache-Control', 'public, max-age=3600').send(

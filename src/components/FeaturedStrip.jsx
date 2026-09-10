@@ -31,7 +31,7 @@ export default function FeaturedStrip({ onToggleCompare, compareIds = [] }) {
             {profile ? 'HỢP CHÂN BẠN' : 'ĐÁNG MUA NHẤT'}
           </h2>
         </div>
-        <a data-anime href="#/shop" className="group flex items-center gap-2 font-mono text-xs tracking-widest text-paper/60 hover:text-accent">
+        <a data-anime href="/shop" className="group flex items-center gap-2 font-mono text-xs tracking-widest text-paper/60 hover:text-accent">
           XEM TẤT CẢ {products?.length || ''} ĐÔI
           <span className="transition-transform group-hover:translate-x-1">→</span>
         </a>

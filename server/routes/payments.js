@@ -28,7 +28,7 @@ router.get('/vnpay/return', async (req, res) => {
   const r = await processPayment(req.query)
   const code = r.body.refCode || ''
   const paid = r.body.RspCode === '00'
-  res.redirect(302, `/#/tra-don/${encodeURIComponent(code)}?payment=${paid ? 'ok' : 'fail'}`)
+  res.redirect(302, `/tra-don/${encodeURIComponent(code)}?payment=${paid ? 'ok' : 'fail'}`)
 })
 
 // IPN server-to-server — VNPay yêu cầu JSON {RspCode, Message}

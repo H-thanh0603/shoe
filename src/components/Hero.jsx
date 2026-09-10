@@ -143,7 +143,7 @@ export default function Hero({ onQuiz }) {
           {top && (
             <p data-intro className="mt-3 text-xs tracking-wide text-paper/60">
               {matchScore(profile, top)?.pct}% MATCH CHO BẠN —{' '}
-              <a href={`#/san-pham/${top.slug}`} className="pointer-events-auto text-accent underline underline-offset-4 hover:text-accent-hot">
+              <a href={`/san-pham/${top.slug}`} className="pointer-events-auto text-accent underline underline-offset-4 hover:text-accent-hot">
                 {top.name}
               </a>
             </p>

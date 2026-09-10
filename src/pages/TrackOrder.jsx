@@ -78,10 +78,10 @@ export default function TrackOrder({ initialCode }) {
   const [loading, setLoading] = useState(false)
   const [err, setErr] = useState(null)
   const [cancelling, setCancelling] = useState(false)
-  // VNPay return redirect: #/tra-don/KIN-XXXX?payment=ok|fail → show result, clear on next lookup
+  // VNPay return redirect: /tra-don/KIN-XXXX?payment=ok|fail → show result, clear on next lookup
   const [payFlash, setPayFlash] = useState(() => {
-    const m = location.hash.match(/[?&]payment=(ok|fail)/)
-    return m ? { ok: m[1] === 'ok' } : null
+    const m = new URLSearchParams(location.search).get('payment')
+    return m === 'ok' || m === 'fail' ? { ok: m === 'ok' } : null
   })
 
   const cancelOrder = async () => {

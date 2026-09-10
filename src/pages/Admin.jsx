@@ -51,7 +51,7 @@ function Dashboard() {
               <tbody>
                 {e.topViews.map((r) => (
                   <tr key={r.slug} className="border-b border-white/5">
-                    <td className={td}><a className="hover:text-accent" href={`#/san-pham/${r.slug}`}>{r.name}</a></td>
+                    <td className={td}><a className="hover:text-accent" href={`/san-pham/${r.slug}`}>{r.name}</a></td>
                     <td className={td}>{r.views}</td>
                     <td className={td}>{r.carts}</td>
                   </tr>

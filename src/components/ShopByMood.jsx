@@ -65,7 +65,7 @@ export default function ShopByMood() {
           )
           const cls = `group relative flex min-h-[190px] flex-col justify-between overflow-hidden rounded-2xl bg-gradient-to-br p-4 text-left shadow-lg transition-transform duration-300 hover:-translate-y-1.5 hover:shadow-2xl ${m.bg}`
           return p ? (
-            <a key={m.id} data-anime href={`#/san-pham/${p.slug}`} className={cls}>{inner}</a>
+            <a key={m.id} data-anime href={`/san-pham/${p.slug}`} className={cls}>{inner}</a>
           ) : (
             <div key={m.id} data-anime className={`${cls} opacity-80`}>{inner}</div>
           )

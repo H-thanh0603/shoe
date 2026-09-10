@@ -144,7 +144,7 @@ export default function Lookbook() {
                     <p className="mt-1 font-display text-xs font-bold text-paper">{item.shoe.name}</p>
                     <p className="font-mono text-xs font-semibold text-paper/80">{item.shoe.price}</p>
                     <a
-                      href={`#/san-pham/${item.shoe.slug}`}
+                      href={`/san-pham/${item.shoe.slug}`}
                       className="mt-2.5 block w-full bg-accent py-1.5 text-center font-mono text-[10px] font-bold tracking-widest text-ink hover:bg-white transition-colors"
                     >
                       XEM NGAY →
@@ -163,7 +163,7 @@ export default function Lookbook() {
                 </p>
                 <div className="mt-3 flex items-center justify-between">
                   <a
-                    href={`#/san-pham/${item.shoe.slug}`}
+                    href={`/san-pham/${item.shoe.slug}`}
                     className="font-mono text-xs font-semibold text-accent hover:underline flex items-center gap-1"
                   >
                     MUA OUTFIT NÀY →

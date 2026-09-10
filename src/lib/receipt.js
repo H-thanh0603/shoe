@@ -71,7 +71,7 @@ export async function renderReceipt(cart) {
     ctx.fillStyle = MUTED
     ctx.font = '500 12px system-ui, sans-serif'
     y += 22
-    ctx.fillText(`#/${it.slug || ''}`, pad, y)
+    ctx.fillText(`/${it.slug || ''}`, pad, y)
     ctx.font = '600 16px system-ui, sans-serif'
     y += rowH - 22
   }

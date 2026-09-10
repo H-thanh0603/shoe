@@ -171,7 +171,7 @@ export default function CompareDrawer({ items = [], onRemove, onClear, open, set
                     {items.map((p) => (
                       <td key={p.id} className="py-4 px-4">
                         <a
-                          href={`#/san-pham/${p.slug}`}
+                          href={`/san-pham/${p.slug}`}
                           onClick={() => setOpen(false)}
                           className="inline-block border border-accent bg-accent px-4 py-2 text-center font-display text-xs font-bold tracking-widest text-ink hover:bg-transparent hover:text-accent transition-colors"
                         >
