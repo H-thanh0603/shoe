@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { lazy, Suspense, useEffect, useRef, useState } from 'react'
 import { useApi } from '../hooks/useApi.js'
 import { useCart } from '../store/CartContext.jsx'
 import { useProfile } from '../store/profile.js'
@@ -10,7 +10,8 @@ import { haptic } from '../lib/haptic.js'
 import { apiGet } from '../lib/api.js'
 import { RelatedProducts, RecentlyViewed } from './RelatedProducts.jsx'
 import Reviews from './Reviews.jsx'
-import TryOnAR from './TryOnAR.jsx'
+// three.js tách chunk riêng — chỉ tải khi bấm AR
+const TryOnAR = lazy(() => import('./TryOnAR.jsx'))
 import { playTechClick, playSwitch } from '../lib/sound.js'
 
 function ShoeArt({ colors, large }) {
@@ -389,7 +390,11 @@ export default function ProductDetail({ slug, back }) {
       <RelatedProducts current={p} wishlist={wishlist} onWishlist={toggleWishlist} />
       <RecentlyViewed items={recent} wishlist={wishlist} onWishlist={toggleWishlist} />
 
-      {showAR && <TryOnAR colors={p.colors} onClose={() => setShowAR(false)} />}
+      {showAR && (
+        <Suspense fallback={null}>
+          <TryOnAR colors={p.colors} onClose={() => setShowAR(false)} />
+        </Suspense>
+      )}
 
       {/* Sticky Mobile Bar for quick add */}
       <div className="fixed inset-x-0 bottom-0 z-40 border-t border-white/15 bg-charcoal/95 p-3 backdrop-blur-md md:hidden flex items-center justify-between">

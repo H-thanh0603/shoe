@@ -1,5 +1,4 @@
 import { Suspense, lazy, useEffect, useMemo, useRef, useState } from 'react'
-import { animate, stagger } from 'animejs'
 import { useApi } from '../hooks/useApi.js'
 import { useProfile } from '../store/profile.js'
 import { matchScore, sortProducts } from '../lib/match.js'
@@ -7,7 +6,7 @@ import { timeContext } from '../lib/time.js'
 import { useMagnetic } from '../hooks/useMagnetic.js'
 import HeroShoe from './HeroShoe.jsx'
 import { isWebGLAvailable } from '../lib/webgl.js'
-// three.js chunk riêng — chỉ tải khi hero 3D hiện
+// three.js + animejs chunk riêng — chỉ tải khi hero 3D hiện
 const ShoeViewer3D = lazy(() => import('./ShoeViewer3D.jsx'))
 import { playTechClick, playSwitch, isAudioMuted, setAudioEnabled } from '../lib/sound.js'
 
@@ -55,17 +54,20 @@ export default function Hero({ onQuiz }) {
     let cancelled = false
     if (!window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
       const parts = el.querySelectorAll('[data-intro]')
-      animate(parts, { opacity: 0, y: 44, duration: 1 })
-      requestAnimationFrame(() => {
+      import('animejs').then(({ animate, stagger }) => {
         if (cancelled) return
-        animate(parts, {
-          opacity: [0, 1],
-          y: [44, 0],
-          duration: 1000,
-          delay: stagger(120),
-          ease: 'outExpo',
+        animate(parts, { opacity: 0, y: 44, duration: 1 })
+        requestAnimationFrame(() => {
+          if (cancelled) return
+          animate(parts, {
+            opacity: [0, 1],
+            y: [44, 0],
+            duration: 1000,
+            delay: stagger(120),
+            ease: 'outExpo',
+          })
         })
-      })
+      }).catch(() => {})
     }
     return () => { cancelled = true; io.disconnect() }
   }, [])

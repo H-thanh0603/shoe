@@ -1,11 +1,5 @@
 import { useEffect } from 'react'
-import { animate, stagger } from 'animejs'
-
-// Reveal on-scroll: children có [data-anime] bay lên stagger khi section vào viewport.
-// Tôn trọng prefers-reduced-motion. CHẠY 1 LẦN DUY NHẤT mỗi section.
-// Fail-safe: không bao giờ để content kẹt opacity:0 (black box).
-// - Vừa đánh dấu section `is-in` vừa animate children; hỗ trợ nhiều cơ chế (observe + scroll + mount-check + timer).
-// - Nếu animejs/lệnh animate lỗi → content vẫn hiện (không giấu vĩnh viễn).
+// animejs tách chunk riêng — reveal fail-safe giữ nguyên: lỗi/thiếu lib → content hiện
 export function useAnimeReveal(ref, opts = {}) {
   const { y = 28, duration = 800, staggerMs = 70 } = opts
   useEffect(() => {
@@ -34,25 +28,26 @@ export function useAnimeReveal(ref, opts = {}) {
       if (revealed) return
       revealed = true
       try { el.classList.add('is-in') } catch { /* noop */ }
-      try {
-        if (targets.length) {
-          if (!reduced) {
-            animate(targets, { y: [y, 0], opacity: [0, 1], duration, delay: stagger(staggerMs), ease: 'outExpo' })
-          } else {
-            // reduced-motion: xoá inline từ animation để content hiện ngay
-            targets.forEach((t) => { t.style.opacity = ''; t.style.transform = '' })
-          }
-        }
-      } catch { /* nếu animate lỗi → content vẫn còn đó (đã gỡ ẩn) */ }
+      if (targets.length && !reduced) {
+        // animejs chunk async — nếu đang chờ, content vẫn hiện nhờ is-in
+        import('animejs').then(({ animate, stagger }) => {
+          animate(targets, { y: [y, 0], opacity: [0, 1], duration, delay: stagger(staggerMs), ease: 'outExpo' })
+        }).catch(() => {
+          targets.forEach((t) => { t.style.opacity = ''; t.style.transform = '' })
+        })
+      } else if (targets.length) {
+        // reduced-motion: xoá inline từ animation để content hiện ngay
+        targets.forEach((t) => { t.style.opacity = ''; t.style.transform = '' })
+      }
       cleanup()
     }
 
     // 1) đã trong viewport ngay lúc mount (vd hash-navigate, page ngắn) → reveal luôn
     if (isVisible()) { reveal(); return cleanup }
 
-    // 2) thiết lập trạng thái "chờ" cho children [data-anime]
+    // 2) thiết lập trạng thái "chờ" cho children [data-anime] — CSS var, không cần lib
     if (targets.length && !reduced) {
-      try { animate(targets, { opacity: 0, y, duration: 1 }) } catch { /* lỗi thì không cần ẩn */ }
+      targets.forEach((t) => { t.style.opacity = '0'; t.style.transform = `translateY(${y}px)` })
     }
 
     // 3) IntersectionObserver (nếu hỗ trợ)

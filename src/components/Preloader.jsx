@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
-import { animate } from 'animejs'
+// animejs tách chunk — preloader vẫn chạy được bằng CSS nếu chunk chưa kịp tải
+const loadAnime = () => import('animejs').then((m) => m.animate)
 
 // Màn chào 1 lần mỗi load: đếm 0→100 rồi kéo rèm lên
 export default function Preloader() {
@@ -13,26 +14,30 @@ export default function Preloader() {
       setGone(true)
       return undefined
     }
+    let cancelled = false
     const counter = { v: 0 }
-    const a = animate(counter, {
-      v: 100,
-      duration: 1100,
-      ease: 'inOutExpo',
-      onUpdate: () => {
-        if (numRef.current) numRef.current.textContent = String(Math.round(counter.v)).padStart(3, '0')
-        if (barRef.current) barRef.current.style.transform = `scaleX(${counter.v / 100})`
-      },
-    })
-    const t = setTimeout(() => {
-      if (!rootRef.current) { setGone(true); return }
-      animate(rootRef.current, {
-        yPercent: -100,
-        duration: 800,
+    loadAnime().then((animate) => {
+      if (cancelled) return
+      animate(counter, {
+        v: 100,
+        duration: 1100,
         ease: 'inOutExpo',
-        onComplete: () => setGone(true),
+        onUpdate: () => {
+          if (numRef.current) numRef.current.textContent = String(Math.round(counter.v)).padStart(3, '0')
+          if (barRef.current) barRef.current.style.transform = `scaleX(${counter.v / 100})`
+        },
       })
-    }, 1250)
-    return () => { a?.revert?.(); clearTimeout(t) }
+      setTimeout(() => {
+        if (!rootRef.current) { setGone(true); return }
+        animate(rootRef.current, {
+          yPercent: -100,
+          duration: 800,
+          ease: 'inOutExpo',
+          onComplete: () => setGone(true),
+        })
+      }, 1250)
+    }).catch(() => setGone(true))
+    return () => { cancelled = true }
   }, [])
 
   if (gone) return null

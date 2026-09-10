@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { Suspense, lazy, useEffect, useState } from 'react'
 import { useProfile, applyAccent } from './store/profile.js'
 import { useHashRoute } from './hooks/useHashRoute.js'
 import { useDocumentTitle } from './hooks/useDocumentTitle.js'
@@ -21,7 +21,8 @@ import NewDrops from './pages/NewDrops.jsx'
 import Wishlist from './pages/Wishlist.jsx'
 import CollectionDetail from './pages/CollectionDetail.jsx'
 import Collections from './components/Collections.jsx'
-import Admin from './pages/Admin.jsx'
+// Admin hiếm khi vào — tách chunk riêng, không kéo theo trang chủ
+const Admin = lazy(() => import('./pages/Admin.jsx'))
 import Preloader from './components/Preloader.jsx'
 import LiveFeed from './components/LiveFeed.jsx'
 
@@ -84,7 +85,7 @@ export default function App() {
       ) : route.name === 'wishlist' ? (
         <Wishlist onToggleCompare={compare.toggle} compareIds={compare.ids} />
       ) : route.name === 'admin' ? (
-        <Admin />
+        <Suspense fallback={null}><Admin /></Suspense>
       ) : (
         <Home
           onQuiz={openQuiz}
