@@ -8,12 +8,14 @@ const vnd = (n) => Number(n || 0).toLocaleString('vi-VN') + '₫'
 // Nhận giỏ do agent (hoặc người khác) chia sẻ: gộp vào giỏ trình duyệt rồi mở ra
 export default function ClaimCart({ token }) {
   const [state, setState] = useState({ phase: 'loading', cart: null, err: null })
-  const { open: openCart } = useCart()
+  const { open: openCart, refresh } = useCart()
 
   useEffect(() => {
+    let alive = true
     apiFetch('/cart/claim', { method: 'POST', body: { token } })
-      .then((cart) => setState({ phase: 'done', cart, err: null }))
-      .catch((e) => setState({ phase: 'error', cart: null, err: e.message }))
+      .then((cart) => { if (alive) { setState({ phase: 'done', cart, err: null }); refresh() } })
+      .catch((e) => { if (alive) setState({ phase: 'error', cart: null, err: e.message }) })
+    return () => { alive = false }
   }, [token])
 
   return (

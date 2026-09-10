@@ -33,6 +33,7 @@ function buildApp() {
   // limit 2mb: review kèm ảnh data-URL (tối đa 3 ảnh ~500KB)
   app.use(express.json({ limit: '2mb' }))
   app.use(cookieParser())
+  app.use(require('./middleware/csrf.js').csrf)
   app.use(require('./middleware/auth.js').attachUser)
 
   // ——— health cho LB/orchestrator ———

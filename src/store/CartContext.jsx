@@ -25,6 +25,8 @@ export function CartProvider({ children }) {
     api('/').then((c) => dispatch({ type: 'set', cart: { ...c, open: false } })).catch(() => {})
   }, [])
 
+  const refresh = () => api('/').then((c) => dispatch({ type: 'set', cart: { ...c, open: false } })).catch(() => {})
+
   const actions = {
     add: (variantId, qty = 1) => api('/items', { method: 'POST', body: JSON.stringify({ variantId, qty }) })
       .then((c) => {
@@ -33,14 +35,17 @@ export function CartProvider({ children }) {
         playDropToCart()
         haptic(15)
       }),
+    // lỗi (vd stock đổi giữa chừng) → re-sync từ server để drawer hiện đúng thật
     setQty: (itemId, qty) => api(`/items/${itemId}`, { method: 'PATCH', body: JSON.stringify({ qty }) })
-      .then((c) => dispatch({ type: 'set', cart: { ...c, open: true } })),
+      .then((c) => dispatch({ type: 'set', cart: { ...c, open: true } }))
+      .catch(() => refresh()),
     remove: (itemId) => api(`/items/${itemId}`, { method: 'DELETE' })
       .then((c) => dispatch({ type: 'set', cart: { ...c, open: cart.open } })),
     clear: () => api('/', { method: 'DELETE' })
       .then((c) => dispatch({ type: 'set', cart: { ...c, open: cart.open } })),
     open: () => dispatch({ type: 'open' }),
     close: () => dispatch({ type: 'close' }),
+    refresh,
   }
 
   return <CartContext.Provider value={{ cart, ...actions }}>{children}</CartContext.Provider>

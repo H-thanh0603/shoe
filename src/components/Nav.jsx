@@ -47,15 +47,8 @@ export default function Nav({ onQuiz, onLogoTap, secret, onSearch }) {
   }
 
   useEffect(() => {
-    // access hết hạn (1h) → đổi refresh_token (7d) lấy access mới rồi fetch lại
-    const me = (retried) =>
-      apiFetch('/auth/me').catch(async (e) => {
-        if (!retried && e.status === 401) {
-          try { await apiFetch('/auth/refresh', { method: 'POST' }); return me(true) } catch { /* hết phiên */ }
-        }
-        return Promise.reject(e)
-      })
-    me(false).then(setUser).catch(() => {})
+    // apiFetch tự 401→refresh→retry — ở đây chỉ cần gọi me 1 lần
+    apiFetch('/auth/me').then(setUser).catch(() => {})
   }, [])
 
   const logout = async () => {
