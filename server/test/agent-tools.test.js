@@ -73,7 +73,7 @@ test('GET /api/v1/agent/tools liệt kê tools kèm JSON Schema', async () => {
   assert.equal(status, 200)
   assert.ok(body.success)
   const names = body.data.tools.map((t) => t.name)
-  for (const n of ['search_products', 'get_product', 'check_stock', 'get_reviews', 'compare_products', 'track_order', 'add_to_cart']) {
+  for (const n of ['search_products', 'get_product', 'check_stock', 'get_reviews', 'compare_products', 'recommend_products', 'track_order', 'add_to_cart']) {
     assert.ok(names.includes(n), `thiếu tool ${n}`)
   }
   // mọi tool phải có schema — agent cần biết shape args trước khi gọi
@@ -179,6 +179,73 @@ test('track_order mã sai → 404 ORDER_NOT_FOUND', async () => {
   }, AGENT_HDR)
   assert.equal(status, 404)
   assert.equal(body.error.code, 'ORDER_NOT_FOUND')
+})
+
+// ——— recommend_products (match engine port từ client quiz) ———
+
+test('recommend_products: running + ngân sách → gợi ý chấm điểm % match kèm lý do', async () => {
+  const { status, body } = await post('/api/v1/agent/tools/call', {
+    name: 'recommend_products',
+    arguments: { purpose: 'running', priorities: ['performance'], budget: '2-4m', limit: 3 },
+  }, AGENT_HDR)
+  assert.equal(status, 200)
+  const { interpreted, recommendations } = body.data.result
+  assert.equal(interpreted.purpose, 'running')
+  assert.equal(interpreted.budget, '2-4m')
+  assert.ok(recommendations.length >= 1 && recommendations.length <= 3)
+  // mọi gợi ý phải trong ngân sách ≤ 4 triệu
+  for (const r of recommendations) {
+    assert.ok(r.priceVnd <= 4000000, `${r.name} giá ${r.priceVnd} vượt budget`)
+    assert.ok(r.match >= 0 && r.match <= 100)
+    assert.ok(Array.isArray(r.reasons) && r.reasons.length >= 1)
+  }
+  // xếp theo match giảm dần
+  for (let i = 1; i < recommendations.length; i++) {
+    assert.ok(recommendations[i - 1].match >= recommendations[i].match)
+  }
+})
+
+test('recommend_products: không tham số vẫn chạy (agent chỉ hỏi "giày gì hay")', async () => {
+  const { status, body } = await post('/api/v1/agent/tools/call', {
+    name: 'recommend_products', arguments: {},
+  }, AGENT_HDR)
+  assert.equal(status, 200)
+  assert.ok(body.data.result.recommendations.length >= 1)
+})
+
+// ——— stream tool call (SSE progress) ———
+
+test('POST /agent/tools/call/stream: SSE progress + result cho tool nhiều bước', async () => {
+  const r = await fetch(BASE + '/api/v1/agent/tools/call/stream', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...AGENT_HDR },
+    body: JSON.stringify({
+      name: 'recommend_products',
+      arguments: { purpose: 'running', priorities: ['comfort'], limit: 2 },
+    }),
+  })
+  assert.equal(r.status, 200)
+  assert.ok(r.headers.get('content-type').includes('text/event-stream'))
+  const raw = await r.text()
+  const events = [...raw.matchAll(/^event: (\w+)\ndata: (.+)$/gm)].map((m) => [m[1], JSON.parse(m[2])])
+  const kinds = events.map((e) => e[0])
+  assert.ok(kinds.includes('progress'), 'phải có event progress')
+  assert.ok(kinds.includes('result'), 'phải có event result')
+  const result = events.find((e) => e[0] === 'result')[1]
+  assert.ok(result.success)
+  assert.ok(result.data.result.recommendations.length >= 1)
+})
+
+test('stream tool sai args → event error (không crash connection)', async () => {
+  const r = await fetch(BASE + '/api/v1/agent/tools/call/stream', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...AGENT_HDR },
+    body: JSON.stringify({ name: 'nope', arguments: {} }),
+  })
+  assert.equal(r.status, 200) // SSE luôn mở 200 rồi mới báo lỗi qua event
+  const raw = await r.text()
+  assert.match(raw, /event: error/)
+  assert.match(raw, /TOOL_NOT_FOUND/)
 })
 
 // ——— machine-readable page + llms.txt ———

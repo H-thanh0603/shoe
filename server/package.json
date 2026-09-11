@@ -15,7 +15,8 @@
     "test:jobs": "node --test test/jobs.test.js",
     "test:search": "node --test test/search.test.js",
     "test:rbac": "node --test test/rbac.test.js",
-    "test:agent-tools": "node --test test/agent-tools.test.js"
+    "test:agent-tools": "node --test test/agent-tools.test.js",
+    "test:edge": "node --test test/edge-agent.test.js"
   },
   "keywords": [],
   "type": "commonjs",

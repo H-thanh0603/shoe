@@ -22,7 +22,12 @@ function errorHandler(err, req, res, _next) {
   if (status >= 500) console.error(`[${req?.id || '-'}]`, err)
   res.status(status).json({
     success: false,
-    error: { code: err.code || 'INTERNAL', message: status >= 500 ? 'Lỗi server' : err.message },
+    error: {
+      code: err.code || 'INTERNAL',
+      message: status >= 500 ? 'Lỗi server' : err.message,
+      // detail của INVALID_TOOL_ARGS (agent-tools) — path + message từng field sai
+      ...(err.fields ? { fields: err.fields } : {}),
+    },
   })
 }
 

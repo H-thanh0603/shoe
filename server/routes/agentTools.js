@@ -24,6 +24,7 @@ const { cacheGet } = require('../middleware/cache.js')
 const { z } = require('zod')
 const crypto = require('node:crypto')
 const productsSvc = require('../services/products.js')
+const { buildPrefs, matchScore, BUDGET } = require('../services/match.js')
 
 const router = express.Router()
 
@@ -197,6 +198,68 @@ const TOOLS = [
     },
   },
   {
+    name: 'recommend_products',
+    description: 'Gợi ý giày theo nhu cầu khách (match engine của KINETIC). Agent mô tả: mục đích (running/street/court/daily/trail), ưu tiên (performance/comfort/style/durability/daily), ngân sách, brand/màu ưa thích → trả danh sách chấm điểm % match kèm lý do từng sản phẩm. Đây là cùng engine quiz "BẠN MUA GIÀY CHỦ YẾU ĐỂ?" trên web.',
+    readOnly: true,
+    rateLimit: 20,
+    slow: true, // nhiều bước (load catalog + chấm điểm) → có progress khi stream
+    inputSchema: {
+      type: 'object',
+      properties: {
+        purpose: { type: 'string', description: 'Mục đích: running | street | court | daily | trail' },
+        priorities: { type: 'array', items: { type: 'string' }, maxItems: 3, description: 'Ưu tiên: performance | comfort | style | durability | daily' },
+        budget: { type: 'string', description: 'Ngân sách: under-2m (dưới 2 triệu) | 2-4m | 4m+' },
+        brands: { type: 'array', items: { type: 'string' }, maxItems: 5, description: 'Brand ưa thích (viết hoa), ví dụ ["NIKE","ASICS"]' },
+        colors: { type: 'array', items: { type: 'string' }, maxItems: 5, description: 'Màu hex ưa thích, ví dụ ["#e8e6e1"]' },
+        limit: { type: 'integer', minimum: 1, maximum: 8, description: 'Số gợi ý (default 3)' },
+      },
+    },
+    handler: async (args, ctx) => {
+      const { purpose, priorities = [], budget, brands = [], colors = [], limit = 3 } = args
+      const validPurpose = ['running', 'street', 'court', 'daily', 'trail'].includes(purpose) ? purpose : undefined
+      const validBudget = ['under-2m', '2-4m', '4m+'].includes(budget) ? budget : undefined
+      const validPriorities = priorities.filter((p) => ['performance', 'comfort', 'style', 'durability', 'daily'].includes(p))
+      const profile = {
+        purpose: validPurpose,
+        budget: validBudget,
+        brands: brands.map((b) => String(b).toUpperCase().slice(0, 20)),
+        colors,
+        prefs: buildPrefs({ purpose: validPurpose, priorities: validPriorities }),
+      }
+
+      const { items } = await productsSvc.listProducts({ limit: 100, page: 1 })
+      ctx?.progress?.(`Đã tải ${items.length} sản phẩm — đang chấm điểm theo nhu cầu`)
+
+      const cap = BUDGET[validBudget]
+      const scored = items
+        .map((p) => {
+          const m = matchScore(profile, p)
+          return m ? {
+            slug: p.slug, name: p.name, brand: p.brand, priceVnd: p.price_vnd,
+            purpose: p.purpose,
+            match: m.pct, reasons: m.reasons,
+            url: `/san-pham/${p.slug}`,
+            inBudget: cap == null ? null : p.price_vnd <= cap,
+            stockTotal: p.stock_total,
+          } : null
+        })
+        .filter(Boolean)
+        .filter((p) => cap == null || p.inBudget) // có ngân sách → chỉ trả sản phẩm trong tầm giá
+        .sort((a, b) => b.match - a.match)
+
+      ctx?.progress?.(`Chấm xong — top: ${scored.slice(0, 3).map((s) => `${s.name} ${s.match}%`).join(', ')}`)
+      return {
+        interpreted: {
+          purpose: validPurpose || 'không rõ',
+          priorities: validPriorities,
+          budget: validBudget || 'không giới hạn',
+          brands: profile.brands,
+        },
+        recommendations: scored.slice(0, limit),
+      }
+    },
+  },
+  {
     name: 'add_to_cart',
     description: 'Thêm 1 sản phẩm (slug + size) vào giỏ agent-side (server cart, không phải giỏ trình duyệt của người dùng). Sau khi gọi, trả shareToken để người dùng nhận giỏ qua link /gio-hang/:token và tự bấm thanh toán. KHÔNG thanh toán hộ được — checkout chỉ dành cho người dùng.',
     readOnly: false,
@@ -266,6 +329,7 @@ router.get('/tools',
         inputSchema: t.inputSchema,
       })),
       callEndpoint: '/api/v1/agent/tools/call',
+      callStreamEndpoint: '/api/v1/agent/tools/call/stream',
       documentation: '/docs/API.md',
       // checkout/thanh toán cố tình KHÔNG có tool — dùng add_to_cart + shareUrl
       consequentialPolicy: 'Không expose tool thanh toán. Hành vi consequential (checkout) phải do người dùng thực hiện qua shareUrl.',
@@ -283,46 +347,80 @@ const callSchema = z.object({
   arguments: z.record(z.string(), z.unknown()).default({}),
 })
 
+// Invoke chung cho /call (JSON) và /call/stream (SSE):
+// resolve tool → agent identity → rate-limit (tool,agentId) → validate args → handler.
+// Trả { tool, agentId, result } hoặc throw httpError (stream sẽ bắt và emit event error).
+async function invokeTool(req) {
+  const tool = toolByName[req.body.name]
+  if (!tool) throw httpError(404, 'TOOL_NOT_FOUND', `Không có tool "${req.body.name}" — xem GET /api/v1/agent/tools`)
+
+  // Agent identity: header X-Agent, fallback user đã login, fallback "anonymous"
+  const agentId = (req.get('X-Agent') || '').slice(0, 120) || `user:${req.user?.id ?? 'anonymous'}`
+
+  // rate-limit theo (tool, agent) qua cache incr — fail-open (Redis chết → vẫn cho gọi,
+  // có rateLimit express ở router ngoài cùng chặn tổng)
+  try {
+    const cache = require('../services/cache.js')
+    const key = `rl:agenttool:${tool.name}:${agentId}`
+    const hits = await cache.incrWithTtl(key, 60)
+    if (hits > tool.rateLimit) throw httpError(429, 'TOOL_RATE_LIMITED', `Tool "${tool.name}" giới hạn ${tool.rateLimit} lần/phút`)
+  } catch (e) {
+    if (e?.code === 'TOOL_RATE_LIMITED') throw e
+    /* cache lỗi — bỏ qua limit, request vẫn chạy */
+  }
+
+  // Validate arguments theo JSON Schema của tool (zod mirror)
+  const zodMirror = buildZod(tool.inputSchema)
+  const parsed = zodMirror.safeParse(req.body.arguments)
+  if (!parsed.success) {
+    throw Object.assign(
+      httpError(400, 'INVALID_TOOL_ARGS', 'arguments không khớp inputSchema của tool'),
+      { fields: parsed.error.issues.map((i) => ({ path: i.path.join('.'), message: i.message })) },
+    )
+  }
+
+  const result = await tool.handler(parsed.data, {
+    agentId, req,
+    // /call (JSON) không stream được → progress no-op; /call/stream truyền hàm emit SSE
+    progress: req._toolProgress || (() => {}),
+  })
+  return { tool, agentId, result }
+}
+
 router.post('/tools/call',
   validate(callSchema),
   asyncHandler(async (req, res) => {
-    const tool = toolByName[req.body.name]
-    if (!tool) {
-      throw httpError(404, 'TOOL_NOT_FOUND', `Không có tool "${req.body.name}" — xem GET /api/v1/agent/tools`)
-    }
-
-    // Agent identity: header X-Agent, fallback user đã login, fallback "anonymous"
-    const agentId = (req.get('X-Agent') || '').slice(0, 120) || `user:${req.user?.id ?? 'anonymous'}`
-
-    // rate-limit theo (tool, agent) qua cache incr — fail-open (Redis chết → vẫn cho gọi,
-    // có rateLimit express ở router ngoài cùng chặn tổng)
-    try {
-      const cache = require('../services/cache.js')
-      const key = `rl:agenttool:${tool.name}:${agentId}`
-      const hits = await cache.incrWithTtl(key, 60)
-      if (hits > tool.rateLimit) throw httpError(429, 'TOOL_RATE_LIMITED', `Tool "${tool.name}" giới hạn ${tool.rateLimit} lần/phút`)
-    } catch (e) {
-      if (e?.code === 'TOOL_RATE_LIMITED') throw e
-      /* cache lỗi — bỏ qua limit, request vẫn chạy */
-    }
-
-    // Validate arguments theo JSON Schema của tool (zod mirror)
-    const zodMirror = buildZod(tool.inputSchema)
-    const parsed = zodMirror.safeParse(req.body.arguments)
-    if (!parsed.success) {
-      return res.status(400).json({
-        success: false,
-        error: {
-          code: 'INVALID_TOOL_ARGS',
-          message: 'arguments không khớp inputSchema của tool',
-          fields: parsed.error.issues.map((i) => ({ path: i.path.join('.'), message: i.message })),
-        },
-      })
-    }
-
-    const result = await tool.handler(parsed.data, { agentId, req })
+    const { tool, agentId, result } = await invokeTool(req)
     ok(res, { tool: tool.name, agent: agentId, result })
   }))
+
+// POST /api/v1/agent/tools/call/stream — SSE variant của /call cho tool chạy nhiều bước:
+// event `progress` (tool tự báo từng bước qua ctx.progress), event `result` cuối cùng.
+// Cùng rate-limit + validation + envelope lỗi — client không stream được thì dùng /call.
+// (Pattern giống /agent/chat/stream đã có — fetch + ReadableStream đọc, EventSource không POST được.)
+router.post('/tools/call/stream',
+  validate(callSchema),
+  async (req, res) => {
+    const sse = (event, obj) => res.write(`event: ${event}\ndata: ${JSON.stringify(obj)}\n\n`)
+    res.writeHead(200, {
+      'Content-Type': 'text/event-stream',
+      'Cache-Control': 'no-cache',
+      Connection: 'keep-alive',
+      'X-Accel-Buffering': 'no', // nginx: không buffer SSE — flush từng event
+    })
+    // progress events cho tool nhiều bước (recommend, compare...) — tool gọi ctx.progress(msg)
+    req._toolProgress = (msg) => sse('progress', { message: String(msg).slice(0, 200) })
+    try {
+      const { tool, agentId, result } = await invokeTool(req)
+      sse('result', { success: true, data: { tool: tool.name, agent: agentId, result } })
+    } catch (e) {
+      sse('error', {
+        success: false,
+        error: { code: e?.code || 'INTERNAL', message: e?.status && e.status < 500 ? e.message : 'Lỗi server' },
+      })
+    }
+    res.end()
+  })
 
 // JSON Schema (subset mình dùng trong TOOLS) → zod schema.
 // Không cần validator tổng quát — registry là nguồn đóng, không nhận schema từ ngoài.

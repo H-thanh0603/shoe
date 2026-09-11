@@ -28,6 +28,7 @@ function renderAgentJson(base) {
     discovery: {
       toolsList: '/api/v1/agent/tools',
       toolsCall: '/api/v1/agent/tools/call',
+      toolsCallStream: '/api/v1/agent/tools/call/stream',
       agentPages: '/api/v1/agent/page/:slug',
       llmsTxt: '/llms.txt',
       llmsFullTxt: '/llms-full.txt',
@@ -63,7 +64,7 @@ function renderAiPluginJson(base, tools) {
     name_for_human: 'KINETIC Shoe Store',
     name_for_model: 'kinetic_shoe_store',
     description_for_human: 'Tìm giày, xem tồn kho, đọc review thật, so sánh sản phẩm và tạo giỏ hàng shareable tại KINETIC.',
-    description_for_model: 'Tools for KINETIC shoe store: search_products, get_product, check_stock, get_reviews, compare_products, track_order, add_to_cart. Prices in VND. Checkout is NOT available to agents — add_to_cart returns a shareUrl for the human user to complete checkout.',
+    description_for_model: 'Tools for KINETIC shoe store: search_products, get_product, check_stock, get_reviews, compare_products, recommend_products, track_order, add_to_cart. Prices in VND. Checkout is NOT available to agents — add_to_cart returns a shareUrl for the human user to complete checkout.',
     auth: { type: 'none' },
     api: {
       type: 'openapi',
@@ -104,7 +105,7 @@ async function renderLlmsTxt(req) {
     '## Tools cho AI agent',
     '',
     '- [Agent manifest](/.well-known/agent.json): discovery endpoint, quy ước gọi tool, chính sách an toàn.',
-    '- [Danh sách tools](/api/v1/agent/tools): search_products, get_product, check_stock, get_reviews, compare_products, track_order, add_to_cart (JSON schema kèm theo).',
+    '- [Danh sách tools](/api/v1/agent/tools): search_products, get_product, check_stock, get_reviews, compare_products, recommend_products, track_order, add_to_cart (JSON schema kèm theo).',
     '- [Trang agent](/api/v1/agent/page/:slug): sản phẩm dạng machine-readable (1 request thay cho screenshot+vision).',
     '- [Catalog đầy đủ cho LLM](/llms-full.txt): toàn bộ sản phẩm + giá + size, định dạng text nén.',
     '',

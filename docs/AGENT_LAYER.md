@@ -84,16 +84,20 @@ giờ giữ quyền chi tiền. Đơn VNPay/COD chỉ sinh ra khi người dùng
 ## Kiến trúc
 
 ```
-server/routes/agentTools.js   — tool registry (đơn nguồn: discovery + invoke + plugin manifest)
+server/routes/agentTools.js   — tool registry (đơn nguồn: discovery + invoke + stream + plugin manifest)
+server/services/match.js      — match engine server-side (port src/lib/match.js — giữ sync công thức)
 server/awil.js                — render agent.json / ai-plugin.json / llms.txt / llms-full.txt
 server/server.js              — mount /.well-known/*, /llms*.txt + /api/v1/agent (tools trước chat)
-ops/nginx.conf                — cache llms.txt 10m, agent tools chặt hơn catalog
+ops/nginx.conf                — cache llms.txt 10m, agent tools chặt hơn catalog + SSE không buffer
 public/robots.txt             — policy cho AI crawlers
 ```
 
 Registry là nguồn đóng (không nhận schema từ ngoài) — mọi tool định nghĩa 1 chỗ
 `TOOLS = [...]`, mỗi tool có `inputSchema` (JSON Schema) + `handler` + `rateLimit`.
 Thêm tool = thêm 1 object vào mảng, discovery/manifest/test tự theo.
+
+`recommend_products` dùng cùng công thức quiz web (services/match.js ↔ src/lib/match.js):
+khi đổi một bên, đổi bên kia — comment đầu 2 file nhắc sync.
 
 ## Test
 
@@ -102,8 +106,9 @@ Thêm tool = thêm 1 object vào mảng, discovery/manifest/test tự theo.
 npm run test:agent-tools
 ```
 
-15 test: discovery shape, schema validation, human-in-the-loop (shareUrl claim
-thật), rate-limit path, OUT_OF_STOCK từ DB, manifests, llms.txt, robots.txt.
+19 test: discovery shape, schema validation, human-in-the-loop (shareUrl claim
+thật), rate-limit path, OUT_OF_STOCK từ DB, recommend match engine, SSE stream
+(progress/result/error), manifests, llms.txt, robots.txt.
 
 ## Tham chiếu
 
@@ -112,3 +117,18 @@ thật), rate-limit path, OUT_OF_STOCK từ DB, manifests, llms.txt, robots.txt.
 - WebMCP — W3C Web Machine Learning CG (incubation, chưa chuẩn)
 - llms.txt — llmstxt.org
 - X-Cache header test: `curl -sI /llms.txt` qua edge nginx.
+
+## Test qua edge (Docker Compose)
+
+```bash
+# 1. Lên stack đầy đủ (postgres+redis+app+edge:8081)
+JWT_SECRET=<hex> docker compose up -d --build
+
+# 2. Smoke test hạ tầng edge: cache llms.txt MISS→HIT, SSE không buffer,
+#    tool call không cache, agent page serve đúng
+API_URL=http://localhost:8081 npm --prefix server run test:edge
+```
+
+Lưu ý môi trường nhiều service dùng chung port: nếu host 5433 bận, override
+`postgres.ports: !reset []` (app trong compose nối qua network nội bộ, không cần
+host port).
