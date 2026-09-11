@@ -2,6 +2,8 @@
 
 E-commerce giày thể thao: React 19 + Vite frontend, Express + PostgreSQL backend, VNPay sandbox, Redis cache/rate-limit, RBAC admin, jobs queue.
 
+**Agent layer (Agentic Web Interface)**: website expose tools cho AI agent — `/.well-known/agent.json`, `llms.txt`, `/api/v1/agent/tools` (search/stock/compare/reviews/add_to_cart với human-in-the-loop). Chi tiết: `docs/AGENT_LAYER.md`.
+
 ## Chạy dev
 
 ```bash

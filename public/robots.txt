@@ -1,8 +1,62 @@
+# KINETIC — robots cho cả human-crawler lẫn AI agent (Agentic Web)
+# Agent/LLM crawler (GPTBot, ClaudeBot, PerplexityBot, Google-Extended...):
+#  được PHÉP đọc catalog — nhưng hãy dùng lớp machine-readable thay vì scrape UI:
+#    /.well-known/agent.json  — manifest + policy
+#    /llms.txt, /llms-full.txt — nội dung có cấu trúc cho LLM
+#    /api/v1/agent/tools      — tools thay vì OCR UI
+
 User-agent: *
 Allow: /
+Allow: /llms.txt
+Allow: /llms-full.txt
 Disallow: /api/v1/admin
 Disallow: /api/v1/auth
 Disallow: /api/v1/cart
 Disallow: /api/v1/orders
+Disallow: /api/v1/agent/chat
 
 Sitemap: /sitemap.xml
+
+# LLM/AI crawlers: đọc đủ, đọc có cấu trúc (tránh epistemic recursion —
+# AI tạo content cho AI đọc): dùng llms.txt + agent tools, đừng đọc HTML SPA.
+User-agent: GPTBot
+Allow: /llms.txt
+Allow: /llms-full.txt
+Allow: /api/v1/agent/
+Disallow: /
+
+User-agent: ClaudeBot
+Allow: /llms.txt
+Allow: /llms-full.txt
+Allow: /api/v1/agent/
+Disallow: /
+
+User-agent: ChatGPT-User
+Allow: /llms.txt
+Allow: /llms-full.txt
+Allow: /api/v1/agent/
+Disallow: /
+
+User-agent: Claude-Web
+Allow: /llms.txt
+Allow: /llms-full.txt
+Allow: /api/v1/agent/
+Disallow: /
+
+User-agent: PerplexityBot
+Allow: /llms.txt
+Allow: /llms-full.txt
+Allow: /api/v1/agent/
+Disallow: /
+
+User-agent: Google-Extended
+Allow: /llms.txt
+Allow: /llms-full.txt
+Allow: /api/v1/agent/
+Disallow: /
+
+User-agent: CCBot
+Allow: /llms.txt
+Allow: /llms-full.txt
+Allow: /api/v1/agent/
+Disallow: /

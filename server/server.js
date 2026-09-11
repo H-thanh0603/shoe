@@ -79,6 +79,7 @@ function buildApp() {
   app.use('/api/v1/auth', require('./routes/auth.js'))
   app.use('/api/v1/wishlist', require('./routes/wishlist.js'))
   app.use('/api/v1/admin', require('./routes/admin.js'))
+  app.use('/api/v1/agent', require('./routes/agentTools.js')) // agent tools + agent page — TRƯỚC agent.js (chat)
   app.use('/api/v1/agent', require('./routes/agent.js'))
   app.use('/api/v1/coupons', require('./routes/coupons.js'))
   app.use('/api/v1/events', require('./routes/events.js'))
@@ -86,6 +87,38 @@ function buildApp() {
   app.use('/api/v1', require('./routes/meta.js'))
   // Sitemap SEO ở root — robots.txt trỏ tới đây
   app.get('/sitemap.xml', require('./routes/meta.js').renderSitemap)
+
+  // ——— Agentic Web Interface (AWI) — lớp giao tiếp cho AI agent ———
+  // Thứ tự route KHÔNG quan trọng với .well-known vì path khác API.
+  // llms.txt (llmstxt.org): mục lục cho LLM; llms-full.txt: catalog đầy đủ.
+  // agent.json: manifest discovery; ai-plugin.json: manifest tương thích OpenAI-plugin shape.
+  const awi = require('./awil.js')
+  const agentToolsRouter = require('./routes/agentTools.js')
+  const awiBase = (req) => process.env.PUBLIC_BASE_URL || `${req.protocol}://${req.get('host')}`
+
+  app.get('/.well-known/agent.json', (_req, res) => {
+    res.set('Cache-Control', 'public, max-age=3600')
+    res.json(awi.renderAgentJson(awiBase(_req)))
+  })
+
+  app.get('/.well-known/ai-plugin.json', (_req, res) => {
+    res.set('Cache-Control', 'public, max-age=3600')
+    res.json(awi.renderAiPluginJson(awiBase(_req), agentToolsRouter.TOOLS))
+  })
+
+  app.get('/llms.txt', async (req, res, next) => {
+    try {
+      const { body } = await awi.renderLlmsTxt(req)
+      res.type('text/plain').set('Cache-Control', 'public, max-age=600').send(body)
+    } catch (e) { next(e) }
+  })
+
+  app.get('/llms-full.txt', async (req, res, next) => {
+    try {
+      const body = await awi.renderLlmsFullTxt(req)
+      res.type('text/plain').set('Cache-Control', 'public, max-age=600').send(body)
+    } catch (e) { next(e) }
+  })
 
   // 404 JSON cho /api/* lạ + error handler tập trung (envelope) — TRƯỚC static
   app.use(apiNotFound)

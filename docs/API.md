@@ -2,6 +2,11 @@
 
 Base URL: `/api/v1`. Content-type JSON. Auth qua httpOnly cookies (không header token).
 
+**Agent layer**: ngoài REST API, website expose tools cho AI agent (MCP-like) — xem
+[AGENT_LAYER.md](AGENT_LAYER.md): `/.well-known/agent.json`, `/llms.txt`,
+`/api/v1/agent/tools` (list), `/api/v1/agent/tools/call` (invoke),
+`/api/v1/agent/page/:slug` (machine-readable).
+
 Envelope:
 
 ```json
