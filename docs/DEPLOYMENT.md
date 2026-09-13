@@ -47,3 +47,22 @@ Kiểm: `curl localhost:3000/api/v1/products` trả envelope JSON; mở `http://
 ## Chạy nhiều instance (khi cần scale)
 
 Stateless ngoài DB: cart trong PostgreSQL, JWT không cần session server. Rate-limit in-memory — nhiều instance thì limit per-instance (mỗi node tự 10 lượt). Khi cần limit chung: chuyển sang `rate-limit-redis` + Redis. Hiện 1 instance đủ.
+
+## Alerting — người trực biết TRƯỚC khách hàng
+
+Compose service `alerter` (mỗi 60s) chạy `server/scripts/alert.js`:
+
+| Check | Bắt được |
+|---|---|
+| `/healthz` | process API chết |
+| `/readyz` | DB/Redis chết — không bán được hàng |
+| `/metrics` jobs failed ≥ 3 | jobs kẹt (mail, dọn dẹp) |
+| `/metrics` AI error ≥ 50% | provider AI chết cả fallback chain |
+
+- **Gửi Telegram** khi có `TELEGRAM_BOT_TOKEN` + `TELEGRAM_CHAT_ID` (tạo bot
+  qua @BotFather; không cấu hình → vẫn log `[ALERT]` ra stdout — docker logs thấy).
+- **Chống spam**: cùng vấn đề trong 30 phút không gửi lại (state file theo
+ .AlertCooldown; vẫn exit 1 để compose restart logic thấy).
+- Exit code: 0 = ổn, 1 = có vấn đề (nối CronJob/k8s probe được).
+
+Kiểm thử: `node --test test/alert.test.js` (4 case: ổn, chết, jobs+AI, cooldown).

@@ -100,6 +100,20 @@ services:
       JOBS_ENABLED: "false"
     command: ["sh", "-c", "while true; do node cron.js; sleep 21600; done"]
 
+  # Alerting (mỗi 60s): check healthz/readyz/metrics — chết DB, jobs kẹt,
+  # AI error cao → Telegram (nếu cấu hình) + log stdout. Cooldown chống spam.
+  alerter:
+    build: .
+    restart: unless-stopped
+    depends_on:
+      app:
+        condition: service_started
+    environment:
+      ALERT_API_URL: http://app:3000
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
+      TELEGRAM_CHAT_ID: ${TELEGRAM_CHAT_ID:-}
+    command: ["sh", "-c", "while true; do node scripts/alert.js; sleep 60; done"]
+
   # Backup Postgres: dump logic mỗi 24h (giữ 7 bản) + base backup vật lý mỗi 7 ngày (giữ 2 bản).
   # Base + WAL archive (/backups/wal) cho phép PITR về bất kỳ thời điểm nào — xem docs/BACKUP.md.
   # Quy trình restore xem docs/BACKUP.md. KHÔNG backup root .env (chứa JWT_SECRET) — giữ riêng.

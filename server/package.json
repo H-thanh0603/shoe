@@ -8,7 +8,7 @@
     "db:migrate": "node migrate.js",
     "db:seed": "node seed.js",
     "cron": "node cron.js",
-    "test": "node --test test/pricing.test.js test/cache.test.js test/vnpay.test.js test/ai-convert.test.js test/ai-agent-runtime.test.js test/ai-gateway.test.js test/ai-security-hardening.test.js test/ai-planning.test.js test/ai-sessions-store.test.js test/pii.test.js",
+    "test": "node --test test/pricing.test.js test/cache.test.js test/vnpay.test.js test/ai-convert.test.js test/ai-agent-runtime.test.js test/ai-gateway.test.js test/ai-security-hardening.test.js test/ai-planning.test.js test/ai-sessions-store.test.js test/pii.test.js test/alert.test.js",
     "test:vnpay": "node --test test/vnpay.test.js",
     "test:api": "node --test test/api.test.js",
     "test:auth": "node --test test/auth.test.js",
