@@ -136,6 +136,88 @@ function Orders() {
   )
 }
 
+// Danh mục: CRUD riêng — chủ shop thêm/sửa/xoá không cần dev.
+function Collections() {
+  const [rows, setRows] = useState([])
+  const [draft, setDraft] = useState(null) // null | { ...fields } (edit khi có id)
+  const [err, setErr] = useState('')
+  const load = useCallback(() => {
+    apiGet('/admin/collections').then(setRows).catch(() => {})
+  }, [])
+  useEffect(load, [load])
+
+  const save = async (e) => {
+    e.preventDefault()
+    setErr('')
+    const body = { name: draft.name, slug: draft.slug, desc: draft.desc, bg: draft.bg, invert: draft.invert }
+    try {
+      if (draft.id) await apiFetch(`/admin/collections/${draft.id}`, { method: 'PATCH', body })
+      else await apiFetch('/admin/collections', { method: 'POST', body })
+      setDraft(null)
+      load()
+    } catch (e2) { setErr(e2.message) }
+  }
+
+  const del = async (c) => {
+    if (!confirm(`Xoá danh mục "${c.name}"?`)) return
+    try {
+      await apiFetch(`/admin/collections/${c.id}`, { method: 'DELETE' })
+      load()
+    } catch (e) { alert(e.message) } // 409: còn product gán — hướng dẫn trong message
+  }
+
+  return (
+    <section className="mt-6 border border-white/10 p-4">
+      <div className="flex items-center justify-between gap-3">
+        <h3 className="font-mono text-xs tracking-widest text-paper/70">DANH MỤC · {rows.length}</h3>
+        {!draft && <button className={btn} onClick={() => setDraft({ name: '', slug: '', desc: '', bg: '#111111', invert: false })}>+ THÊM</button>}
+      </div>
+      {draft && (
+        <form onSubmit={save} className="mt-3 grid gap-2 sm:grid-cols-2">
+          <input className={inputCls} placeholder="Tên (VD: Chạy bộ mùa hè)" required minLength={2}
+            value={draft.name} onChange={(e) => setDraft({ ...draft, name: e.target.value })} />
+          <input className={inputCls} placeholder="slug (a-z, dấu gạch)" required pattern="[a-z0-9-]+"
+            value={draft.slug} onChange={(e) => setDraft({ ...draft, slug: e.target.value })} />
+          <input className={inputCls} placeholder="Mô tả ngắn" maxLength={300}
+            value={draft.desc} onChange={(e) => setDraft({ ...draft, desc: e.target.value })} />
+          <div className="flex items-center gap-3">
+            <input type="color" className="h-9 w-14 border border-white/15 bg-transparent" aria-label="Màu nền"
+              value={draft.bg} onChange={(e) => setDraft({ ...draft, bg: e.target.value })} />
+            <label className="flex items-center gap-2 text-xs text-paper/70">
+              <input type="checkbox" checked={draft.invert} onChange={(e) => setDraft({ ...draft, invert: e.target.checked })} />
+              Chữ sáng trên nền này
+            </label>
+          </div>
+          {err && <p className="text-xs text-red-400 sm:col-span-2">{err}</p>}
+          <div className="flex gap-2 sm:col-span-2">
+            <button className={btn} type="submit">{draft.id ? 'LƯU' : 'TẠO'}</button>
+            <button className={btn} type="button" onClick={() => setDraft(null)}>HUỶ</button>
+          </div>
+        </form>
+      )}
+      {rows.length > 0 && (
+        <table className="mt-3 w-full">
+          <tbody>
+            {rows.map((c) => (
+              <tr key={c.id} className="border-t border-white/10">
+                <td className={td}>
+                  <span className="mr-2 inline-block h-3 w-3 align-middle" style={{ background: c.bg }} aria-hidden="true" />
+                  {c.name} <span className="text-paper/40">· {c.productCount} sản phẩm</span>
+                </td>
+                <td className="px-3 py-2 text-right">
+                  <button className={btn} onClick={() => setDraft({ id: c.id, name: c.name, slug: c.slug, desc: c.desc || '', bg: c.bg, invert: c.invert })}>SỬA</button>{' '}
+                  <button className={btn} onClick={() => del(c)}>XOÁ</button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+      {rows.length === 0 && !draft && <p className="mt-3 text-sm text-paper/40">Chưa có danh mục — thêm cái đầu tiên.</p>}
+    </section>
+  )
+}
+
 function Products() {
   const [rows, setRows] = useState([])
   const [variants, setVariants] = useState(null) // { name, list }
@@ -768,7 +850,7 @@ export default function Admin() {
 
       {tab === 'dash' && <Dashboard />}
       {tab === 'orders' && <Orders />}
-      {tab === 'products' && <Products />}
+      {tab === 'products' && <><Products /><Collections /></>}
       {tab === 'coupons' && <Coupons />}
       {tab === 'chat' && <AdminChat />}
       {tab === 'changes' && <ChangeApprovals />}

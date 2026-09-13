@@ -113,6 +113,59 @@ router.patch('/orders/:id', requirePerm('orders:write'), validate(z.object({ sta
   } finally { client.release() }
 })
 
+// ——— Collections (danh mục): CRUD — chủ shop tự thêm/sửa, không cần dev ———
+// Không xóa cứng: collection đang gán product → trả 409 (phải chuyển product trước).
+const collectionBody = z.object({
+  name: z.string().min(2).max(80),
+  slug: z.string().regex(/^[a-z0-9-]+$/),
+  desc: z.string().max(300).default(''),
+  bg: z.string().regex(/^#[0-9a-fA-F]{6}$/).default('#111111'),
+  invert: z.boolean().default(false),
+})
+
+router.get('/collections', requirePerm('products:read'), async (_req, res) => {
+  const { rows } = await pool.query(
+    `SELECT c.*, (SELECT count(*) FROM products p WHERE p.collection_id = c.id) AS product_count
+     FROM collections c ORDER BY c.id`)
+  ok(res, { items: rows.map((r) => ({ ...r, productCount: Number(r.product_count) })) })
+})
+
+router.post('/collections', requirePerm('products:write'), validate(collectionBody), async (req, res) => {
+  const b = req.body
+  const { rows: [c] } = await pool.query(
+    'INSERT INTO collections (slug, name, "desc", bg, invert) VALUES ($1,$2,$3,$4,$5) RETURNING *',
+    [b.slug, b.name, b.desc, b.bg, b.invert])
+  await bust('products:list')
+  await audit(req, 'collection.create', 'collection', c.id, { slug: c.slug })
+  ok(res, c)
+})
+
+router.patch('/collections/:id', requirePerm('products:write'), validate(collectionBody.partial()), async (req, res) => {
+  const b = req.body
+  const { rows: [c] } = await pool.query(
+    `UPDATE collections SET slug = COALESCE($2, slug), name = COALESCE($3, name),
+       "desc" = COALESCE($4, "desc"), bg = COALESCE($5, bg), invert = COALESCE($6, invert)
+     WHERE id = $1 RETURNING *`,
+    [req.params.id, b.slug, b.name, b.desc, b.bg, b.invert])
+  if (!c) return bad(res, 'NOT_FOUND', 'Không tìm thấy danh mục', 404)
+  await bust('products:list')
+  await audit(req, 'collection.update', 'collection', c.id, { slug: c.slug })
+  ok(res, c)
+})
+
+router.delete('/collections/:id', requirePerm('products:write'), async (req, res) => {
+  const { rows: [used] } = await pool.query(
+    'SELECT count(*) AS n FROM products WHERE collection_id = $1', [req.params.id])
+  if (Number(used.n) > 0) {
+    return bad(res, 'COLLECTION_IN_USE', `Danh mục còn ${used.n} sản phẩm — chuyển/huỷ gán trước khi xoá`, 409)
+  }
+  const { rowCount } = await pool.query('DELETE FROM collections WHERE id = $1', [req.params.id])
+  if (!rowCount) return bad(res, 'NOT_FOUND', 'Không tìm thấy danh mục', 404)
+  await bust('products:list')
+  await audit(req, 'collection.delete', 'collection', Number(req.params.id), {})
+  ok(res, { ok: true })
+})
+
 // ——— Products (§68: CRUD + archive/restore, không hard delete) ———
 const productBody = z.object({
   name: z.string().min(2).max(200),

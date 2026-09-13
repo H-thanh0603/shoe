@@ -160,8 +160,12 @@ test('executeTool trực tiếp: không session → provenance gate TẮT (HTTP 
   // AWI HTTP /api/v1/agent/tools gọi handler trực tiếp (không qua runtime) —
   // không session thì không track được; gate chỉ active trong agent loop.
   // (HTTP invoke có auth + rate-limit riêng của route.)
-  const res = await executeTool('add_to_cart', { slug: 'air-vector-01', size: 42, qty: 1 }, { agentId: 'direct-test' })
-  // không crash, không PROVENANCE_ERROR (session undefined → gate off)
-  assert.ok(!String(res.summary).includes('provenance'))
-  assert.ok(res.ok === true || res.result?.error?.code === 'PRODUCT_NOT_FOUND' || res.result?.error?.code === 'TOOL_ERROR')
+  // agentId UNIQUE mỗi lần chạy — không dính giỏ test cũ (giỏ agent theo id
+  // tồn tại trong DB; chạy nhiều lần không tích đủ 14 đôi để OUT_OF_STOCK)
+  const res = await executeTool('add_to_cart', { slug: 'air-vector-01', size: 42, qty: 1 },
+    { agentId: `direct-${Date.now()}-${Math.random().toString(36).slice(2, 8)}` })
+  // KHÔNG PROVENANCE_ERROR (session undefined → gate off — điều kiện test
+  // kiểm là gate, KHÔNG phải business result: hết hàng/giỏ đầy là chuyện DB)
+  assert.ok(!String(res.summary).includes('provenance'), `gate phải off: ${res.summary}`)
+  assert.ok(res.ok === true || /OUT_OF_STOCK|PRODUCT_NOT_FOUND|TOOL_ERROR/.test(String(res.summary)), 'business outcome hợp lệ')
 })

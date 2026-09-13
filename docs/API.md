@@ -104,3 +104,24 @@ Lỗi checkout: 400 `CART_EMPTY` / `COUPON_NOT_FOUND` / `COUPON_INACTIVE` / `COU
 
 - `/auth/login`, `/auth/register`: 10 request / 15 phút → 429 `RATE_LIMITED`.
 - `/orders`: 20 request / phút.
+
+## Admin — Collections (danh mục)
+
+RBAC: `products:read` (GET) / `products:write` (POST/PATCH/DELETE).
+
+| Method | Path | Body | Ghi chú |
+|---|---|---|---|
+| GET | `/api/v1/admin/collections` | — | Kèm `productCount` mỗi danh mục |
+| POST | `/api/v1/admin/collections` | `{name, slug, desc?, bg?, invert?}` | `bg` hex `#RRGGBB` |
+| PATCH | `/api/v1/admin/collections/:id` | partial | — |
+| DELETE | `/api/v1/admin/collections/:id` | — | **409 `COLLECTION_IN_USE`** nếu còn product gán — phải chuyển product trước |
+
+UI: Admin → tab SẢN PHẨM, section "DANH MỤC" (thêm/sửa/xoá, chọn màu nền,
+đánh dấu chữ sáng). Chủ shop tự quản danh mục không cần dev.
+
+## Mailer — SMTP verify (wire-level)
+
+`server/test/mailer.test.js` chạy SMTP server giả trong process, verify
+chuỗi đầy đủ: `EHLO → MAIL FROM → RCPT TO → DATA → .` + message format
+(MIME, QP-encoding tiếng Việt đúng RFC 2047). Fail-open khi thiếu SMTP_HOST,
+lỗi provider bubble lên cho job retry — đều có test.
