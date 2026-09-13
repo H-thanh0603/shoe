@@ -37,7 +37,7 @@ function create(sid, initialMessages = []) {
     const oldest = sessions.keys().next().value
     sessions.delete(oldest)
   }
-  const entry = { messages: [...initialMessages], turns: 0, lastSeen: Date.now() }
+  const entry = { messages: [...initialMessages], turns: 0, lastSeen: Date.now(), seenSlugs: new Set() }
   sessions.set(sid, entry)
   return entry
 }

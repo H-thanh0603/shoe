@@ -68,12 +68,35 @@ async function executeTool(name, args, ctx) {
       summary: `args sai shape (${parsed.error.issues.length} lỗi)`,
     }
   }
+  // ——— Provenance gate (port check_provenance của blueprint gates.py) ———
+  // add_to_cart chỉ nhận slug mà catalog tool ĐÃ TRẢ VỀ trong session này
+  // (model "nhìn trước mua sau") — chặn tool-result-injection: dữ liệu ngoài
+  // (mô tả sản phẩm, review…) không thể nhét product lạ vào giỏ.
+  if (name === 'add_to_cart' && ctx?.session) {
+    const slug = String(parsed.data.slug || '').trim()
+    if (!ctx.session.seenSlugs.has(slug)) {
+      return {
+        ok: false,
+        result: {
+          error: {
+            code: 'PROVENANCE_ERROR',
+            message: `slug "${slug}" chưa được catalog tool (search/get/recommend/compare) trả về trong phiên này — gọi tool tìm kiếm trước, dùng đúng slug từ kết quả.`,
+          },
+        },
+        summary: 'bị provenance gate chặn (slug chưa thấy)',
+      }
+    }
+  }
   try {
     const result = await tool.handler(parsed.data, {
       agentId: ctx?.agentId || 'runtime',
       req: ctx?.req,
       progress: ctx?.progress || (() => {}),
     })
+    // catalog tools → ghi nhận slugs đã thấy (nếu session có track)
+    if (ctx?.session && CATALOG_TOOLS.has(name)) {
+      for (const s of collectSlugs(result)) ctx.session.seenSlugs.add(s)
+    }
     return { ok: true, result, summary: summarize(name, result) }
   } catch (e) {
     // handler throw httpError chuẩn — translate thành result có cấu trúc
@@ -83,6 +106,28 @@ async function executeTool(name, args, ctx) {
       summary: `tool lỗi: ${e?.code || e?.message || 'unknown'}`,
     }
   }
+}
+
+/** Tool "catalog" = tool đọc sản phẩm, trả slug model được phép cite. */
+const CATALOG_TOOLS = new Set(['search_products', 'get_product', 'recommend_products', 'compare_products'])
+
+// slug pattern theo seed DB (kebab-case: air-vector-01, pulse-dash-02…)
+const SLUG_RE = /^[a-z0-9]+(?:-[a-z0-9]+)+$/
+
+/** Săn slug đệ quy trong kết quả tool (items[].slug, product.slug, …). */
+function collectSlugs(value, out = new Set(), depth = 0) {
+  if (depth > 6 || value == null) return out
+  if (Array.isArray(value)) {
+    for (const v of value) collectSlugs(v, out, depth + 1)
+    return out
+  }
+  if (typeof value === 'object') {
+    for (const [k, v] of Object.entries(value)) {
+      if (k === 'slug' && typeof v === 'string' && SLUG_RE.test(v)) out.add(v)
+      else collectSlugs(v, out, depth + 1)
+    }
+  }
+  return out
 }
 
 function summarize(name, result) {
@@ -97,10 +142,35 @@ function summarize(name, result) {
 }
 
 /**
- * Serialize result cho tool_result content (fencing: cắt dài, JSON compact).
- * Concept "fenced tool results" của commerce-agents: model chỉ thấy dữ liệu
- * đã được giới hạn — không inject nội dung dài lê thê vào context.
+ * Serialize result cho tool_result content — port pipeline fencing của
+ * commerce-agents (commerce_common/fence.py): dữ liệu ngoài (mô tả sản phẩm,
+ * review của khách…) không được phép giả mạo instruction/model transcript.
+ *
+ * Pipeline: strip control chars + bỏ fence markers giả + bỏ markers giả mạo
+ * transcript/tool-call → cắt chiều dài → bọc trong fence cố định.
+ * Model thấy "dữ liệu", không phải "instruction".
  */
+
+// ký tự điều khiển C0/C1 + zero-width — bỏ hết trước khi fence
+const CONTROL_CHARS_RE = /[\u0000-\u0008\u000B-\u001F\u007F\u0080-\u009F\u200B-\u200F\u2028\u2029\uFEFF]/g
+// fence marker giả: chỉ THAY CHÍNH marker 3+ backtick bằng 1 backtick —
+// KHÔNG ăn phần sau nó (vì JSON tool-result thường 1 dòng dài; regex có
+// [^\n]*$ sẽ nuốt hết dòng và mất dữ liệu thật)
+const FORGED_FENCE_RE = /`{3,}/g
+// markers model dùng trong transcript — không cho phép sống trong data
+const TRANSCRIPT_MARKERS = [
+  /<\/?(antml|tool)[a-z_]*[^>]*>/gi, // SDK tool-call tags (antml:…)
+  /\[(?:tool_use|tool_result|system|assistant|user)\]/gi, // block giả
+  /^\s*(?:system|assistant|user|tool)\s*:/gim, // role giả ở đầu dòng
+]
+
+function sanitizeUntrusted(text) {
+  let out = text.replace(CONTROL_CHARS_RE, '')
+  out = out.replace(FORGED_FENCE_RE, '`')
+  for (const re of TRANSCRIPT_MARKERS) out = out.replace(re, (m) => m.replace(/[^\s]/g, '·'))
+  return out
+}
+
 function fenceResult(result) {
   let text
   try {
@@ -108,9 +178,12 @@ function fenceResult(result) {
   } catch {
     text = String(result)
   }
+  text = sanitizeUntrusted(text)
   if (text.length > MAX_TOOL_RESULT_CHARS) {
-    // cắt giữa JSON string vẫn parse được? — không; cắt + bọc markdown fence
-    return '```\n' + text.slice(0, MAX_TOOL_RESULT_CHARS) + '\n…(đã cắt)\n```'
+    // cắt + sanitize LẠI phần đã cắt (slice có thể cắt giữa escape/marker,
+    // để lại `` ` `` hở mở fence mới)
+    const clipped = sanitizeUntrusted(text.slice(0, MAX_TOOL_RESULT_CHARS))
+    return '```\n' + clipped + '\n…(đã cắt)\n```'
   }
   return '```json\n' + text + '\n```'
 }
@@ -131,4 +204,6 @@ module.exports = {
   executeTool,
   fenceResult,
   PUBLIC_ALLOWED,
+  CATALOG_TOOLS,
+  collectSlugs,
 }

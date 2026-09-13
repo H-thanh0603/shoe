@@ -129,6 +129,8 @@ async function* runTurn({ sessionId, userMessage, agentName = 'shopping', agentI
       // ——— execute tool calls ———
       // Capability parallelToolCalls=false → tuần tự hoá (chạy tuần tự vẫn đúng
       // ngữ nghĩa, chỉ chậm hơn). Tool execute luôn local Node — an toàn.
+      // ctx.session cho provenance gate: catalog tools ghi seenSlugs,
+      // add_to_cart chỉ nhận slug đã thấy (port gates.py của blueprint).
       const results = []
       for (const call of toolUses) {
         yield { type: 'tool', name: call.name, label: toolLabel(call.name, call.input) }
@@ -136,6 +138,7 @@ async function* runTurn({ sessionId, userMessage, agentName = 'shopping', agentI
           agentId: agentId || `assistant:${sessionId.slice(0, 24)}`,
           role: agentName,
           req,
+          session,
           progress: (msg) => { /* progress từ tool — emit event */ },
         })
         results.push({ call, res })
