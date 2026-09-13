@@ -115,6 +115,9 @@ async function* runTurn({ sessionId, userMessage, agentName = 'shopping', agentI
   const usage = { inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheWriteTokens: 0 }
 
   // ——— session + turn cap ———
+  // hydrateAsync: mode redis thì kéo session từ store chung về Map local
+  // (replica khác đã ghi turn trước đó); memory mode → no-op.
+  await sessions.hydrateAsync(sessionId)
   let session = sessions.get(sessionId) || sessions.create(sessionId)
   if (sessions.atLimit(sessionId)) {
     yield { type: 'error', message: 'Phiên chat đã quá dài — tải lại trang để bắt đầu phiên mới (gọn context, rẻ hơn).' }
@@ -268,6 +271,10 @@ async function* runTurn({ sessionId, userMessage, agentName = 'shopping', agentI
     // AIError → message thân thiện, không lộ provider internals ra frontend
     const msg = e instanceof AIError ? userFacingMessage(e) : 'Lỗi hệ thống agent — thử lại sau.'
     yield { type: 'error', message: msg }
+  } finally {
+    // mode redis: đẩy session lên store chung (replica khác tiếp tục được);
+    // memory mode → no-op. Lỗi Redis không ảnh hưởng response đã yield.
+    sessions.flushAsync(sessionId).catch(() => {})
   }
 }
 

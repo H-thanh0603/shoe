@@ -299,3 +299,18 @@ Lấp 2 gap "autonomous agent" so với mức task-agent:
 Event flow 1 turn phức tạp: user(msg nhiều bước) → plan{steps} → tool{search}
 → tool_result → step_done{B1} → tool{add_to_cart} → tool_result → text(kết
 luận) → turn_complete.
+
+## Session store multi-instance (bổ sung)
+
+`sessions.js` có 2 chế độ: `memory` (LRU Map, dev/1-replica) và `redis`
+(share history giữa replica qua `services/cache.js` — TTL như nhau).
+
+- Bật: `AI_SESSION_STORE=redis` (hoặc `auto` — tự dùng redis khi cache
+  backend đã ready; mặc định auto).
+- Sync ở 2 điểm biên: `hydrateAsync()` đầu turn (kéo về Map local nếu chưa
+  có), `flushAsync()` cuối turn (finally — chạy cả khi lỗi). Mid-turn mọi
+  mutation trên Map local → không race giữa replica (1 request SSE do 1
+  replica giữ đến khi xong).
+- Turn cap + seenSlugs (provenance) đi qua Redis → chặn abuse xuyên replica.
+- Fail-open theo pattern cache.js: Redis chết → memory vẫn chạy, chỉ mất
+  tính share.
