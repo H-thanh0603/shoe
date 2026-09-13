@@ -25,6 +25,7 @@ import Collections from './components/Collections.jsx'
 const Admin = lazy(() => import('./pages/Admin.jsx'))
 import Preloader from './components/Preloader.jsx'
 import LiveFeed from './components/LiveFeed.jsx'
+import ShoppingAssistant from './components/ShoppingAssistant.jsx'
 
 export default function App() {
   const route = useHashRoute()
@@ -98,6 +99,7 @@ export default function App() {
 
       <Footer />
       {route.name !== 'admin' && <LiveFeed />}
+      {route.name !== 'admin' && <ShoppingAssistant />}
       <CartDrawer />
       {quiz && <Quiz onClose={() => setQuiz(false)} />}
       <SearchPalette open={showSearch} onClose={() => setShowSearch(false)} />

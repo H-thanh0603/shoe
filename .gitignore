@@ -12,3 +12,4 @@ server/.env
 backups/
 server/.env
 server/uploads
+.codegraph/

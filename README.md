@@ -4,6 +4,8 @@ E-commerce giày thể thao: React 19 + Vite frontend, Express + PostgreSQL back
 
 **Agent layer (Agentic Web Interface)**: website expose tools cho AI agent — `/.well-known/agent.json`, `llms.txt`, `/api/v1/agent/tools` (search/stock/compare/reviews/add_to_cart với human-in-the-loop). Chi tiết: `docs/AGENT_LAYER.md`.
 
+**AI layer (provider-agnostic)**: trợ lý mua giày (`/api/v1/assistant`) chạy agent loop Node với tool-calling, streaming SSE — LLM provider đổi bằng env (`deepseek` | `openrouter` | `anthropic` | `openai` | `gemini` | `tokenrouter` | `mock` | custom OpenAI-compatible), kèm retry + fallback chain, KHÔNG ghép SDK nào vào business logic. Python bridge (blueprint commerce-agents) giờ chạy qua internal gateway `POST /api/v1/internal/llm/messages` — hết cần LiteLLM proxy. Chi tiết: `docs/AI_ARCHITECTURE.md` (thiết kế) + `docs/AI_PROVIDERS.md` (cấu hình/đổi provider).
+
 ## Chạy dev
 
 ```bash

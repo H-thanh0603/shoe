@@ -495,3 +495,6 @@ router.get('/page/:slug',
 
 module.exports = router
 module.exports.TOOLS = TOOLS
+// agent runtime (services/agent/tools.js) validate args model gọi tool bằng
+// cùng zod mirror này — 1 nguồn validation cho cả HTTP invoke và agent loop.
+module.exports.buildZod = buildZod

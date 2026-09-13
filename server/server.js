@@ -59,6 +59,8 @@ function buildApp() {
         `SELECT status, COUNT(*) AS n FROM jobs GROUP BY status`)
       out.jobs = Object.fromEntries(rows.map((r) => [r.status, Number(r.n)]))
     } catch { /* bảng jobs chưa migrate — bỏ qua */ }
+    // AI layer counters (provider/model calls, errors, fallbacks — không key)
+    try { out.ai = require('./services/ai/index.js').aiMetrics() } catch { /* chưa cấu hình AI */ }
     res.json(out)
   })
 
@@ -81,6 +83,11 @@ function buildApp() {
   app.use('/api/v1/admin', require('./routes/admin.js'))
   app.use('/api/v1/agent', require('./routes/agentTools.js')) // agent tools + agent page — TRƯỚC agent.js (chat)
   app.use('/api/v1/agent', require('./routes/agent.js'))
+  // Shopping assistant (public) — agent runtime Node qua AI provider layer
+  app.use('/api/v1/assistant', require('./routes/assistant.js'))
+  // Internal LLM gateway (Anthropic Messages format) — secret nội bộ, cho
+  // bridge Python/agent khác; KHÔNG public (require INTERNAL_LLM_SECRET)
+  app.use('/api/v1/internal/llm', require('./routes/internalLlm.js'))
   app.use('/api/v1/coupons', require('./routes/coupons.js'))
   app.use('/api/v1/events', require('./routes/events.js'))
   app.use('/api/v1/live', require('./routes/live.js'))

@@ -948,18 +948,26 @@ class KineticMerchant(MerchantBackend):
 
 
 # ---------------------------------------------------------------------------
-# LLM client — Anthropic trực tiếp hoặc DeepSeek/gateway tương thích
+# LLM client — Anthropic trực tiếp HOẶC Node gateway (provider bất kỳ)
 # ---------------------------------------------------------------------------
 #
 # Blueprint gọi Messages API qua `anthropic` SDK. Chọn provider bằng 1 biến:
-#   ASSISTANT_PROVIDER=deepseek   (mặc định) → LiteLLM proxy :4000 + DeepSeek
+#   ASSISTANT_PROVIDER=gateway    (mặc định) → Node gateway của server KINETIC
+#     /api/v1/internal/llm/messages — Anthropic wire format, phía sau là MỌI
+#     provider đã cấu hình trong server/.env (deepseek/openrouter/gemini/…).
+#     KHÔNG cần LiteLLM proxy :4000 nữa; KHÔNG cần Anthropic key.
 #   ASSISTANT_PROVIDER=anthropic  → api.anthropic.com + ANTHROPIC_API_KEY
-# DeepSeek (api.deepseek.com) dùng format OpenAI nên KHÔNG đấu thẳng được —
-# bắt buộc qua proxy dịch Anthropic<->OpenAI (agents/run_proxy.sh).
-# Model theo provider: deepseek-* chặn reasoner (tool-use kém, phá agent loop).
+#
+# Gateway là DỊCH VỤ nội bộ của chính app — wire format Anthropic chỉ là
+# protocol của SDK, không phải coupling dịch vụ: đổi provider = đổi env
+# server (docs/AI_PROVIDERS.md), file này không đổi.
+#
+# Lưu ý URL: SDK anthropic POST tới <base_url> + /v1/messages, nên base_url
+# phải trỏ tới gốc route gateway (…/internal/llm) — KHÔNG thêm /v1.
+# DeepSeek/gateway reasoner bị chặn (tool-use kém, phá agent loop).
 
 def _provider() -> str:
-    return os.environ.get("ASSISTANT_PROVIDER", "deepseek").lower()
+    return os.environ.get("ASSISTANT_PROVIDER", "gateway").lower()
 
 
 def _guard_model(name: str, default: str) -> str:
@@ -975,10 +983,14 @@ def make_llm_client():
     from anthropic import AsyncAnthropic
     if _provider() == "anthropic":
         return AsyncAnthropic(api_key=os.environ.get("ANTHROPIC_API_KEY", ""))
-    base_url = os.environ.get("KINETIC_LLM_BASE_URL", "http://localhost:4000/v1")
+    # gateway mặc định: server Node chạy cùng máy (PORT 3000)
+    base_url = os.environ.get(
+        "KINETIC_LLM_BASE_URL", "http://127.0.0.1:3000/api/v1/internal/llm")
     api_key = os.environ.get("KINETIC_LLM_API_KEY", "")
     if not api_key:
-        raise ValueError("Thiếu KINETIC_LLM_API_KEY (master key của proxy :4000)")
+        raise ValueError(
+            "Thiếu KINETIC_LLM_API_KEY — đặt bằng INTERNAL_LLM_SECRET của "
+            "server Node (server/.env) để gateway xác thực")
     return AsyncAnthropic(base_url=base_url, api_key=api_key)
 
 
