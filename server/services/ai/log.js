@@ -89,12 +89,20 @@ function logRetry({ provider, attempt, max, code, requestId }) {
 /**
  * DEBUG: request/response đã redact. Chỉ khi AI_LOG_LEVEL=debug.
  * Redact: bỏ toàn bộ key-ish fields, cắt tool_result content.
+ * Signature: logDebug(KIND_STRING, payload, requestId) — kind PHẢI là chuỗi
+ * ngắn ("chat", "stream", …). Guard chống gọi nhầm logDebug(payload).
  */
 function logDebug(kind, payload, requestId) {
   if (level() > LEVELS.debug) return
+  // guard: gọi nhầm logDebug({provider…}) — kind là object → dịch xuống payload
+  if (kind && typeof kind === 'object' && payload === undefined) {
+    payload = kind
+    kind = 'debug'
+  }
   try {
+    const kindStr = typeof kind === 'string' ? kind : 'debug'
     const redacted = JSON.stringify(redact(payload), (k, v) => (typeof v === 'string' && v.length > 2000 ? v.slice(0, 2000) + '…' : v))
-    line('log', [kind, redacted], requestId)
+    line('log', [kindStr, redacted], requestId)
   } catch { /* redact/serialize fail — không crash vì log */ }
 }
 

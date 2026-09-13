@@ -8,7 +8,7 @@
     "db:migrate": "node migrate.js",
     "db:seed": "node seed.js",
     "cron": "node cron.js",
-    "test": "node --test test/pricing.test.js test/cache.test.js test/vnpay.test.js",
+    "test": "node --test test/pricing.test.js test/cache.test.js test/vnpay.test.js test/ai-convert.test.js test/ai-agent-runtime.test.js test/ai-gateway.test.js test/ai-security-hardening.test.js test/ai-planning.test.js",
     "test:vnpay": "node --test test/vnpay.test.js",
     "test:api": "node --test test/api.test.js",
     "test:auth": "node --test test/auth.test.js",
@@ -16,7 +16,8 @@
     "test:search": "node --test test/search.test.js",
     "test:rbac": "node --test test/rbac.test.js",
     "test:agent-tools": "node --test test/agent-tools.test.js",
-    "test:edge": "node --test test/edge-agent.test.js"
+    "test:edge": "node --test test/edge-agent.test.js",
+    "test:ai": "node --test test/ai-convert.test.js test/ai-agent-runtime.test.js test/ai-gateway.test.js test/ai-security-hardening.test.js test/ai-planning.test.js"
   },
   "keywords": [],
   "type": "commonjs",
