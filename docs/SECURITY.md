@@ -44,10 +44,10 @@ Zod schema mọi route có body (`validate` middleware, 400 `VALIDATION_ERROR`).
 
 `middleware/csrf.js`: server set cookie `csrf` (không httpOnly), client echo qua header `X-CSRF-Token` trên mọi POST/PATCH/DELETE (`lib/api.js` gắn tự động). Enforce khi request có auth cookie + client đã từng nhận cookie csrf (fail-open request đầu để tương thích client cũ, cookie đã set để request sau phải echo).
 
-## Còn thiếu (chưa làm — ghi nhận)
+## Đã làm thêm (audit 2025 — mục ghi "còn thiếu" dưới đây ĐÃ LỖI THỜI)
 
-- HTTPS/forwarded headers: khi deploy sau proxy cần `app.set('trust proxy', 1)` cho rate-limit đếm đúng IP.
-- Refresh token rotation: refresh hiện không đổi mới refresh_token (chỉ cấp access mới). Khi cần revoke: thêm bảng `refresh_tokens` lưu hash + revoke được.
+- ~~HTTPS/forwarded headers~~ **ĐÃ CÓ**: `config.js` đọc `TRUST_PROXY`/isProd → `app.set('trust proxy', 1)` (server.js:17).
+- ~~Refresh token rotation~~ **ĐÃ CÓ** (§37, `routes/auth.js`): mỗi refresh cấp refresh_token MỚI + jti mới; **reuse detection** — dùng lại refresh cũ (jti không khớp `auth_sessions.refresh_jti`) → revoke cả session, buộc login lại. Bảng `auth_sessions` lưu jti + revoked_at + expires_at.
 
 ## Checklist 20 mục security — audit 2025 (sau AI layer)
 
@@ -85,3 +85,23 @@ Kết quả từng mục (chi tiết bằng chứng trong commit `6f6556c`..audi
 - `track_order` lộ gì: chỉ ref_code/status/tổng/tên món — ref_code 1 tỷ entropy, không dò được.
 - Upload ảnh: type-map + server-generated filename + RBAC + audit.
 - `configSnapshot()`/`metrics()`/`info()`: không key (test với key giả).
+
+### PII at rest (2025 — lấp mục #10)
+
+`services/pii.js` — AES-256-GCM, transparent qua wrapper:
+
+- **Enc khi INSERT**: `orders` customer_name/phone/email + shipping_address.
+- **Decrypt khi đọc**: orders `/ref/:code` (chỉ tách city), admin list (RBAC
+  `orders:read`), live feed (chỉ tên đệm + city).
+- **Tương thích migrate dần**: stored có tiền tố `enc:v1:` là enc; dòng cũ
+  plaintext đọc được như thường — bật key không cần chuyển đổi dữ liệu cũ.
+- **IV ngẫu nhiên từng giá trị** (không deterministic); sai tag → throw (GCM).
+- **Off khi không set `PII_KEY`** (dev), **fail loud** khi key sai độ dài,
+  **fail rõ** khi có dữ liệu enc mà thiếu key — không bao giờ trả chuỗi rác.
+- `decryptSafe` cho display feed — 1 dòng enc hỏng không crash cả route.
+
+Lưu ý vận hành (đã ghi .env.example): mất `PII_KEY` = mất PII của đơn enc —
+backup key như backup DB. Sinh key:
+`node -e "console.log(require('node:crypto').randomBytes(32).toString('base64'))"`.
+
+Cập nhật mục #10 trong bảng trên: 🟡 → ✅ (plaintext chỉ còn khi chủ động off).

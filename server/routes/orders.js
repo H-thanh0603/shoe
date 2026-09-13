@@ -9,6 +9,7 @@ const { couponDiscount, shippingFee } = require('../services/pricing.js')
 const { enqueue } = require('../services/jobs.js')
 const vnpay = require('../services/vnpay.js')
 const { bust } = require('../middleware/cache.js')
+const pii = require('../services/pii.js')
 const { z } = require('zod')
 
 const router = express.Router()
@@ -108,13 +109,14 @@ router.post('/', validate(orderSchema), async (req, res) => {
     const shippingFeeVnd = shippingFee(subtotal, freeShipping)
     const total = Math.max(subtotal - discount + shippingFeeVnd, 0)
 
-    // insert order
+    // insert order — PII (tên/SĐT/email/địa chỉ) mã hoá at rest (services/pii.js)
     const ref = refCode()
     const { rows: [order] } = await client.query(
       `INSERT INTO orders (ref_code, user_id, status, total_vnd, customer_name, customer_phone, customer_email,
         shipping_address, payment_method, payment_status, shipping_fee_vnd, discount_vnd, coupon_id, idempotency_key)
        VALUES ($1,$12,'pending',$2,$3,$4,$5,$6,$7,'unpaid',$8,$9,$10,$11) RETURNING id`,
-      [ref, total, req.body.customerName, req.body.phone, req.body.email, req.body.address,
+      [ref, total,
+        pii.encrypt(req.body.customerName), pii.encrypt(req.body.phone), pii.encrypt(req.body.email), pii.encrypt(req.body.address),
         req.body.paymentMethod, shippingFeeVnd, discount, couponId, idemKey, req.user?.id || null],
     )
 
@@ -224,8 +226,10 @@ router.get('/ref/:code', async (req, res) => {
   )
   const { subtotalVnd } = items.reduce((a, i) => ({ subtotalVnd: a.subtotalVnd + i.qty * i.unit_price_vnd }), { subtotalVnd: 0 })
   delete o.id
-  // map hành trình chỉ cần tỉnh/TP — KHÔNG trả địa chỉ đầy đủ (§IDOR)
-  const rawCity = String(o.shipping_address || '').split(',').pop()?.trim() || ''
+  // map hành trình chỉ cần tỉnh/TP — KHÔNG trả địa chỉ đầy đủ (§IDOR).
+  // PII có thể enc (PII_KEY set) hoặc plaintext cũ — decrypt an toàn cả 2.
+  let rawCity = ''
+  try { rawCity = String(pii.decrypt(o.shipping_address) || '').split(',').pop()?.trim() || '' } catch { /* enc hỏng — giữ rỗng */ }
   const shipCity = rawCity
   delete o.shipping_address
   res.json({ success: true, data: { ...o, items, subtotalVnd, shipCity } })

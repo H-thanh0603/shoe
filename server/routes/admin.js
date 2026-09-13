@@ -9,6 +9,7 @@ const validate = require('../middleware/validate.js')
 const { requireAuth, loadPerms, requirePerm, bustPerms } = require('../middleware/auth.js')
 const { bust, cacheGet } = require('../middleware/cache.js')
 const { audit } = require('../services/audit.js')
+const pii = require('../services/pii.js')
 const { z } = require('zod')
 
 const router = express.Router()
@@ -35,6 +36,8 @@ router.get('/orders', requirePerm('orders:read'), async (req, res) => {
     `SELECT o.id, o.ref_code, o.user_id, o.status, o.payment_status, o.total_vnd, o.customer_name, o.created_at,
             (SELECT count(*) FROM order_items oi WHERE oi.order_id = o.id) AS item_count
      FROM orders o ${where} ORDER BY o.id DESC LIMIT $1 OFFSET $2`, args)
+  // PII at rest: customer_name lưu enc — decrypt cho admin display (đã qua RBAC orders:read)
+  for (const o of rows) o.customer_name = pii.decryptSafe(o.customer_name)
   const { rows: [{ count }] } = await pool.query(`SELECT COUNT(*) FROM orders o ${whereCount}`, status ? [status] : [])
   ok(res, rows, { page, limit, total: Number(count), totalPages: Math.ceil(count / limit) })
 })

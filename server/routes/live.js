@@ -8,12 +8,13 @@
 const express = require('express')
 const pool = require('../db.js')
 const { cacheGet } = require('../middleware/cache.js')
+const pii = require('../services/pii.js')
 
 const router = express.Router()
 
-const firstName = (name) => String(name || '').trim().split(/\s+/).slice(-1).join(' ') || 'Khách'
+const firstName = (name) => String(pii.decryptSafe(name) || '').trim().split(/\s+/).slice(-1).join(' ') || 'Khách'
 const city = (addr) => {
-  const parts = String(addr || '').split(',')
+  const parts = String(pii.decryptSafe(addr) || '').split(',')
   return (parts[parts.length - 1] || '').trim().slice(0, 40)
 }
 const clip = (s, n) => (s.length > n ? s.slice(0, n - 1).trimEnd() + '…' : s)
