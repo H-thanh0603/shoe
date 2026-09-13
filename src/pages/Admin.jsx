@@ -20,6 +20,101 @@ function Stat({ label, value, accent }) {
   )
 }
 
+// BÁO CÁO: series doanh thu/đơn 30 ngày (SVG thuần — không thêm lib chart)
+// + top sản phẩm + tồn thấp. Data: /admin/analytics/series + /admin/analytics.
+function Reports() {
+  const [metric, setMetric] = useState('revenue')
+  const [days, setDays] = useState(30)
+  const [series, setSeries] = useState(null)
+  const [summary, setSummary] = useState(null)
+  useEffect(() => {
+    apiGet(`/admin/analytics/series?metric=${metric}&days=${days}`).then(setSeries).catch(() => setSeries({ points: [] }))
+  }, [metric, days])
+  useEffect(() => { apiGet('/admin/analytics').then(setSummary).catch(() => {}) }, [])
+
+  // SVG line chart: viewBox 600x180, đường doanh thu + grid + nhãn min/max
+  const points = series?.points || []
+  const W = 600, H = 180, PAD = 24
+  const max = Math.max(1, ...points.map((p) => Number(p.value) || 0))
+  const xy = (i, v) => [PAD + (i * (W - PAD * 2)) / Math.max(points.length - 1, 1), H - PAD - (v / max) * (H - PAD * 2)]
+  const path = points.map((p, i) => `${i ? 'L' : 'M'}${xy(i, Number(p.value) || 0).join(',')}`).join(' ')
+  const area = `${path} L${xy(points.length - 1, 0)} L${xy(0, 0)} Z`
+
+  return (
+    <div className="flex flex-col gap-6">
+      <div className="flex flex-wrap items-center gap-2">
+        <h3 className="font-mono text-xs tracking-widest text-paper/70">BÁO CÁO 30 NGÀY</h3>
+        <div className="ml-auto flex gap-2">
+          {['revenue', 'orders'].map((m) => (
+            <button key={m} className={btn} aria-pressed={metric === m}
+              style={metric === m ? { borderColor: 'var(--color-accent, #d1ff3f)', color: 'var(--color-accent, #d1ff3f)' } : undefined}
+              onClick={() => setMetric(m)}>{m === 'revenue' ? 'DOANH THU' : 'ĐƠN HÀNG'}</button>
+          ))}
+          {[7, 30, 90].map((d) => (
+            <button key={d} className={btn} aria-pressed={days === d}
+              style={days === d ? { borderColor: 'var(--color-accent, #d1ff3f)', color: 'var(--color-accent, #d1ff3f)' } : undefined}
+              onClick={() => setDays(d)}>{d}N</button>
+          ))}
+        </div>
+      </div>
+
+      <div className="border border-white/10 bg-charcoal p-4" role="img"
+        aria-label={`Biểu đồ ${metric === 'revenue' ? 'doanh thu' : 'số đơn'} ${days} ngày`}>
+        {points.length === 0 && <p className="p-8 text-center font-mono text-xs text-paper/40">KHÔNG CÓ DỮ LIỆU</p>}
+        {points.length > 0 && (
+          <svg viewBox={`0 0 ${W} ${H}`} className="w-full" preserveAspectRatio="none">
+            <path d={area} fill="currentColor" opacity="0.12" style={{ color: '#d1ff3f' }} />
+            <path d={path} fill="none" stroke="#d1ff3f" strokeWidth="2" vectorEffect="non-scaling-stroke" />
+          </svg>
+        )}
+        <div className="mt-2 flex justify-between font-mono text-[10px] text-paper/40">
+          <span>{points[0]?.day}</span>
+          <span>TỐI ĐA {metric === 'revenue' ? vnd(max) : max}</span>
+          <span>{points[points.length - 1]?.day}</span>
+        </div>
+      </div>
+
+      {summary && (
+        <div className="grid gap-6 md:grid-cols-2">
+          <section className="border border-white/10 p-4">
+            <h4 className="font-mono text-[10px] tracking-widest text-paper/50">TOP SẢN PHẨM (DOANH THU)</h4>
+            <table className="mt-3 w-full">
+              <tbody>
+                {(summary.topProducts || []).map((t, i) => (
+                  <tr key={i} className="border-t border-white/10">
+                    <td className={td}>{t.name}</td>
+                    <td className="px-3 py-2 text-right text-sm text-paper/60">{t.qty} đôi</td>
+                    <td className="px-3 py-2 text-right text-sm text-accent">{vnd(t.revenue)}</td>
+                  </tr>
+                ))}
+                {(!summary.topProducts || summary.topProducts.length === 0) && (
+                  <tr><td className={td}>Chưa có đơn hoàn tất</td></tr>
+                )}
+              </tbody>
+            </table>
+          </section>
+          <section className="border border-white/10 p-4">
+            <h4 className="font-mono text-[10px] tracking-widest text-paper/50">TỒN KHO THẤP (≤3)</h4>
+            <table className="mt-3 w-full">
+              <tbody>
+                {(summary.lowStock || []).map((s, i) => (
+                  <tr key={i} className="border-t border-white/10">
+                    <td className={td}>{s.name} <span className="text-paper/40">· size {s.size}</span></td>
+                    <td className="px-3 py-2 text-right text-sm text-red-400">{s.stock} đôi</td>
+                  </tr>
+                ))}
+                {(!summary.lowStock || summary.lowStock.length === 0) && (
+                  <tr><td className={td}>Tồn kho ổn định</td></tr>
+                )}
+              </tbody>
+            </table>
+          </section>
+        </div>
+      )}
+    </div>
+  )
+}
+
 function Dashboard() {
   const [a, setA] = useState(null)
   const [e, setE] = useState(null)
@@ -792,6 +887,7 @@ function AuditLog() {
 // Mỗi tab yêu cầu 1 quyền — staff chỉ thấy tab mình có quyền
 const TABS = [
   ['dash', 'TỔNG QUAN', 'analytics:read'],
+  ['reports', 'BÁO CÁO', 'analytics:read'],
   ['orders', 'ĐƠN HÀNG', 'orders:read'],
   ['products', 'SẢN PHẨM', 'products:read'],
   ['coupons', 'MÃ GIẢM GIÁ', 'coupons:read'],
@@ -849,6 +945,7 @@ export default function Admin() {
       </div>
 
       {tab === 'dash' && <Dashboard />}
+      {tab === 'reports' && <Reports />}
       {tab === 'orders' && <Orders />}
       {tab === 'products' && <><Products /><Collections /></>}
       {tab === 'coupons' && <Coupons />}
