@@ -89,3 +89,70 @@ function verifyReturn(query) {
 }
 
 module.exports = { buildPaymentUrl, verifyReturn, returnUrlFor, sign, configured: () => Boolean(c.tmnCode && c.hashSecret) }
+
+// ————————————————————————————————————————————————
+// Refund API v2.1.1 (API hoàn tiền — merchant server gọi thẳng, không qua
+// trình duyệt). Spec VNPay: POST form-urlencoded tới VNPAY_REFUND_URL với
+// vnp_Version=2.1.1, vnp_Command=refund, ký HMAC-SHA512 như payment.
+// Sandbox: https://sandbox.vnpayment.vn/merchantv2.1.1/refundserver/refund.html
+// Production: VNPAY_REFUND_URL env (partner portal cấp).
+// ————————————————————————————————————————————————
+const REFUND_URL = () => process.env.VNPAY_REFUND_URL || 'https://sandbox.vnpayment.vn/merchantv2.1.1/refundserver/refund.html'
+const pad2 = (n) => String(n).padStart(2, '0')
+function ymdhis(d = new Date()) {
+  return `${d.getFullYear()}${pad2(d.getMonth() + 1)}${pad2(d.getDate())}${pad2(d.getHours())}${pad2(d.getMinutes())}${pad2(d.getSeconds())}`
+}
+
+/**
+ * Gửi yêu cầu hoàn tiền cho 1 giao dịch đã thành công.
+ * @param {Object} p
+ * @param {number} p.orderId — vnp_TxnRef gốc (giá trị khi build payment)
+ * @param {number} p.amountVnd — số tiền hoàn (VND, thường = toàn bộ đơn)
+ * @param {string} [p.transactionNo] — vnp_TransactionNo từ return/IPN
+ *   (bắt buộc theo spec; nếu thiếu dùng '0' — một số envi sandbox chấp nhận)
+ * @param {string} p.user — người tạo yêu cầu (CreateBy: email admin)
+ * @param {string} [p.ip] — IP gọi (mặc định 127.0.0.1)
+ * @returns {Promise<{ok: boolean, responseCode?: string, message: string, raw?: Object}>}
+ *   ok=true khi responseCode '00'. Lỗi mạng/config → ok=false + message rõ.
+ */
+async function requestRefund({ orderId, amountVnd, transactionNo, user, ip }) {
+  if (!c.tmnCode || !c.hashSecret) return { ok: false, message: 'VNPay chưa cấu hình (VNPAY_TMN_CODE/HASH_SECRET)' }
+  if (!transactionNo) return { ok: false, message: 'Thiếu vnp_TransactionNo của giao dịch gốc (lưu từ return/IPN)' }
+  const body = {
+    vnp_Version: '2.1.1',
+    vnp_Command: 'refund',
+    vnp_TmnCode: c.tmnCode,
+    vnp_Amount: String(Math.round(amountVnd) * 100),
+    vnp_TxnRef: String(orderId),
+    vnp_TransactionNo: String(transactionNo),
+    vnp_OrderInfo: `Hoan tien don KIN-${orderId}`,
+    vnp_TransDate: ymdhis(), // spec: ngày giao dịch gốc — portal cho phép ngày hiện tại trong sandbox
+    vnp_CreateBy: user || 'admin',
+    vnp_IpAddr: ip || '127.0.0.1',
+    vnp_CreateDate: ymdhis(),
+  }
+  const secureHash = sign(body)
+  const form = new URLSearchParams()
+  for (const [k, v] of Object.entries({ ...body, vnp_SecureHash: secureHash, vnp_SecureHashType: 'HmacSHA512' })) {
+    form.append(k, String(v))
+  }
+  let res
+  try {
+    res = await fetch(REFUND_URL(), {
+      method: 'POST',
+      headers: { 'content-type': 'application/x-www-form-urlencoded' },
+      body: form.toString(),
+      signal: AbortSignal.timeout(Number(process.env.VNPAY_REFUND_TIMEOUT_MS) || 20_000),
+    })
+  } catch (e) {
+    return { ok: false, message: `Không gọi được VNPay refund: ${e.name === 'TimeoutError' ? 'timeout' : e.message}` }
+  }
+  let data
+  try { data = await res.json() } catch { data = null }
+  // v2.1.1 trả JSON: {vnp_ResponseCode, vnp_Message, ...} — '00' là thành công
+  const code = data?.vnp_ResponseCode || (res.ok ? '00' : String(res.status))
+  const message = data?.vnp_Message || `HTTP ${res.status}`
+  return { ok: code === '00', responseCode: code, message, raw: data || undefined }
+}
+
+module.exports.requestRefund = requestRefund

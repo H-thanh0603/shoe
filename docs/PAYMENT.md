@@ -44,3 +44,18 @@ Code sign/verify/IPN đã đúng spec, không cần đổi. Khi có TMN code th�
 2. Đổi cổng sandbox → live trong `server/services/vnpay.js` (`c.payUrl`) — env hóa thành `VNPAY_PAY_URL` khi làm.
 3. `VNPAY_RETURN_URL` phải là URL public HTTPS (qua edge nginx), VNPay cần whitelist domain.
 4. Kiểm tra IPN: VNPay live push server-to-server — đảm bảo port 443 edge mở từ IP VNPay.
+
+## Refund — hoàn tiền thật qua VNPay API v2.1.1
+
+Admin hủy đơn đã `payment_status=paid` (VNPay) → hệ thống tự gọi refund provider:
+
+1. Transaction local: cancel + hoàn stock + `payment_status='refund_pending'` (COMMIT).
+2. Ngoài transaction (không giữ row lock chờ provider): `requestRefund()` POST
+   tới `VNPAY_REFUND_URL` — v2.1.1 `vnp_Command=refund`, ký HMAC-SHA512 như payment.
+3. Kết quả: `refunded` / `refund_failed` + `payment_refund_note` (code + message)
+   — admin thấy ngay, có thể retry bằng cách hủy lại (transition đã idempotent).
+4. Refund fail KHÔNG rollback cancel (stock đã hoàn) — ghi `refund_failed` +
+   audit để admin xử lý tay. Không bao giờ 500 vì provider (đã test timeout/reset).
+
+Env: `VNPAY_REFUND_URL` (mặc định sandbox merchant v2.1.1), `VNPAY_REFUND_TIMEOUT_MS` (20s).
+Lưu ý spec: cần `vnp_TransactionNo` từ return/IPN — hệ thống đã lưu `payment_txn_ref`.

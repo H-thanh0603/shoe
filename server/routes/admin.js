@@ -78,9 +78,34 @@ router.patch('/orders/:id', requirePerm('orders:write'), validate(z.object({ sta
 
     const paymentStatus = next === 'paid' ? 'paid' : o.payment_status
     await client.query('UPDATE orders SET status = $1, payment_status = $2 WHERE id = $3', [next, paymentStatus, o.id])
+    // cancel đơn đã paid qua VNPay → đánh dấu refund_pending; sau COMMIT gọi
+    // provider (không giữ row lock chờ mạng ngoài — refund fail thì admin retry)
+    if (next === 'cancelled' && o.payment_status === 'paid') {
+      await client.query("UPDATE orders SET payment_status = 'refund_pending' WHERE id = $1", [o.id])
+    }
     await client.query('COMMIT')
     await bust('products:detail', 'admin:analytics') // stock + số dashboard đổi theo trạng thái đơn
     await audit(req, 'order.transition', 'order', o.id, { from: o.status, to: next })
+
+    // ——— VNPay refund thật (ngoài transaction — provider chậm, không giữ lock) ———
+    if (next === 'cancelled' && o.payment_status === 'paid') {
+      const { rows: [ord] } = await pool.query('SELECT ref_code, total_vnd, payment_txn_ref, payment_method FROM orders WHERE id = $1', [o.id])
+      if (ord?.payment_method === 'vnpay' && ord?.payment_txn_ref) {
+        const vnpay = require('../services/vnpay.js')
+        const result = await vnpay.requestRefund({
+          orderId: o.id,
+          amountVnd: ord.total_vnd,
+          transactionNo: ord.payment_txn_ref,
+          user: req.user?.email || 'admin',
+          ip: req.ip,
+        })
+        await pool.query('UPDATE orders SET payment_status = $2, payment_refund_note = $3 WHERE id = $1',
+          [o.id, result.ok ? 'refunded' : 'refund_failed', `${result.ok ? 'OK' : 'FAIL'} ${result.responseCode || ''} ${result.message}`.slice(0, 300)])
+        await audit(req, 'order.refund', 'order', o.id, { ok: result.ok, responseCode: result.responseCode, message: result.message })
+        return ok(res, { id: o.id, status: next, paymentStatus: result.ok ? 'refunded' : 'refund_failed', refund: { ok: result.ok, message: result.message } })
+      }
+      // COD/đơn không có txn: chỉ cần trạng thái (đã refund_pending ở trên nếu vnpay thiếu txn)
+    }
     ok(res, { id: o.id, status: next })
   } catch (e) {
     await client.query('ROLLBACK').catch(() => {})
