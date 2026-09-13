@@ -19,6 +19,81 @@ const sessions = require('./sessions.js')
 const { executeTool, fenceResult, publicToolSpecs, allToolSpecs } = require('./tools.js')
 const { shoppingSystemPrompt } = require('./prompts.js')
 
+// ——— Plan artifact parser (explicit planning) ———
+// Model viết <plan><step>…</step></plan> + <step-done>…</step-done> theo
+// PLANNING_RULES. Parser stream 2-state: đang trong tag thì buffer, ngoài
+// tag thì text thường yield ra SSE như cũ. Plan/step events cho UI render
+// progress thật (task state thay vì chỉ tool chips).
+const PLAN_TAGS = /<\/?plan>|<\/?step>|<\/?step-done>/
+
+/**
+ * Stateless incremental parser cho plan tags trong text stream.
+ * chunk() nhận delta, trả list actions:
+ *   {emit:'text', text} — yield cho user như cũ
+ *   {emit:'plan', steps:[…]} — đủ </plan> rồi
+ *   {emit:'step_done', label} — đủ </step-done>
+ *   {buffer:...} không trả, state nằm trong closure
+ */
+function makePlanTracker() {
+  let buf = ''          // text chưa quyết định được (có thể chứa tag dở)
+  let mode = 'text'     // text | plan | step_done
+  let planSteps = []
+  let currentStep = ''
+  let stepDoneText = ''
+
+  function splitActions(out) {
+    // tách buffer thành: [text-trước-tag, tag-match, phần-còn-lại]
+    const m = buf.match(PLAN_TAGS)
+    if (!m) return false
+    const [full] = m
+    const idx = m.index
+    const before = buf.slice(0, idx)
+    const rest = buf.slice(idx + full.length)
+    buf = rest
+    if (before && mode === 'text') out.push({ emit: 'text', text: before })
+    // trong plan/step-done, before là nội dung tag (không hiện cho user)
+    if (mode === 'plan') {
+      if (full === '</step>') { planSteps.push((currentStep + before).trim()); currentStep = '' }
+      else if (full === '<step>') currentStep = ''
+      else if (full === '</plan>') { out.push({ emit: 'plan', steps: planSteps }); planSteps = [] ; mode = 'text' }
+      else if (full === '<plan>') mode = 'plan'
+    } else if (mode === 'step_done') {
+      if (full === '</step-done>') { out.push({ emit: 'step_done', label: (stepDoneText + before).trim() }); stepDoneText = ''; mode = 'text' }
+    } else {
+      if (full === '<plan>') mode = 'plan'
+      else if (full === '<step-done>') mode = 'step_done'
+      // <step>/< /step> lẻ ngoài plan — tag rác, bỏ (text quanh nó đã emit)
+    }
+    return true
+  }
+
+  return {
+    chunk(delta) {
+      const out = []
+      buf += delta
+      while (splitActions(out)) { /* xử lý tag tiếp trong buf */ }
+      // phần buffer không còn tag: giữ lại tối đa 11 ký tự cuối (chiều dài tag
+      // dài nhất có thể dở = '<step-done>' 11) để chờ tag dở, phần còn lại text
+      if (mode === 'text' && buf.length > 11) {
+        out.push({ emit: 'text', text: buf.slice(0, -11) })
+        buf = buf.slice(-11)
+      } else if (mode === 'plan' && buf.length > 7) {
+        currentStep += buf.slice(0, -7)
+        buf = buf.slice(-7)
+      } else if (mode === 'step_done' && buf.length > 11) {
+        stepDoneText += buf.slice(0, -11)
+        buf = buf.slice(-11)
+      }
+      return out
+    },
+    flush() {
+      const out = []
+      if (buf) { if (mode === 'text') out.push({ emit: 'text', text: buf }); buf = '' }
+      return out
+    },
+  }
+}
+
 // đọc env lúc gọi (không phải lúc require) — test/đổi cấu hình không cần restart
 const maxRounds = () => Math.max(1, Number(process.env.AI_MAX_ROUNDS) || 8)
 const DEFAULT_MAX_TOKENS = Number(process.env.AI_MAX_TOKENS) || 2048
@@ -77,18 +152,29 @@ async function* runTurn({ sessionId, userMessage, agentName = 'shopping', agentI
       /** @type {Array<{id:string,name:string,input:Object}>} */ const toolUses = []
       let stopReason = null
       let partialTool = null // đang stream input của tool nào
+      const plan = makePlanTracker() // 1 tracker mỗi model-round (plan đầu turn)
+      let roundTextRaw = ''
 
       for (;;) {
         const { done, value } = await stream.next()
         if (done) break
         const ev = value
         if (ev.type === 'text_delta') {
-          assistantText += ev.text
-          yield { type: 'text', text: ev.text }
-          if (!roundBlocks.length || roundBlocks[roundBlocks.length - 1]?.type !== 'text') {
-            roundBlocks.push({ type: 'text', text: ev.text })
-          } else {
-            roundBlocks[roundBlocks.length - 1].text += ev.text
+          roundTextRaw += ev.text
+          for (const act of plan.chunk(ev.text)) {
+            if (act.emit === 'text') {
+              assistantText += act.text
+              yield { type: 'text', text: act.text }
+              if (!roundBlocks.length || roundBlocks[roundBlocks.length - 1]?.type !== 'text') {
+                roundBlocks.push({ type: 'text', text: act.text })
+              } else {
+                roundBlocks[roundBlocks.length - 1].text += act.text
+              }
+            } else if (act.emit === 'plan') {
+              yield { type: 'plan', steps: act.steps }
+            } else if (act.emit === 'step_done') {
+              yield { type: 'step_done', label: act.label }
+            }
           }
         } else if (ev.type === 'tool_input_delta') {
           // accumulate partial JSON — parse ở final (giống StreamedRound buffer)
@@ -112,6 +198,19 @@ async function* runTurn({ sessionId, userMessage, agentName = 'shopping', agentI
             roundBlocks.push(...ev.content)
           }
         }
+      }
+      // flush phần text đọng (tag dở cuối stream)
+      for (const act of plan.flush()) {
+        if (act.emit === 'text') {
+          assistantText += act.text
+          yield { type: 'text', text: act.text }
+          if (!roundBlocks.length || roundBlocks[roundBlocks.length - 1]?.type !== 'text') {
+            roundBlocks.push({ type: 'text', text: act.text })
+          } else {
+            roundBlocks[roundBlocks.length - 1].text += act.text
+          }
+        } else if (act.emit === 'plan') yield { type: 'plan', steps: act.steps }
+        else if (act.emit === 'step_done') yield { type: 'step_done', label: act.label }
       }
 
       // normalize tool_use blocks từ final (mọi adapter đều về chuẩn này)
@@ -195,4 +294,4 @@ function toolLabel(name, input) {
   } catch { return name }
 }
 
-module.exports = { runTurn, maxRounds }
+module.exports = { runTurn, maxRounds, makePlanTracker }

@@ -78,6 +78,11 @@ export default function ShoppingAssistant() {
             if (ev.payload?.tool === 'add_to_cart' && ev.payload?.status === 'ok') {
               patchLive((m) => ({ cartAdded: true }))
             }
+          } else if (ev.kind === 'plan') {
+            // explicit planning — task state thật: các bước model tự viết
+            patchLive((m) => ({ plan: ev.payload.steps }))
+          } else if (ev.kind === 'step_done') {
+            patchLive((m) => ({ planDone: [...(m.planDone || []), ev.payload.label] }))
           } else if (ev.kind === 'error') {
             patchLive(() => ({ text: `Lỗi: ${ev.payload?.message || 'không rõ'}`, error: true }))
           }
@@ -147,9 +152,23 @@ export default function ShoppingAssistant() {
 
             {msgs.map((m, i) => {
               const shareUrl = m.from === 'agent' ? cartUrl(m.text) : null
+              const isPlanStepDone = (m, step, idx) => (m.planDone || []).some((d) => d.startsWith(`B${idx + 1}`))
               return (
                 <div key={i} className={`max-w-[92%] px-3 py-2 text-sm leading-relaxed ${m.from === 'user' ? 'self-end ml-auto bg-accent text-ink' : 'border border-white/10 bg-ink-deep text-paper/85'}`}>
-                  <p className="whitespace-pre-wrap break-words">{m.text || (m.live ? '…' : '')}</p>
+                  {m.plan?.length > 0 && (
+                    <ol className="mb-2 space-y-1 border-l border-accent/40 pl-3">
+                      {m.plan.map((step, j) => {
+                        const done = isPlanStepDone(m, step, j)
+                        return (
+                          <li key={j} className={`flex items-start gap-1.5 text-[11px] ${done ? 'text-paper/40 line-through' : busy && m.live ? 'text-paper/80' : 'text-paper/60'}`}>
+                            <span className={done ? 'text-accent' : 'text-paper/30'} aria-hidden="true">{done ? '✓' : '○'}</span>
+                            <span>{step}</span>
+                          </li>
+                        )
+                      })}
+                    </ol>
+                  )}
+                  <p className="whitespace-pre-wrap break-words">{m.text || (m.live && !m.plan?.length ? '…' : '')}</p>
                   {m.tools?.length > 0 && (
                     <p className="mt-1.5 flex flex-wrap gap-1">
                       {m.tools.map((t, j) => (

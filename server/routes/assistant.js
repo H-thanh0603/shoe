@@ -66,6 +66,8 @@ router.post('/chat/stream',
         if (ev.type === 'text') sse('text', ev.text)
         else if (ev.type === 'tool') sse('tool', { name: ev.name, label: ev.label })
         else if (ev.type === 'tool_result') sse('tool_result', { tool: ev.tool, summary: ev.summary, status: ev.status })
+        else if (ev.type === 'plan') sse('plan', { steps: ev.steps })
+        else if (ev.type === 'step_done') sse('step_done', { label: ev.label })
         else if (ev.type === 'turn_complete') sse('turn_complete', { rounds: ev.rounds, elapsedMs: ev.elapsedMs })
         else if (ev.type === 'error') sse('error', { message: ev.message })
       }

@@ -253,3 +253,49 @@ Anthropic. Provider thật đứng sau gateway hoàn toàn do env quyết địn
 5. **Turn cap**: session quá `AI_MAX_TURNS` (default 30) → assistant trả
    thông điệp "tải lại trang" thay vì im lặng (lỗi 429-friendly theo pattern
    bridge cũ).
+
+## Explicit planning + task state (bổ sung sau security review)
+
+Lấp 2 gap "autonomous agent" so với mức task-agent:
+
+1. **Plan artifact** — prompt (`PLANNING_RULES` trong prompts.js) bắt buộc
+   model viết khối `<plan><step>B1: …</step>…</plan>` TRƯỚC khi gọi tool với
+   yêu cầu nhiều bước; mỗi bước xong đánh dấu `<step-done>Bn: …</step-done>`.
+   Việc đơn giản không ép plan (không rác tin nhắn).
+2. **Stream parser** (`makePlanTracker` trong runtime.js) — incremental
+   2-state, xử lý tag bị cắt giữa chừng của stream thật (mock chunk 8 ký tự,
+   test từng ký tự). Tag rác ngoài plan bị bỏ; plan dở không đóng thì flush
+   không emit rác. Text user thấy không lẫn tag.
+3. **SSE events mới**: `plan {steps}` + `step_done {label}` — frontend render
+   checklist tiến độ thật (✓/○ từng bước) thay vì chỉ tool chips.
+4. History vẫn giữ text GỐC (có tag) cho model — round sau model nhớ kế hoạch
+   mình đã tuyên bố; chỉ display layer lọc tag.
+
+Event flow 1 turn phức tạp:
+```
+user(msg nhiều bước) → text(plan) → plan{steps}
+  → tool{search} → tool_result → text(step-done) → step_done{B1: …}
+  → tool{add_to_cart} → tool_result
+  → text(kết luận) → turn_complete
+```
+
+## Explicit planning + task state (bổ sung sau security review)
+
+Lấp 2 gap "autonomous agent" so với mức task-agent:
+
+1. **Plan artifact** — prompt (`PLANNING_RULES` trong prompts.js) bắt buộc
+   model viết khối `<plan><step>B1: …</step>…</plan>` TRƯỚC khi gọi tool với
+   yêu cầu nhiều bước; mỗi bước xong đánh dấu `<step-done>Bn: …</step-done>`.
+   Việc đơn giản không ép plan (không rác tin nhắn).
+2. **Stream parser** (`makePlanTracker` trong runtime.js) — incremental
+   2-state, xử lý tag bị cắt giữa chừng của stream thật (mock chunk 8 ký tự,
+   test từng ký tự). Tag rác ngoài plan bị bỏ; plan dở không đóng thì flush
+   không emit rác. Text user thấy không lẫn tag.
+3. **SSE events mới**: `plan {steps}` + `step_done {label}` — frontend render
+   checklist tiến độ thật (✓/○ từng bước) thay vì chỉ tool chips.
+4. History vẫn giữ text GỐC (có tag) cho model — round sau model nhớ kế hoạch
+   mình đã tuyên bố; chỉ display layer lọc tag.
+
+Event flow 1 turn phức tạp: user(msg nhiều bước) → plan{steps} → tool{search}
+→ tool_result → step_done{B1} → tool{add_to_cart} → tool_result → text(kết
+luận) → turn_complete.

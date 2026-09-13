@@ -56,8 +56,25 @@ function shoppingSystemPrompt(opts = {}) {
     SAFETY_RULES,
     '',
     opts.cartUrlHint ? `Khi thêm giỏ xong, luôn trả kèm link: khách mở shareUrl để nhận giỏ vào trình duyệt và tự bấm thanh toán (human-in-the-loop).` : '',
+    '',
+    PLANNING_RULES,
+    '',
     'Kết thúc câu trả lời tự nhiên — không thêm disclaimer AI.',
   ].filter(Boolean).join('\n')
 }
+
+// ——— Explicit planning (port concept "plan artifact" từ merchant-agent) ———
+// Model VIẾT kế hoạch ra artifact trước khi làm, rồi execute theo plan. Runtime
+// parse + emit event cho UI; không phải chỉ reactive chaining ngầm.
+const PLANNING_RULES = `## Lập kế hoạch
+- Với yêu cầu NHIỀU bước (so sánh nhiều sản phẩm, tìm + kiểm size + thêm giỏ, tổng hợp nhiều nguồn): BẮT ĐẦU câu trả lời bằng khối kế hoạch đúng format sau, mỗi bước 1 dòng:
+  <plan>
+  <step>B1: <mô tả ngắn bước 1></step>
+  <step>B2: <mô tả ngắn bước 2></step>
+  </plan>
+- Mỗi bước ứng 1 mục đích rõ (tìm, kiểm size, so sánh, thêm giỏ, tóm tắt). 2–5 bước là đủ; việc đơn giản (1 câu hỏi, 1 tìm kiếm đơn lẻ) thì KHÔNG cần khối plan — làm luôn.
+- Sau khi xong mỗi bước, đánh dấu ngắn gọn bằng 1 dòng: <step-done>B<n>: xong — <kết quả 1 dòng></step-done>
+- Khối plan viết TRƯỚC khi gọi tool; các dòng step-done xen giữa hành động; cuối turn KHÔNG lặp lại plan.
+- Không bịa bước không có tool tương ứng (vd không có bước "đặt hàng" — không tồn tại tool đó).`
 
 module.exports = { shoppingSystemPrompt, STORE_RULES, TOOL_RULES, VOICE_RULES, SAFETY_RULES }
