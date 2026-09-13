@@ -61,7 +61,7 @@ Kết quả từng mục (chi tiết bằng chứng trong commit `6f6556c`..audi
 | 4 | Protect admin routes | ✅ | `routes/admin.js`: `router.use(requireAuth, loadPerms)` + requirePerm từng route |
 | 5 | Server-side auth | ✅ | JWT httpOnly cookie (không localStorage); middleware auth gắn user vào req |
 | 6 | User permissions | ✅ | RBAC perm table (agent:use/read/write, orders:read, products:write…) — merchant writes staged chờ duyệt |
-| 7 | RLS/DB rules | 🟡 theo chủ đích | App 1 DB role (đúng mô hình); data-scoping ở tầng app: track_order chỉ theo ref_code entropy 32^6, không trả address/email. RLS Postgres chỉ đáng thêm khi multi-tenant |
+| 7 | RLS/DB rules | ✅ quyết định kiến trúc | **Không dùng RLS — bằng chứng lý do**: chỉ 1 role DB (`kinetic`) + duy nhất API server được nối DB (docker network); mọi truy cập đã qua RBAC tầng app. RLS chỉ tăng bảo vệ khi có đường truy cập DB thứ 2 (readonly replica, analyst, psql trực tiếp) — hiện không có. Khi thêm: bật RLS trên orders/users + role riêng per-tenant. Data-scoping app đã verify: track_order chỉ ref_code entropy 32^6 |
 | 8 | Hash passwords | ✅ | bcryptjs cost 10 |
 | 9 | Secure session cookies | ✅ | httpOnly + sameSite=lax + secure (prod); csrf cookie non-httpOnly đúng pattern double-submit |
 | 10 | Encrypt sensitive data | 🟡 | Password hash (bcrypt); VNPay HMAC-SHA512 sign; PII đơn (SĐT/địa chỉ) lưu plaintext trong Postgres — cân nhắc pgcrypto/TLS-at-rest khi có yêu cầu compliance |
