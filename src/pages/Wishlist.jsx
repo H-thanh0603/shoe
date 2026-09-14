@@ -16,7 +16,7 @@ export default function Wishlist({ onToggleCompare, compareIds = [] }) {
   items.sort((a, b) => wishlist.indexOf(a.id) - wishlist.indexOf(b.id))
 
   return (
-    <main className="mx-auto min-h-screen max-w-7xl px-4 pb-20 pt-24 md:px-8">
+    <main id="main-content" className="mx-auto min-h-screen max-w-7xl px-4 pb-20 pt-24 md:px-8">
       <p className="font-mono text-[11px] font-bold tracking-[0.3em] text-accent">
         {serverMode ? 'ĐÃ ĐỒNG BỘ TÀI KHOẢN' : 'LƯU TRÊN THIẾT BỊ NÀY'}
       </p>

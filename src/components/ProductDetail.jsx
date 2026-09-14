@@ -78,12 +78,12 @@ export default function ProductDetail({ slug, back }) {
   }, [p])
 
   if (error) return (
-    <main className="flex min-h-[60vh] items-center justify-center px-4">
+    <main id="main-content" className="flex min-h-[60vh] items-center justify-center px-4">
       <p className="text-sm text-accent font-mono">KHÔNG TÌM THẤY SẢN PHẨM.</p>
     </main>
   )
   if (!p) return (
-    <main className="flex min-h-[60vh] items-center justify-center px-4">
+    <main id="main-content" className="flex min-h-[60vh] items-center justify-center px-4">
       <p className="text-sm font-mono tracking-widest text-paper/50">ĐANG TẢI DỮ LIỆU SNEAKER…</p>
     </main>
   )
@@ -111,7 +111,7 @@ export default function ProductDetail({ slug, back }) {
   }
 
   return (
-    <main className="mx-auto max-w-7xl px-4 pt-24 pb-28 md:px-8 md:pt-32">
+    <main id="main-content" className="mx-auto max-w-7xl px-4 pt-24 pb-28 md:px-8 md:pt-32">
       {/* Back button */}
       <button
         onClick={back}

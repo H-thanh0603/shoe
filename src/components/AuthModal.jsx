@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { apiFetch } from '../lib/api.js'
 
 // Login/Register modal (Bước 6) — JWT httpOnly cookie, server quản session
-const inputCls = 'w-full border border-white/15 bg-ink-deep px-3 py-2.5 text-sm text-paper placeholder:text-paper/30 focus:border-accent focus:outline-none'
+const inputCls = 'w-full border border-white/15 bg-ink-deep px-3 py-2.5 text-sm text-paper placeholder:text-paper/50 focus:border-accent focus:outline-none'
 const labelCls = 'mb-1 block text-[10px] font-semibold tracking-widest text-paper/60'
 
 const api = (path, body) => apiFetch(`/auth${path}`, body ? { method: 'POST', body } : undefined)

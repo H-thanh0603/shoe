@@ -10,7 +10,7 @@ import Drop from '../components/Drop.jsx'
 
 export default function Home({ onQuiz, secret, onToggleCompare, compareIds }) {
   return (
-    <main>
+    <main id="main-content">
       <Hero onQuiz={onQuiz} />
       <Marquee secret={secret} />
       <WeatherStrip />

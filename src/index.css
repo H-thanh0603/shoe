@@ -219,3 +219,18 @@ body[data-accent] .reveal { transition-duration: 450ms; }
     transition-duration: 0.01ms !important;
   }
 }
+
+/* ——— A11y: keyboard focus rõ ràng toàn cục (WCAG 2.4.7) ———
+   Không đổi layout khi focus, viền accent 2px đủ tương phản trên nền tối;
+   :focus-visible chỉ áp cho keyboard (click chuột không hiện viền thừa). */
+:focus-visible {
+  outline: 2px solid #d1ff3f;
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}

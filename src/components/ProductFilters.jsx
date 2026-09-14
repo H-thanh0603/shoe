@@ -39,7 +39,7 @@ export function SearchBar({ value, onChange }) {
           value={value}
           onChange={(e) => onChange(e.target.value)}
           placeholder="TÌM SNEAKER THEO TÊN, THƯƠNG HIỆU, CÔNG NGHỆ (VIBRAM, CARBON, GORE-TEX)..."
-          className="w-full bg-transparent px-4 py-3.5 font-mono text-xs uppercase tracking-wider text-paper placeholder:text-paper/30 focus:outline-none md:text-sm"
+          className="w-full bg-transparent px-4 py-3.5 font-mono text-xs uppercase tracking-wider text-paper placeholder:text-paper/50 focus:outline-none md:text-sm"
         />
         {value && (
           <button

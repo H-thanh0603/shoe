@@ -66,3 +66,21 @@ Compose service `alerter` (mỗi 60s) chạy `server/scripts/alert.js`:
 - Exit code: 0 = ổn, 1 = có vấn đề (nối CronJob/k8s probe được).
 
 Kiểm thử: `node --test test/alert.test.js` (4 case: ổn, chết, jobs+AI, cooldown).
+
+## Staging (docker-compose.staging.yml)
+
+Bản sao prod thu nhỏ, **dữ liệu + port + secret riêng**:
+
+```bash
+# .env cần JWT_SECRET_STAGING (BUỘT khác prod — token không dùng chéo môi trường)
+docker compose -f docker-compose.staging.yml --project-name kinetic-staging up --build -d
+# kiểm tra: curl http://localhost:8100/healthz
+# xoá sạch kèm data: docker compose -f docker-compose.staging.yml --project-name kinetic-staging down -v
+```
+
+Khác prod: project name riêng (containers/volumes/network tách), port 8100
+trực tiếp (không edge domain), volumes `pgdata_staging`/`redisdata_staging`,
+KHÔNG mount /backups (không ghi đè WAL prod), seed idempotent chạy trước
+start (flow test có data thật). Vòng: **merge → staging up → smoke test →
+prod deploy** — migration hỏng phát hiện ở staging, không phải trước mắt
+khách.

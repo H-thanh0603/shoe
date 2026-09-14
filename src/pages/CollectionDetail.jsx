@@ -20,7 +20,7 @@ export default function CollectionDetail({ slug, onToggleCompare, compareIds = [
 
   if (collections && !collection) {
     return (
-      <main className="mx-auto max-w-7xl px-4 pt-32 pb-28 md:px-8">
+      <main id="main-content" className="mx-auto max-w-7xl px-4 pt-32 pb-28 md:px-8">
         <p className="font-mono text-sm text-accent">KHÔNG CÓ BỘ SƯU TẬP NÀY.</p>
         <a href="/bo-suu-tap" className="mt-4 inline-block text-sm text-paper/70 hover:text-accent">← XEM TẤT CẢ</a>
       </main>
@@ -28,7 +28,7 @@ export default function CollectionDetail({ slug, onToggleCompare, compareIds = [
   }
 
   return (
-    <main className="mx-auto max-w-7xl px-4 pt-24 pb-28 md:px-8 md:pt-32">
+    <main id="main-content" className="mx-auto max-w-7xl px-4 pt-24 pb-28 md:px-8 md:pt-32">
       <a href="/bo-suu-tap" className="font-mono text-xs tracking-widest text-paper/50 hover:text-accent">← BỘ SƯU TẬP</a>
       <p className="mt-4 font-mono text-xs tracking-widest text-accent uppercase">COLLECTION //</p>
       <h1 className="display-l mt-1 text-paper">{collection?.name || '…'}</h1>

@@ -9,7 +9,7 @@ const vnd = (n) => Number(n || 0).toLocaleString('vi-VN') + '₫'
 const th = 'px-3 py-2 text-left font-mono text-[10px] tracking-widest text-paper/50'
 const td = 'px-3 py-2 text-sm text-paper/80'
 const btn = 'border border-white/15 px-2.5 py-1 font-mono text-[11px] text-paper/70 hover:border-accent hover:text-accent disabled:opacity-40'
-const inputCls = 'border border-white/15 bg-ink-deep px-2.5 py-1.5 text-sm text-paper placeholder:text-paper/30 focus:border-accent focus:outline-none'
+const inputCls = 'border border-white/15 bg-ink-deep px-2.5 py-1.5 text-sm text-paper placeholder:text-paper/50 focus:border-accent focus:outline-none'
 
 function Stat({ label, value, accent }) {
   return (
@@ -269,11 +269,11 @@ function Collections() {
       </div>
       {draft && (
         <form onSubmit={save} className="mt-3 grid gap-2 sm:grid-cols-2">
-          <input className={inputCls} placeholder="Tên (VD: Chạy bộ mùa hè)" required minLength={2}
+          <input className={inputCls} placeholder="Tên (VD: Chạy bộ mùa hè)" aria-label="Tên danh mục" required minLength={2}
             value={draft.name} onChange={(e) => setDraft({ ...draft, name: e.target.value })} />
-          <input className={inputCls} placeholder="slug (a-z, dấu gạch)" required pattern="[a-z0-9-]+"
+          <input className={inputCls} placeholder="slug (a-z, dấu gạch)" aria-label="Slug danh mục (đường dẫn)" required pattern="[a-z0-9-]+"
             value={draft.slug} onChange={(e) => setDraft({ ...draft, slug: e.target.value })} />
-          <input className={inputCls} placeholder="Mô tả ngắn" maxLength={300}
+          <input className={inputCls} placeholder="Mô tả ngắn" aria-label="Mô tả danh mục" maxLength={300}
             value={draft.desc} onChange={(e) => setDraft({ ...draft, desc: e.target.value })} />
           <div className="flex items-center gap-3">
             <input type="color" className="h-9 w-14 border border-white/15 bg-transparent" aria-label="Màu nền"
@@ -508,6 +508,7 @@ function Products() {
                   onChange={(e) => setAdjust((a) => ({ ...a, [v.id]: e.target.value }))}
                   placeholder="+5 / −2"
                   inputMode="numeric"
+                  aria-label={`Điều chỉnh tồn size ${v.size}`}
                   className={`${inputCls} w-24`}
                 />
                 <button onClick={() => restock(v)} className={btn}>NHẬP/XUẤT</button>
@@ -915,10 +916,10 @@ export default function Admin() {
     if (checked && visibleTabs.length && !visibleTabs.some(([id]) => id === tab)) setTab(visibleTabs[0][0])
   }, [checked]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  if (!checked) return <main className="mx-auto max-w-6xl px-4 pt-24 pb-28 md:pt-32"><p className="font-mono text-xs text-paper/50">ĐANG KIỂM TRA QUYỀN…</p></main>
+  if (!checked) return <main id="main-content" className="mx-auto max-w-6xl px-4 pt-24 pb-28 md:pt-32"><p className="font-mono text-xs text-paper/50">ĐANG KIỂM TRA QUYỀN…</p></main>
   if (!me || visibleTabs.length === 0) {
     return (
-      <main className="mx-auto max-w-3xl px-4 pt-24 pb-28 md:pt-32">
+      <main id="main-content" className="mx-auto max-w-3xl px-4 pt-24 pb-28 md:pt-32">
         <p className="font-mono text-xs tracking-widest text-accent">ADMIN //</p>
         <h1 className="display-l mt-1 text-paper">KHÔNG CÓ QUYỀN<span className="text-accent">.</span></h1>
         <p className="mt-4 text-sm text-paper/60">Tài khoản của bạn chưa được gán vai trò quản trị nào. Liên hệ admin để được phân quyền.</p>
@@ -928,7 +929,7 @@ export default function Admin() {
   }
 
   return (
-    <main className="mx-auto max-w-6xl px-4 pt-24 pb-28 md:px-8 md:pt-32">
+    <main id="main-content" className="mx-auto max-w-6xl px-4 pt-24 pb-28 md:px-8 md:pt-32">
       <p className="font-mono text-xs tracking-widest text-accent">ADMIN // {me.email}</p>
       <h1 className="display-l mt-1 text-paper">QUẢN TRỊ<span className="text-accent">.</span></h1>
 

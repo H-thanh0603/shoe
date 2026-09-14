@@ -2,7 +2,7 @@ import ProductGrid from '../components/ProductGrid.jsx'
 
 export default function Shop({ onToggleCompare, compareIds }) {
   return (
-    <main className="pt-16">
+    <main id="main-content" className="pt-16">
       <ProductGrid
         onToggleCompare={onToggleCompare}
         compareIds={compareIds}

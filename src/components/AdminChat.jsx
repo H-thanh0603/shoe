@@ -91,7 +91,7 @@ export default function AdminChat() {
           value={input}
           onChange={(e) => setInput(e.target.value)}
           placeholder="VD: tồn kho nào dưới 3 đôi? / nhập thêm 10 đôi air-vector-01 size 42"
-          className="flex-1 border border-white/15 bg-ink-deep px-3 py-2.5 text-sm text-paper placeholder:text-paper/30 focus:border-accent focus:outline-none"
+          className="flex-1 border border-white/15 bg-ink-deep px-3 py-2.5 text-sm text-paper placeholder:text-paper/50 focus:border-accent focus:outline-none"
         />
         <button type="submit" disabled={busy || !input.trim()} className="border border-accent bg-accent px-5 font-display text-xs font-bold tracking-widest text-ink hover:bg-transparent hover:text-accent disabled:opacity-40">
           GỬI

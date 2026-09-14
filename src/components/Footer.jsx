@@ -40,7 +40,7 @@ export default function Footer() {
                 type="email"
                 required
                 placeholder="email@cua ban"
-                className="min-w-0 flex-1 border border-white/20 bg-transparent px-4 py-3 text-sm text-paper placeholder:text-paper/30 focus:border-accent focus:outline-none"
+                className="min-w-0 flex-1 border border-white/20 bg-transparent px-4 py-3 text-sm text-paper placeholder:text-paper/50 focus:border-accent focus:outline-none"
               />
               <button
                 type="submit"

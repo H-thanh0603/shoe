@@ -98,7 +98,7 @@ export default function SearchPalette({ open, onClose }) {
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder="TÌM SNEAKER, THƯƠNG HIỆU, CÔNG NGHỆ, MỤC ĐÍCH..."
-            className="flex-1 bg-transparent font-display text-sm uppercase tracking-wider text-paper placeholder:text-paper/30 focus:outline-none"
+            className="flex-1 bg-transparent font-display text-sm uppercase tracking-wider text-paper placeholder:text-paper/50 focus:outline-none"
           />
           {query && (
             <button

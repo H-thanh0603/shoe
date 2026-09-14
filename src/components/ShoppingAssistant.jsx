@@ -194,7 +194,7 @@ export default function ShoppingAssistant() {
               value={input}
               onChange={(e) => setInput(e.target.value)}
               placeholder="VD: giày chạy bộ dưới 2 triệu size 42"
-              className="flex-1 border border-white/15 bg-ink-deep px-3 py-2.5 text-sm text-paper placeholder:text-paper/30 focus:border-accent focus:outline-none"
+              className="flex-1 border border-white/15 bg-ink-deep px-3 py-2.5 text-sm text-paper placeholder:text-paper/50 focus:border-accent focus:outline-none"
             />
             <button type="submit" disabled={busy || !input.trim()}
               className="border border-accent bg-accent px-4 font-display text-xs font-bold tracking-widest text-ink hover:bg-transparent hover:text-accent disabled:opacity-40">

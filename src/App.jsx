@@ -60,6 +60,14 @@ export default function App() {
   return (
     <>
       <Preloader />
+      {/* Skip-link: keyboard users nhảy thẳng tới nội dung, không phải tab
+          qua toàn bộ nav mỗi page (WCAG 2.4.1 Bypass Blocks) */}
+      <a
+        href="#main-content"
+        className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-[100] focus:bg-accent focus:px-4 focus:py-2 focus:font-mono focus:text-xs focus:font-bold focus:text-ink"
+      >
+        TỚI NỘI DUNG
+      </a>
       <div className="grain" aria-hidden="true" />
       <Nav
         onQuiz={openQuiz}

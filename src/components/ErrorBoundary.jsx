@@ -15,7 +15,7 @@ export default class ErrorBoundary extends Component {
   render() {
     if (!this.state.error) return this.props.children
     return (
-      <main className="flex min-h-[60vh] flex-col items-center justify-center gap-4 px-4 text-center">
+      <main id="main-content" className="flex min-h-[60vh] flex-col items-center justify-center gap-4 px-4 text-center">
         <p className="font-mono text-xs tracking-widest text-accent">CÓ LỖI XẢY RA</p>
         <p className="max-w-sm text-sm text-paper/60">
           Mục này đang gặp sự cố. Thử tải lại trang — giỏ hàng và đơn hàng của bạn vẫn an toàn trên server.

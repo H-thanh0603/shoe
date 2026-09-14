@@ -121,7 +121,7 @@ export default function TrackOrder({ initialCode }) {
   const stepIdx = order ? STEPS.indexOf(order.status) : -1
 
   return (
-    <main className="mx-auto max-w-3xl px-4 pt-24 pb-28 md:px-8 md:pt-32">
+    <main id="main-content" className="mx-auto max-w-3xl px-4 pt-24 pb-28 md:px-8 md:pt-32">
       <p className="font-mono text-xs tracking-widest text-accent">TRA CỨU // ĐƠN HÀNG</p>
       <h1 className="display-l mt-1 text-paper">ĐƠN CỦA BẠN<span className="text-accent">.</span></h1>
 
@@ -144,7 +144,8 @@ export default function TrackOrder({ initialCode }) {
           value={code}
           onChange={(e) => setCode(e.target.value.toUpperCase())}
           placeholder="NHẬP MÃ ĐƠN: KIN-XXXXXX"
-          className="flex-1 border border-white/20 bg-charcoal px-4 py-3.5 font-mono text-sm uppercase tracking-widest text-paper placeholder:text-paper/30 focus:border-accent focus:outline-none"
+          aria-label="Mã đơn hàng"
+          className="flex-1 border border-white/20 bg-charcoal px-4 py-3.5 font-mono text-sm uppercase tracking-widest text-paper placeholder:text-paper/50 focus:border-accent focus:outline-none"
         />
         <button
           type="submit"

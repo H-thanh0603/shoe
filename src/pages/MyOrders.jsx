@@ -15,7 +15,7 @@ export default function MyOrders() {
   }, [])
 
   return (
-    <main className="mx-auto max-w-3xl px-4 pt-24 pb-28 md:px-8 md:pt-32">
+    <main id="main-content" className="mx-auto max-w-3xl px-4 pt-24 pb-28 md:px-8 md:pt-32">
       <p className="font-mono text-xs tracking-widest text-accent">TÀI KHOẢN // ĐƠN HÀNG</p>
       <h1 className="display-l mt-1 text-paper">ĐƠN CỦA TÔI<span className="text-accent">.</span></h1>
 

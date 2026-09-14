@@ -2,7 +2,7 @@ import { useRef, useState } from 'react'
 import { apiFetch } from '../lib/api.js'
 
 // Checkout step trong CartDrawer (Bước 5) — POST /api/v1/orders, Idempotency-Key chống double submit
-const inputCls = 'w-full border border-white/15 bg-ink-deep px-3 py-2.5 text-sm text-paper placeholder:text-paper/30 focus:border-accent focus:outline-none'
+const inputCls = 'w-full border border-white/15 bg-ink-deep px-3 py-2.5 text-sm text-paper placeholder:text-paper/50 focus:border-accent focus:outline-none'
 const labelCls = 'mb-1 block text-[10px] font-semibold tracking-widest text-paper/60'
 
 const vnd = (n) => Number(n || 0).toLocaleString('vi-VN') + '₫'

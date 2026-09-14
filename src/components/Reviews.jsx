@@ -148,7 +148,7 @@ export default function Reviews({ slug }) {
           rows={3}
           maxLength={1000}
           placeholder="Cảm nhận về fit, êm, chất liệu… (tùy chọn)"
-          className="mt-3 w-full border border-white/15 bg-ink-deep px-3 py-2.5 text-sm text-paper placeholder:text-paper/30 focus:border-accent focus:outline-none"
+          className="mt-3 w-full border border-white/15 bg-ink-deep px-3 py-2.5 text-sm text-paper placeholder:text-paper/50 focus:border-accent focus:outline-none"
         />
         <div className="mt-3 flex flex-wrap items-center gap-2">
           <label className="cursor-pointer border border-white/15 px-3 py-1.5 font-mono text-xs text-paper/70 hover:border-accent hover:text-accent">
