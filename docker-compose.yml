@@ -8,8 +8,7 @@ services:
       POSTGRES_PASSWORD: kinetic
       POSTGRES_DB: kinetic
     ports:
-      - "5433:5432" # debug/test local trỏ vào DB container (app trong compose vẫn dùng host `postgres`)
-      # PROD: đóng port này (bind 127.0.0.1 hoặc bỏ) — DB không bao giờ public internet.
+      - "127.0.0.1:5433:5432" # loopback only — debug/test local. PROD đóng hẳn (bỏ block này).
     volumes:
       - pgdata:/var/lib/postgresql # PG18+: mount cha, data nằm trong subdir (pg_upgrade-safe)
       - ./backups:/backups # WAL archive cho PITR (xem docs/BACKUP.md)
@@ -60,6 +59,13 @@ services:
       REDIS_URL: redis://redis:6379
       JWT_SECRET: ${JWT_SECRET:?đặt JWT_SECRET trong .env khi deploy}
       METRICS_SECRET: ${METRICS_SECRET:-}
+      SENTRY_DSN: ${SENTRY_DSN:-}
+      PII_KEY: ${PII_KEY:?đặt PII_KEY trong .env khi deploy (mất key = mất PII enc)}
+      VNPAY_TMN_CODE: ${VNPAY_TMN_CODE:-}
+      VNPAY_HASH_SECRET: ${VNPAY_HASH_SECRET:-}
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASS: ${SMTP_PASS:-}
       TRUST_PROXY: 1
       CACHE_TTL_SEC: 60
     ports:

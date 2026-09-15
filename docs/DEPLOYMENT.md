@@ -4,16 +4,22 @@
 
 Node 20+, PostgreSQL 15+.
 
-## Biến môi trường (`server/.env` — copy từ `.env.example`)
+## Biến môi trường (`server/.env` — copy từ `server/.env.example`)
 
 ```
 DATABASE_URL=postgresql://kinetic:kinetic@localhost:5432/kinetic
-JWT_SECRET=đổi-chuỗi-này-khi-deploy   # BẮT BUỘC đổi (xem checklist)
+JWT_SECRET=đổi-chuỗi-này-khi-deploy   # BẮT BUỘC (prod thiếu → từ chối chạy)
+PII_KEY=<base64-32-byte>               # BẮT BUỘC prod (thiếu → PII plaintext + warn)
 PORT=3000
 NODE_ENV=production                   # bật cookie secure + tắt stack trace
-BRIDGE_URL=http://127.0.0.1:4001
-BRIDGE_SECRET=đổi-chuỗi-này           # phải khớp agents/.env
+SEED_ADMIN_EMAIL=admin@shop.vn
+SEED_ADMIN_PASSWORD=<mạnh>             # seed chỉ tạo admin khi cả 2 set (không credential mặc định)
+METRICS_SECRET=<random>                # gate /metrics cho alerter/LB
+SENTRY_DSN=<...>                       # trống = chỉ log stderr
 ```
+
+**Compose deploy** (`docker-compose.yml`): `JWT_SECRET` + `PII_KEY` bắt buộc (`${VAR:?...}` —
+thiếu thì container từ chối start). VNPay/SMTP optional (thiếu → COD-only / không gửi mail).
 
 **`JWT_SECRET` bắt buộc đổi khi deploy** — fallback dev-secret trong code chỉ chạy local.
 
@@ -36,17 +42,22 @@ Kiểm: `curl localhost:3000/api/v1/products` trả envelope JSON; mở `http://
 
 ## Kiểm tra trước khi lên production
 
-1. `JWT_SECRET` random dài (≥32 ký tự). Đổi pass admin seed `kinetic-admin` ngay sau deploy đầu tiên (seed không tự rotate).
+1. `JWT_SECRET` random dài (≥32 ký tự). `PII_KEY` sinh theo `server/.env.example`.
+   Seed admin qua `SEED_ADMIN_EMAIL/PASSWORD` — đổi pass ngay sau deploy đầu tiên.
 2. `NODE_ENV=production` — bật cookie `secure`, tắt stack trace lỗi.
-3. Sau proxy/nginx: `app.set('trust proxy', 1)` trong server.js — không thì rate-limit đếm IP proxy cho tất cả user như nhau.
-4. HTTPS terminate ở proxy (nginx/caddy).
-5. DB user ít quyền (chỉ DML +DDL migrations trên schema shop), **backup Postgres định kỳ** (chưa có là mất đơn/kho khi sập đĩa).
+3. Sau proxy/nginx: `TRUST_PROXY=1` (compose đã set) — không thì rate-limit đếm IP proxy cho tất cả user như nhau.
+4. HTTPS terminate ở proxy (nginx/caddy) + bật HSTS trong `ops/nginx.conf`.
+5. DB user ít quyền (chỉ DML +DDL migrations trên schema shop), **backup + offsite + drill định kỳ** (xem `BACKUP.md` + `BACKUP_DRILLS.md`).
 6. Không commit `.env` (server + agents đều đã gitignore).
-7. AI (nếu bật chat/agent): `BRIDGE_SECRET` khớp 2 bên, bridge + proxy bind loopback, điền key LLM thật, đặt ngân sách/ngày cho provider.
+7. AI: provider key thật trong env (`AI_API_KEY`), fallback chain nếu cần, budget
+   ngày `AI_DAILY_TURNS_PER_IP` (mặc định 100/IP). Merchant bridge (`agent.js`):
+   `BRIDGE_SECRET` khớp 2 bên, bridge + proxy bind loopback.
 
 ## Chạy nhiều instance (khi cần scale)
 
-Stateless ngoài DB: cart trong PostgreSQL, JWT không cần session server. Rate-limit in-memory — nhiều instance thì limit per-instance (mỗi node tự 10 lượt). Khi cần limit chung: chuyển sang `rate-limit-redis` + Redis. Hiện 1 instance đủ.
+Stateless ngoài DB: cart trong PostgreSQL, JWT không cần session server. Rate-limit
+shared qua Redis (`middleware/rateStore.js` — có `REDIS_URL` thì đếm chung cả cụm;
+memory-only thì mỗi process đếm riêng). Compose đã set `REDIS_URL` cho app+worker.
 
 ## Alerting — người trực biết TRƯỚC khách hàng
 
