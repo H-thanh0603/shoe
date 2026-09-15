@@ -7,8 +7,18 @@ const helmet = require('helmet')
 const rateLimit = require('express-rate-limit')
 const path = require('node:path')
 const { port: PORT, trustProxy, clusterWorkers, jobsEnabled, workerOnly, authRateLimit } = require('./config.js')
-const { apiNotFound, errorHandler } = require('./middleware/errorHandler.js')
+const { apiNotFound, errorHandler, reportError } = require('./middleware/errorHandler.js')
 const { sharedStore } = require('./middleware/rateStore.js')
+
+// Lỗi ngoài request (promise rơi, exception): log + Sentry, không crash lặng lẽ.
+process.on('unhandledRejection', (err) => {
+  console.error('[unhandledRejection]', err)
+  try { reportError(err, null) } catch {}
+})
+process.on('uncaughtException', (err) => {
+  console.error('[uncaughtException]', err)
+  try { reportError(err, null) } catch {}
+})
 
 function buildApp() {
   const app = express()
