@@ -12,7 +12,14 @@ async function processPayment(query) {
   if (!v.ok) return { status: 400, body: { RspCode: '97', Message: 'Chữ ký không hợp lệ' } }
   if (v.responseCode !== '00') return { status: 200, body: { RspCode: '02', Message: 'Đơn chưa thanh toán' } }
 
-  // Idempotent: chỉ unpaid mới update; callback trùng bỏ qua
+  // Idempotent + chống lệch tiền: chỉ unpaid mới update, amount VNPay ký phải khớp total DB.
+  const { rows: [order] } = await pool.query(
+    'SELECT id, total_vnd, payment_status FROM orders WHERE id = $1', [v.orderId])
+  if (!order) return { status: 200, body: { RspCode: '01', Message: 'Không tìm thấy đơn' } }
+  if (order.payment_status !== 'unpaid') return { status: 200, body: { RspCode: '00', Message: 'Đơn đã xử lý' } }
+  if (Number(v.amountVnd) !== Number(order.total_vnd)) {
+    return { status: 200, body: { RspCode: '04', Message: 'Số tiền không khớp' } }
+  }
   const { rows: [updated] } = await pool.query(
     `UPDATE orders SET payment_status = 'paid', payment_txn_ref = $2, status = CASE WHEN status = 'pending' THEN 'paid' ELSE status END
      WHERE id = $1 AND payment_status = 'unpaid'

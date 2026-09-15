@@ -174,13 +174,27 @@ router.post('/logout-all', requireAuth, async (req, res) => {
   res.json({ success: true, data: { ok: true } })
 })
 
-// §37 forgot-password — không có mailer (plan bỏ email) nên trả resetToken trong response
-// để flow demo chạy được. Khi có mailer: gửi qua email, bỏ field này.
+// §37 forgot-password — gửi resetToken qua mailer khi SMTP sẵn.
+// Chưa cấu hình SMTP: chỉ log server-side (dev), response luôn {ok:true} —
+// KHÔNG trả token cho client để tránh account takeover.
 router.post('/forgot-password', validate(z.object({ email: z.string().email() })), async (req, res) => {
   const { rows: [user] } = await pool.query('SELECT id FROM users WHERE email = $1', [req.body.email])
   // không tiết lộ email tồn tại hay không — response giống nhau
-  const resetToken = user ? signReset(user) : null
-  res.json({ success: true, data: { ok: true, ...(resetToken && { resetToken }) } })
+  if (user) {
+    const resetToken = signReset(user)
+    const { send, configured } = require('../services/mailer.js')
+    if (configured()) {
+      await send({ to: req.body.email, subject: 'Đặt lại mật khẩu KINETIC', text: `Link đặt lại (15 phút): /dat-lai-mat-khau?token=${resetToken}` }).catch(() => {})
+    } else if (process.env.NODE_ENV !== 'production') {
+      // ponytail: dev/test không có SMTP vẫn cần token để chạy flow demo + test.
+      // Production KHÔNG SMTP → chỉ {ok:true}, admin phải cấu hình SMTP.
+      console.log(`[auth] forgot-password (SMTP off) user=${user.id} — token giữ server-side, không trả client`)
+      return res.json({ success: true, data: { ok: true, resetToken } })
+    } else {
+      console.log(`[auth] forgot-password user=${user.id} — SMTP chưa cấu hình, không gửi được link`)
+    }
+  }
+  res.json({ success: true, data: { ok: true } })
 })
 
 // §37 reset-password — token 15m, 1-lần-dùng thật (jti bị blacklist ngay khi dùng).
@@ -199,8 +213,8 @@ router.post('/reset-password', validate(z.object({
     await cache.set(`bl:${payload.jti}`, 1, 900).catch(() => {}) // reset link dùng 1 lần
     await pool.query('UPDATE auth_sessions SET revoked_at = now() WHERE user_id = $1 AND revoked_at IS NULL', [payload.sub])
     await cache.set(`uav:${payload.sub}`, Math.floor(Date.now() / 1000)).catch(() => {})
-    res.clearCookie('token')
-    res.clearCookie('refresh_token')
+    res.clearCookie('token', { ...ACCESS_OPTS, maxAge: undefined })
+    res.clearCookie('refresh_token', { ...COOKIE_OPTS, maxAge: undefined })
     res.json({ success: true, data: { ok: true } })
   } catch (e) {
     if (['sai loại token', 'token đã dùng', 'user không tồn tại'].includes(e.message) || e.name === 'TokenExpiredError' || e.name === 'JsonWebTokenError') {

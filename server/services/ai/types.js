@@ -160,7 +160,8 @@ function defaultRetryable(code) {
 
 function defaultFallbackEligible(code) {
   switch (code) {
-    case 'AUTH': case 'RATE_LIMIT': case 'TIMEOUT': case 'SERVER': case 'OVERLOAD':
+    // AUTH (key sai) fail-closed: đổi provider chỉ đốt quota vô ích — sửa key thay vì fallback.
+    case 'RATE_LIMIT': case 'TIMEOUT': case 'SERVER': case 'OVERLOAD':
     case 'NETWORK': case 'MODEL_NOT_FOUND': case 'NO_PROVIDER':
       return true
     default: // BAD_REQUEST / CAPABILITY — lỗi của nội dung, đổi provider không救

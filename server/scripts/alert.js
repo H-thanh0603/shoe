@@ -31,7 +31,8 @@ const COOLDOWN_MIN = Number(process.env.ALERT_COOLDOWN_MIN || 30)
 const STATE_FILE = process.env.ALERT_STATE_FILE || path.join(os.tmpdir(), 'kinetic-alert-state.json')
 
 async function getJson(url, timeoutMs = 5000) {
-  const r = await fetch(url, { signal: AbortSignal.timeout(timeoutMs) })
+  const headers = process.env.METRICS_SECRET ? { 'x-metrics-secret': process.env.METRICS_SECRET } : {}
+  const r = await fetch(url, { headers, signal: AbortSignal.timeout(timeoutMs) })
   const body = await r.json().catch(() => ({}))
   return { status: r.status, body }
 }

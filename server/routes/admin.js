@@ -110,7 +110,11 @@ router.patch('/orders/:id', requirePerm('orders:write'), validate(z.object({ sta
     ok(res, { id: o.id, status: next })
   } catch (e) {
     await client.query('ROLLBACK').catch(() => {})
-    res.status(e.status || 500).json({ success: false, error: { code: e.code || 'INTERNAL', message: e.message } })
+    if (!e.status || e.status >= 500) {
+      console.error(`[${req?.id || '-'}]`, e)
+      return res.status(500).json({ success: false, error: { code: 'INTERNAL', message: 'Lỗi server' } })
+    }
+    res.status(e.status).json({ success: false, error: { code: e.code || 'INTERNAL', message: e.message } })
   } finally { client.release() }
 })
 
@@ -272,7 +276,15 @@ router.post('/products/:id/images', requirePerm('products:write'),
   express.raw({ type: Object.keys(IMAGE_TYPES), limit: MAX_UPLOAD_BYTES }),
   async (req, res) => {
     if (!req.body || !req.body.length) return bad(res, 'INVALID_IMAGE', 'Thiếu dữ liệu ảnh')
-    const ext = IMAGE_TYPES[req.headers['content-type']] // khớp type đã lọc ở express.raw
+    // Sniff magic bytes — Content-Type header tự khai, không tin được.
+    const magic = req.body.subarray(0, 12)
+    const isJpeg = magic[0] === 0xFF && magic[1] === 0xD8 && magic[2] === 0xFF
+    const isPng = magic[0] === 0x89 && magic[1] === 0x50 && magic[2] === 0x4E && magic[3] === 0x47
+    const isWebp = magic[0] === 0x52 && magic[1] === 0x49 && magic[2] === 0x46 && magic[3] === 0x46
+      && magic[8] === 0x57 && magic[9] === 0x45 && magic[10] === 0x42 && magic[11] === 0x50
+    const sniffed = isJpeg ? '.jpg' : isPng ? '.png' : isWebp ? '.webp' : null
+    if (!sniffed) return bad(res, 'INVALID_IMAGE', 'File không phải ảnh JPEG/PNG/WebP thật')
+    const ext = sniffed // dùng ext từ magic, không từ header
     const name = `p${req.params.id}-${Date.now()}-${crypto.randomUUID().slice(0, 8)}${ext}`
     try {
       fs.mkdirSync(UPLOAD_DIR, { recursive: true })

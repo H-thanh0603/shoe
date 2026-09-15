@@ -49,8 +49,15 @@ function buildApp() {
       res.status(503).json({ ok: false, error: e.message })
     }
   })
-  // /metrics: số liệu tối giản cho Prometheus/người trực (fail-open từng phần)
-  app.get('/metrics', async (_req, res) => {
+  // /metrics: số liệu tối giản cho Prometheus/người trực (fail-open từng phần).
+  // Gate nội bộ: chỉ cho khi có METRICS_SECRET khớp header, hoặc request từ
+  // localhost/docker-net khi chưa set secret (dev). Không public số jobs/AI lỗi.
+  app.get('/metrics', async (req, res) => {
+    const s = process.env.METRICS_SECRET || ''
+    const internal = ['127.0.0.1', '::1', '::ffff:127.0.0.1'].includes(req.ip)
+    if (s ? req.get('x-metrics-secret') !== s : !internal) {
+      return res.status(403).json({ success: false, error: { code: 'FORBIDDEN', message: 'Không có quyền' } })
+    }
     const { snapshot } = require('./middleware/requestId.js')
     const out = { app: snapshot(), cache: null, jobs: null }
     try { out.cache = require('./services/cache.js').info() } catch { /* không có cache vẫn trả app */ }

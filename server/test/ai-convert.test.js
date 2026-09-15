@@ -213,7 +213,7 @@ test('AIError: phân loại retryable/fallbackEligible', () => {
   assert.equal(new AIError('RATE_LIMIT', 'x').fallbackEligible, true)
   assert.equal(new AIError('BAD_REQUEST', 'x').retryable, false)
   assert.equal(new AIError('BAD_REQUEST', 'x').fallbackEligible, false) // lỗi nội dung — đổi provider không cứu
-  assert.equal(new AIError('AUTH', 'x').fallbackEligible, true) // sai key provider này → provider khác vẫn được
+  assert.equal(new AIError('AUTH', 'x').fallbackEligible, false) // key sai fail-closed — sửa key, không đốt quota fallback
   assert.equal(new AIError('CAPABILITY', 'x').fallbackEligible, false)
 })
 

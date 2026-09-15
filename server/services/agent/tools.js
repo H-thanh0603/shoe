@@ -82,7 +82,7 @@ async function executeTool(name, args, ctx) {
     await logActivity(ctx, name, 'error', args, 'tool không tồn tại', 'TOOL_NOT_FOUND')
     return { ok: false, result: { error: { code: 'TOOL_NOT_FOUND', message: `Không có tool "${name}"` } }, summary: `tool "${name}" không tồn tại` }
   }
-  if (ctx?.role === 'assistant' && !PUBLIC_ALLOWED.has(name)) {
+  if (ctx?.role !== 'merchant' && !PUBLIC_ALLOWED.has(name)) {
     await logActivity(ctx, name, 'blocked', args, 'policy chặn tool cho assistant public', 'TOOL_NOT_ALLOWED')
     return { ok: false, result: { error: { code: 'TOOL_NOT_ALLOWED', message: `Tool "${name}" không dành cho assistant public` } }, summary: `tool "${name}" bị policy chặn` }
   }

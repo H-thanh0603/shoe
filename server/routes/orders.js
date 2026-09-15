@@ -51,8 +51,12 @@ router.post('/', validate(orderSchema), async (req, res) => {
   const cartId = await getCartId(req)
   if (!cartId) return res.status(400).json({ success: false, error: { code: 'CART_EMPTY', message: 'Giỏ hàng trống' } })
 
-  // §26 Idempotency-Key: cùng key → trả order cũ, chống double submit
+  // §26 Idempotency-Key: cùng key → trả order cũ, chống double submit.
+  // Validate nhẹ: 8-100 ký tự để tránh key rác phình UNIQUE index.
   const idemKey = req.get('Idempotency-Key')
+  if (idemKey && (idemKey.length < 8 || idemKey.length > 100)) {
+    return res.status(400).json({ success: false, error: { code: 'INVALID_INPUT', message: 'Idempotency-Key phải 8-100 ký tự' } })
+  }
   if (idemKey) {
     const { rows: dup } = await pool.query('SELECT ref_code FROM orders WHERE idempotency_key = $1', [idemKey])
     if (dup[0]) return res.status(200).json({ success: true, data: { refCode: dup[0].ref_code, duplicate: true } })
@@ -154,6 +158,15 @@ router.post('/', validate(orderSchema), async (req, res) => {
     res.status(201).json({ success: true, data: { refCode: ref, totalVnd: total, shippingFeeVnd, discountVnd: discount, subtotalVnd: subtotal, paymentUrl } })
   } catch (e) {
     await client.query('ROLLBACK').catch(() => {})
+    // Race: 2 request cùng Idempotency-Key lọt pre-check → UNIQUE 23505 → trả order cũ.
+    if (e?.code === '23505' && idemKey) {
+      const { rows: dup } = await pool.query('SELECT ref_code FROM orders WHERE idempotency_key = $1', [idemKey])
+      if (dup[0]) return res.status(200).json({ success: true, data: { refCode: dup[0].ref_code, duplicate: true } })
+    }
+    if (!e.status || e.status >= 500) {
+      console.error(`[${req?.id || '-'}]`, e)
+      return res.status(500).json({ success: false, error: { code: 'INTERNAL', message: 'Lỗi server' } })
+    }
     const { status, body } = err(e)
     res.status(status).json(body)
   } finally {

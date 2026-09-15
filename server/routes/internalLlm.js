@@ -19,6 +19,7 @@
 
 'use strict'
 
+const crypto = require('node:crypto')
 const express = require('express')
 const { z } = require('zod')
 const validate = require('../middleware/validate.js')
@@ -41,11 +42,19 @@ router.use((req, res, next) => {
   // Chưa set secret → từ chối hẳn (fail-closed). Muốn bật: set INTERNAL_LLM_SECRET.
   if (!s) return res.status(503).json({ type: 'error', error: { type: 'configuration_error', message: 'INTERNAL_LLM_SECRET chưa cấu hình — gateway nội bộ tắt.' } })
   const provided = req.get('x-internal-llm-secret') || req.get('x-api-key')
-  if (provided !== s) {
+  if (!provided || provided.length !== s.length || !crypto.timingSafeEqual(Buffer.from(provided), Buffer.from(s))) {
     return res.status(401).json({ type: 'error', error: { type: 'authentication_error', message: 'Sai internal secret' } })
   }
   next()
 })
+// Mỗi model call đốt tiền — 60 req/phút nội bộ đủ bridge, chặn loop lỗi.
+const gwLimiter = require('express-rate-limit')({
+  windowMs: 60 * 1000, limit: 60, standardHeaders: false, legacyHeaders: false,
+  keyGenerator: (req) => `gw:${require('express-rate-limit').ipKeyGenerator(req.ip)}`,
+  message: { type: 'error', error: { type: 'rate_limit_error', message: 'Gateway quá tải — thử lại sau 1 phút' } },
+})
+router.use(gwLimiter)
+router.use(require('express').json({ limit: '2mb' }))
 
 // ————————————————————————————————————————————————
 // Request validation (Anthropic Messages shape)
@@ -108,7 +117,7 @@ router.post(['/messages', '/v1/messages'],
         'X-Accel-Buffering': 'no',
       })
       try {
-        yieldAnthropicStream(res, internal)
+        await yieldAnthropicStream(res, internal)
       } catch (e) {
         // mid-stream error → Anthropic-format error event rồi đóng
         sseWrite(res, 'error', anthropicError(e))

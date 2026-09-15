@@ -58,6 +58,7 @@ services:
       DATABASE_URL: postgresql://kinetic:kinetic@postgres:5432/kinetic
       REDIS_URL: redis://redis:6379
       JWT_SECRET: ${JWT_SECRET:?đặt JWT_SECRET trong .env khi deploy}
+      METRICS_SECRET: ${METRICS_SECRET:-}
       TRUST_PROXY: 1
       CACHE_TTL_SEC: 60
     ports:
@@ -110,6 +111,7 @@ services:
         condition: service_started
     environment:
       ALERT_API_URL: http://app:3000
+      METRICS_SECRET: ${METRICS_SECRET:-}
       TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
       TELEGRAM_CHAT_ID: ${TELEGRAM_CHAT_ID:-}
     command: ["sh", "-c", "while true; do node scripts/alert.js; sleep 60; done"]

@@ -7,6 +7,12 @@
 const { randomBytes } = require('node:crypto')
 
 const SAFE = new Set(['GET', 'HEAD', 'OPTIONS'])
+// Auth endpoints tự cấp cookie — exempt bootstrap, còn lại enforce.
+const EXEMPT = new Set([
+  'POST:/api/v1/auth/login',
+  'POST:/api/v1/auth/register',
+  'POST:/api/v1/auth/refresh',
+])
 
 function csrf(req, res, next) {
   let token = req.cookies?.csrf
@@ -15,14 +21,12 @@ function csrf(req, res, next) {
     res.cookie('csrf', token, { httpOnly: false, sameSite: 'lax', secure: process.env.NODE_ENV === 'production' })
   }
   if (SAFE.has(req.method)) return next()
+  if (EXEMPT.has(`${req.method}:${req.path}`)) return next()
   const hasAuth = Boolean(req.cookies?.token || req.cookies?.refresh_token)
+  if (!hasAuth) return next()
   const header = req.get('x-csrf-token')
-  if (hasAuth && token && header && header === token) return next()
-  if (hasAuth && !header) {
-    // client chưa bật CSRF header (flow cũ) — cho qua lần này, cookie đã set để lần sau echo
-    return next()
-  }
-  next()
+  if (header && header === token) return next()
+  return res.status(403).json({ success: false, error: { code: 'CSRF_MISMATCH', message: 'Thiếu hoặc sai CSRF token' } })
 }
 
 module.exports = { csrf }

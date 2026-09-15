@@ -6,6 +6,17 @@ if (isProd && !process.env.JWT_SECRET) {
   throw new Error('Thiếu JWT_SECRET khi NODE_ENV=production — từ chối chạy với secret dev')
 }
 
+// Prod fail-fast: các key làm downgrade âm thầm nếu thiếu (PII plaintext,
+// rate-limit per-process, gateway/AI tắt). Báo loud lúc boot thay vì im lặng.
+if (isProd) {
+  const missing = [
+    !process.env.PII_KEY && 'PII_KEY (thiếu → PII lưu plaintext)',
+    !process.env.REDIS_URL && 'REDIS_URL (thiếu → rate-limit/cache per-process)',
+    !process.env.SMTP_HOST && 'SMTP_HOST (thiếu → forgot-password không gửi mail được)',
+  ].filter(Boolean)
+  if (missing.length) console.error('[config] PROD thiếu env (vẫn chạy, tính năng downgrade):\n - ' + missing.join('\n - '))
+}
+
 module.exports = {
   port: Number(process.env.PORT) || 3000,
   databaseUrl: process.env.DATABASE_URL || 'postgresql://kinetic:kinetic@localhost:5432/kinetic',

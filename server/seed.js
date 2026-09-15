@@ -169,13 +169,19 @@ async function main() {
     ['AIR VECTOR 01', 'air-vector-01', 120, new Date(Date.now() + 72 * 3600 * 1000)],
   )
 
-  // admin mặc định: admin@kinetic.vn / kinetic-admin
-  const hash = bcrypt.hashSync('kinetic-admin', 10)
-  await pool.query(
-    `INSERT INTO users (email, password_hash, role, name) VALUES ($1,$2,'admin','Admin')
-     ON CONFLICT (email) DO NOTHING`,
-    ['admin@kinetic.vn', hash],
-  )
+  // admin mặc định: chỉ seed khi SEED_ADMIN_EMAIL + SEED_ADMIN_PASSWORD set
+  // (tránh credential mặc định lọt production). Không bao giờ hardcode pass.
+  if (process.env.SEED_ADMIN_EMAIL && process.env.SEED_ADMIN_PASSWORD) {
+    const hash = bcrypt.hashSync(process.env.SEED_ADMIN_PASSWORD, 10)
+    await pool.query(
+      `INSERT INTO users (email, password_hash, role, name) VALUES ($1,$2,'admin','Admin')
+       ON CONFLICT (email) DO NOTHING`,
+      [process.env.SEED_ADMIN_EMAIL, hash],
+    )
+    console.log(`seed admin ok — ${process.env.SEED_ADMIN_EMAIL}`)
+  } else {
+    console.log('seed admin skip — chưa set SEED_ADMIN_EMAIL/PASSWORD')
+  }
 
   // coupon mẫu để test checkout + validate realtime
   await pool.query(
@@ -185,7 +191,7 @@ async function main() {
      ON CONFLICT (code) DO NOTHING`,
   )
 
-  console.log(`seed ok — ${all.length} products, ${all.length * SIZES.length} variants, admin@kinetic.vn`)
+  console.log(`seed ok — ${all.length} products, ${all.length * SIZES.length} variants`)
   await seedReviews()
 }
 
