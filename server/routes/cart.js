@@ -180,7 +180,9 @@ router.post('/claim', validate(z.object({ token: z.string().trim().min(1).max(10
       await client.query('UPDATE cart_share_tokens SET used = true WHERE token = $1', [req.body.token])
       ;({ rows: [src] } = await client.query('SELECT id FROM carts WHERE id = $1 FOR UPDATE', [t.cart_id]))
     } else {
-      // tương thích link cũ trỏ thẳng session_token (sẽ bỏ ở bản sau)
+      // DEPRECATED 2026-09: link cũ trỏ thẳng session_token (lộ phiên 30 ngày).
+      // Giữ tới 2026-12-31 cho link đã phát hành, sau đó xoá nhánh này.
+      console.log(`[cart] claim legacy session_token (req ${req?.id || '-'})`)
       ;({ rows: [src] } = await client.query(
         'SELECT id FROM carts WHERE session_token = $1 FOR UPDATE', [req.body.token]))
     }

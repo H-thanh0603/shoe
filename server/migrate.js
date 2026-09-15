@@ -23,6 +23,14 @@ async function main() {
 
     const dir = path.join(__dirname, 'migrations')
     const files = fs.readdirSync(dir).filter((f) => f.endsWith('.sql')).sort()
+    // Guard trùng prefix số (đã từng có 2 file 011_* — sort lexical quyết định thứ tự,
+    // rename sau khi chạy sẽ chạy lại migration → chỉ thêm guard, không rename file cũ).
+    const seen = new Set()
+    for (const f of files) {
+      const prefix = f.split('_')[0]
+      if (seen.has(prefix)) throw new Error(`Trùng prefix migration: ${prefix} — đổi tên file mới trước khi chạy`)
+      seen.add(prefix)
+    }
     const { rows: done } = await client.query('SELECT name FROM _migrations')
     const doneSet = new Set(done.map((r) => r.name))
 

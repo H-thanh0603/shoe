@@ -726,6 +726,34 @@ router.post('/users/:id/roles', requirePerm('users:manage'), validate(z.object({
   ok(res, { id: u.id, roles: req.body.roleNames })
 })
 
+// Vô hiệu hoá user (nhân viên nghỉ việc): thu hết roles + đá mọi session.
+// KHÔNG hard-delete (audit_logs + user_roles.granted_by giữ FK — xoá sẽ vỡ lịch sử).
+// Muốn mở lại: POST /users/:id/roles gán lại.
+router.post('/users/:id/disable', requirePerm('users:manage'), async (req, res) => {
+  if (Number(req.params.id) === req.user.id) {
+    return bad(res, 'SELF_EDIT', 'Không tự vô hiệu hoá chính mình', 400)
+  }
+  const { rows: [u] } = await pool.query('SELECT id, email FROM users WHERE id = $1', [req.params.id])
+  if (!u) return bad(res, 'USER_NOT_FOUND', 'Không tìm thấy user', 404)
+  const client = await pool.connect()
+  try {
+    await client.query('BEGIN')
+    await client.query('DELETE FROM user_roles WHERE user_id = $1', [u.id])
+    await client.query('UPDATE auth_sessions SET revoked_at = now() WHERE user_id = $1 AND revoked_at IS NULL', [u.id])
+    await client.query('COMMIT')
+  } catch (e) {
+    await client.query('ROLLBACK').catch(() => {})
+    throw e
+  } finally {
+    client.release()
+  }
+  const cache = require('../services/cache.js')
+  await bustPerms(u.id)
+  await cache.set(`uav:${u.id}`, Math.floor(Date.now() / 1000)).catch(() => {})
+  await audit(req, 'user.disable', 'user', u.id, { email: u.email })
+  ok(res, { id: u.id, disabled: true })
+})
+
 // Audit log: lọc theo actor/action/entity, mới nhất trước
 router.get('/audit-logs', requirePerm('audit:read'), async (req, res) => {
   const limit = Math.min(Number(req.query.limit) || 20, 100)

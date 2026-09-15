@@ -26,6 +26,8 @@ const router = express.Router()
 
 // 20 turn / 10 phút / IP — mỗi turn có thể nhiều model call (đốt tiền thật).
 // (same pattern authLimiter/agentLimiter đã có trong project)
+// + Budget ngày: AI_DAILY_TURNS_PER_IP (mặc định 100) — chống xoay sessionId burn tiền.
+// Hết budget → 429, reset 0h. Đếm qua cache shared (Redis) để cụm cùng thấy.
 const chatLimiter = rateLimit({
   windowMs: 10 * 60 * 1000,
   limit: Number(process.env.AI_ASSISTANT_RATE_LIMIT) || 20,
@@ -35,6 +37,17 @@ const chatLimiter = rateLimit({
   message: { success: false, error: { code: 'RATE_LIMITED', message: 'Chat quá nhanh — nghỉ chút rồi thử lại sau 10 phút' } },
 })
 router.use(chatLimiter)
+router.use(async (req, res, next) => {
+  try {
+    const cache = require('../services/cache.js')
+    const day = new Date().toISOString().slice(0, 10)
+    const key = `ai:budget:${day}:${ipKeyGenerator(req.ip)}`
+    const max = Number(process.env.AI_DAILY_TURNS_PER_IP) || 100
+    const hits = await cache.incrWithTtl(key, 24 * 3600)
+    if (hits > max) return res.status(429).json({ success: false, error: { code: 'AI_BUDGET_EXCEEDED', message: 'Hết lượt chat hôm nay — quay lại ngày mai' } })
+    next()
+  } catch { next() } // cache lỗi → fail-open, limiter 10p vẫn chặn
+})
 
 const chatBody = z.object({
   message: z.string().trim().min(1).max(2000),
