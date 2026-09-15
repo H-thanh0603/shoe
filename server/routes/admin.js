@@ -88,22 +88,16 @@ router.patch('/orders/:id', requirePerm('orders:write'), validate(z.object({ sta
     await bust('products:detail', 'admin:analytics') // stock + số dashboard đổi theo trạng thái đơn
     await audit(req, 'order.transition', 'order', o.id, { from: o.status, to: next })
 
-    // ——— VNPay refund thật (ngoài transaction — provider chậm, không giữ lock) ———
+    // ——— VNPay refund nền (job queue — provider chậm/timeout không giữ request admin).
+    // Đơn paid bị hủy: refund_pending ngay, job vnpay_refund tự hoàn + retry backoff.
+    // Trạng thái refund xem ở GET /orders/:id (payment_status: refund_pending/refunded/refund_failed).
     if (next === 'cancelled' && o.payment_status === 'paid') {
-      const { rows: [ord] } = await pool.query('SELECT ref_code, total_vnd, payment_txn_ref, payment_method FROM orders WHERE id = $1', [o.id])
+      const { rows: [ord] } = await pool.query('SELECT payment_method, payment_txn_ref FROM orders WHERE id = $1', [o.id])
       if (ord?.payment_method === 'vnpay' && ord?.payment_txn_ref) {
-        const vnpay = require('../services/vnpay.js')
-        const result = await vnpay.requestRefund({
-          orderId: o.id,
-          amountVnd: ord.total_vnd,
-          transactionNo: ord.payment_txn_ref,
-          user: req.user?.email || 'admin',
-          ip: req.ip,
-        })
-        await pool.query('UPDATE orders SET payment_status = $2, payment_refund_note = $3 WHERE id = $1',
-          [o.id, result.ok ? 'refunded' : 'refund_failed', `${result.ok ? 'OK' : 'FAIL'} ${result.responseCode || ''} ${result.message}`.slice(0, 300)])
-        await audit(req, 'order.refund', 'order', o.id, { ok: result.ok, responseCode: result.responseCode, message: result.message })
-        return ok(res, { id: o.id, status: next, paymentStatus: result.ok ? 'refunded' : 'refund_failed', refund: { ok: result.ok, message: result.message } })
+        const { enqueue } = require('../services/jobs.js')
+        await enqueue('vnpay_refund', { orderId: o.id })
+        await audit(req, 'order.refund.queued', 'order', o.id, {})
+        return ok(res, { id: o.id, status: next, paymentStatus: 'refund_pending', refund: { queued: true } })
       }
       // COD/đơn không có txn: chỉ cần trạng thái (đã refund_pending ở trên nếu vnpay thiếu txn)
     }

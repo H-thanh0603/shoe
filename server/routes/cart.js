@@ -72,45 +72,68 @@ router.get('/', async (req, res) => {
 
 router.post('/items', validate(z.object({ variantId: z.number().int().positive(), qty: z.number().int().min(1).max(10) })), async (req, res) => {
   const { variantId, qty } = req.body
-  // §18: check variant tồn tại + product active + stock
-  const { rows: v } = await pool.query(
-    `SELECT pv.id, pv.stock FROM product_variants pv
-     JOIN products p ON p.id = pv.product_id
-     WHERE pv.id = $1 AND p.is_active`,
-    [variantId],
-  )
-  if (!v[0]) return res.status(404).json({ success: false, error: { code: 'VARIANT_NOT_FOUND', message: 'Không tìm thấy sản phẩm' } })
+  const client = await pool.connect()
+  try {
+    await client.query('BEGIN')
+    // §18: check variant tồn tại + product active + stock — FOR UPDATE để 2 tab
+    // cùng thêm size cuối không cùng lọt check (checkout vẫn là rào cuối chống oversell).
+    const { rows: v } = await client.query(
+      `SELECT pv.id, pv.stock FROM product_variants pv
+       JOIN products p ON p.id = pv.product_id
+       WHERE pv.id = $1 AND p.is_active FOR UPDATE OF pv`,
+      [variantId],
+    )
+    if (!v[0]) { await client.query('ROLLBACK'); return res.status(404).json({ success: false, error: { code: 'VARIANT_NOT_FOUND', message: 'Không tìm thấy sản phẩm' } }) }
 
-  const { rows: existing } = await pool.query(
-    'SELECT id, qty FROM cart_items WHERE cart_id = $1 AND variant_id = $2',
-    [req.cartId, variantId],
-  )
-  const newQty = (existing[0]?.qty || 0) + qty
-  if (newQty > v[0].stock) {
-    return res.status(409).json({ success: false, error: { code: 'OUT_OF_STOCK', message: `Chỉ còn ${v[0].stock} đôi` } })
-  }
+    const { rows: existing } = await client.query(
+      'SELECT id, qty FROM cart_items WHERE cart_id = $1 AND variant_id = $2 FOR UPDATE',
+      [req.cartId, variantId],
+    )
+    const newQty = (existing[0]?.qty || 0) + qty
+    if (newQty > v[0].stock) {
+      await client.query('ROLLBACK')
+      return res.status(409).json({ success: false, error: { code: 'OUT_OF_STOCK', message: `Chỉ còn ${v[0].stock} đôi` } })
+    }
 
-  if (existing[0]) {
-    await pool.query('UPDATE cart_items SET qty = $1 WHERE id = $2', [newQty, existing[0].id])
-  } else {
-    await pool.query('INSERT INTO cart_items (cart_id, variant_id, qty) VALUES ($1, $2, $3)', [req.cartId, variantId, qty])
+    if (existing[0]) {
+      await client.query('UPDATE cart_items SET qty = $1 WHERE id = $2', [newQty, existing[0].id])
+    } else {
+      await client.query('INSERT INTO cart_items (cart_id, variant_id, qty) VALUES ($1, $2, $3)', [req.cartId, variantId, qty])
+    }
+    await client.query('COMMIT')
+    res.status(201).json({ success: true, data: await cartPayload(req.cartId) })
+  } catch (e) {
+    await client.query('ROLLBACK').catch(() => {})
+    throw e
+  } finally {
+    client.release()
   }
-  res.status(201).json({ success: true, data: await cartPayload(req.cartId) })
 })
 
 router.patch('/items/:id', validate(z.object({ qty: z.number().int().min(1).max(10) })), async (req, res) => {
-  const { rows } = await pool.query(
-    `SELECT ci.id, ci.variant_id, ci.qty, pv.stock FROM cart_items ci
-     JOIN product_variants pv ON pv.id = ci.variant_id
-     WHERE ci.id = $1 AND ci.cart_id = $2`,
-    [req.params.id, req.cartId],
-  )
-  if (!rows[0]) return res.status(404).json({ success: false, error: { code: 'ITEM_NOT_FOUND', message: 'Không có item này trong giỏ' } })
-  if (req.body.qty > rows[0].stock) {
-    return res.status(409).json({ success: false, error: { code: 'OUT_OF_STOCK', message: `Chỉ còn ${rows[0].stock} đôi` } })
+  const client = await pool.connect()
+  try {
+    await client.query('BEGIN')
+    const { rows } = await client.query(
+      `SELECT ci.id, ci.variant_id, ci.qty, pv.stock FROM cart_items ci
+       JOIN product_variants pv ON pv.id = ci.variant_id
+       WHERE ci.id = $1 AND ci.cart_id = $2 FOR UPDATE OF ci, pv`,
+      [req.params.id, req.cartId],
+    )
+    if (!rows[0]) { await client.query('ROLLBACK'); return res.status(404).json({ success: false, error: { code: 'ITEM_NOT_FOUND', message: 'Không có item này trong giỏ' } }) }
+    if (req.body.qty > rows[0].stock) {
+      await client.query('ROLLBACK')
+      return res.status(409).json({ success: false, error: { code: 'OUT_OF_STOCK', message: `Chỉ còn ${rows[0].stock} đôi` } })
+    }
+    await client.query('UPDATE cart_items SET qty = $1 WHERE id = $2', [req.body.qty, rows[0].id])
+    await client.query('COMMIT')
+    res.json({ success: true, data: await cartPayload(req.cartId) })
+  } catch (e) {
+    await client.query('ROLLBACK').catch(() => {})
+    throw e
+  } finally {
+    client.release()
   }
-  await pool.query('UPDATE cart_items SET qty = $1 WHERE id = $2', [req.body.qty, rows[0].id])
-  res.json({ success: true, data: await cartPayload(req.cartId) })
 })
 
 router.delete('/items/:id', async (req, res) => {

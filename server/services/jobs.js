@@ -5,7 +5,7 @@
 const pool = require('../db.js')
 const mailer = require('./mailer.js')
 
-const TYPES = ['order_confirmation', 'events_cleanup', 'low_stock_scan']
+const TYPES = ['order_confirmation', 'events_cleanup', 'low_stock_scan', 'vnpay_refund']
 const POLL_MS = 2000
 
 async function enqueue(type, payload = {}, opts = {}) {
@@ -94,6 +94,30 @@ const handlers = {
        WHERE pv.stock <= $1 ORDER BY pv.stock LIMIT 50`, [threshold])
     for (const r of rows) console.log(`[job] low_stock ${r.slug} size ${r.size}: còn ${r.stock}`)
     return rows.length
+  },
+  // Hoàn tiền VNPay nền (admin hủy đơn paid): provider chậm/timeout không giữ request.
+  // Guard refund_pending — retry trùng không hoàn 2 lần (claim SKIP LOCKED + status check).
+  async vnpay_refund({ orderId }) {
+    if (!orderId) throw new Error('Thiếu orderId')
+    const { rows: [o] } = await pool.query(
+      `SELECT id, ref_code, total_vnd, payment_txn_ref, payment_method, payment_status
+       FROM orders WHERE id = $1 FOR UPDATE`, [orderId])
+    if (!o) throw new Error('Không tìm thấy đơn')
+    if (o.payment_status === 'refunded') return 'already-refunded'
+    if (o.payment_status !== 'refund_pending') throw new Error(`Trạng thái không hoàn được: ${o.payment_status}`)
+    if (o.payment_method !== 'vnpay' || !o.payment_txn_ref) {
+      await pool.query(`UPDATE orders SET payment_status = 'refunded' WHERE id = $1`, [orderId])
+      return 'cod-marked'
+    }
+    const vnpay = require('./vnpay.js')
+    const result = await vnpay.requestRefund({
+      orderId: o.id, amountVnd: o.total_vnd, transactionNo: o.payment_txn_ref,
+      user: 'job:vnpay_refund', ip: '127.0.0.1',
+    })
+    await pool.query('UPDATE orders SET payment_status = $2, payment_refund_note = $3 WHERE id = $1',
+      [o.id, result.ok ? 'refunded' : 'refund_failed', `${result.ok ? 'OK' : 'FAIL'} ${result.responseCode || ''} ${result.message}`.slice(0, 300)])
+    if (!result.ok) throw new Error(`Refund thất bại: ${result.message}`)
+    return 'refunded'
   },
 }
 
