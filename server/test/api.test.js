@@ -9,9 +9,15 @@ const pool = require('../db.js')
 // cookie jar đơn giản — mỗi cart 1 guest session
 const jar = () => ({ cookie: '' })
 async function api(j, method, path, body, extraHeaders = {}) {
+  const csrf = j.cookies?.csrf ? decodeURIComponent(j.cookies.csrf.split('=')[1]) : ''
   const r = await fetch(BASE + path, {
     method,
-    headers: { ...(body ? { 'Content-Type': 'application/json' } : {}), ...(j.cookie ? { cookie: j.cookie } : {}), ...extraHeaders },
+    headers: {
+      ...(body ? { 'Content-Type': 'application/json' } : {}),
+      ...(j.cookie ? { cookie: j.cookie } : {}),
+      ...(csrf && method !== 'GET' && method !== 'HEAD' ? { 'X-CSRF-Token': csrf } : {}),
+      ...extraHeaders,
+    },
     body: body ? JSON.stringify(body) : undefined,
   })
   // accumulate mọi cookie (token + session_token)

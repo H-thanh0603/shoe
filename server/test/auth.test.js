@@ -8,9 +8,15 @@ const pool = require('../db.js')
 
 const jar = () => ({ cookie: '' })
 async function api(j, method, path, body) {
+  const csrf = j.cookies?.csrf ? decodeURIComponent(j.cookies.csrf.split('=')[1]) : ''
   const r = await fetch(BASE + path, {
     method,
-    headers: { ...(body ? { 'Content-Type': 'application/json' } : {}), ...(j.cookie ? { cookie: j.cookie } : {}) },
+    headers: {
+      ...(body ? { 'Content-Type': 'application/json' } : {}),
+      ...(j.cookie ? { cookie: j.cookie } : {}),
+      // CSRF double-submit như frontend (src/lib/api.js) — POST có auth phải echo
+      ...(csrf && method !== 'GET' && method !== 'HEAD' ? { 'X-CSRF-Token': csrf } : {}),
+    },
     body: body ? JSON.stringify(body) : undefined,
   })
   for (const c of (r.headers.getSetCookie?.() || [])) {
@@ -73,14 +79,23 @@ test('refresh rotation: dùng lại refresh cũ → cả session chết', async 
   assert.equal((await api(j, 'POST', '/api/v1/auth/refresh')).body.error?.code, 'UNAUTHORIZED')
 })
 
+test('forgot-password: không lộ resetToken, không lộ email tồn tại', async () => {
+  const j = jar()
+  const r = await api(j, 'POST', '/api/v1/auth/forgot-password', { email: mkEmail('ghost') })
+  assert.equal(r.body.success, true)
+  assert.equal(r.body.data.ok, true)
+  assert.equal(r.body.data.resetToken, undefined)
+})
+
 test('reset-password: 1-lần-dùng + đá session cũ + pass mới login được', async () => {
   const j = jar(), other = jar()
   const email = mkEmail('resetpw')
   assert.equal((await reg(j, email)).body.success, true)
   assert.equal((await api(other, 'POST', '/api/v1/auth/login', { email, password: 'matkhau123' })).body.success, true)
-  const fg = await api(j, 'POST', '/api/v1/auth/forgot-password', { email })
-  const resetToken = fg.body.data.resetToken
-  assert.ok(resetToken)
+  // test ký resetToken trực tiếp (prod flow thật gửi qua SMTP, không qua response)
+  const { rows: [u] } = await pool.query('SELECT id FROM users WHERE email = $1', [email])
+  const { signReset } = require('../middleware/auth.js')
+  const resetToken = signReset(u)
   assert.equal((await api(j, 'POST', '/api/v1/auth/reset-password', { resetToken, password: 'matkhaumoi456' })).body.success, true)
   // dùng lại link → chết
   assert.equal((await api(j, 'POST', '/api/v1/auth/reset-password', { resetToken, password: 'matkhaumoi789' })).body.error?.code, 'INVALID_TOKEN')

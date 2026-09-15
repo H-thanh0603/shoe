@@ -8,9 +8,14 @@ const pool = require('../db.js')
 
 const jar = () => ({ cookie: '' })
 async function api(j, method, path, body) {
+  const csrf = j.cookies?.csrf ? decodeURIComponent(j.cookies.csrf.split('=')[1]) : ''
   const r = await fetch(BASE + path, {
     method,
-    headers: { ...(body ? { 'Content-Type': 'application/json' } : {}), ...(j.cookie ? { cookie: j.cookie } : {}) },
+    headers: {
+      ...(body ? { 'Content-Type': 'application/json' } : {}),
+      ...(j.cookie ? { cookie: j.cookie } : {}),
+      ...(csrf && method !== 'GET' && method !== 'HEAD' ? { 'X-CSRF-Token': csrf } : {}),
+    },
     body: body ? JSON.stringify(body) : undefined,
   })
   for (const c of (r.headers.getSetCookie?.() || [])) {
@@ -67,7 +72,7 @@ test('gán role cskh: đọc đơn được, sửa sản phẩm vẫn 403', asyn
   // role lạ → 400; tự sửa mình → 400
   const bad1 = await api(a, 'POST', `/api/v1/admin/users/${staffId}/roles`, { roleNames: ['tong-thong'] })
   assert.equal(bad1.body.error?.code, 'UNKNOWN_ROLE')
-  const { rows: [admin] } = await pool.query('SELECT id FROM users WHERE role = $1 ORDER BY id LIMIT 1', ['admin'])
+  const { rows: [admin] } = await pool.query('SELECT id FROM users WHERE email = $1', [process.env.SEED_ADMIN_EMAIL || 'admin@kinetic.vn'])
   const bad2 = await api(a, 'POST', `/api/v1/admin/users/${admin.id}/roles`, { roleNames: ['cskh'] })
   assert.equal(bad2.body.error?.code, 'SELF_EDIT')
 })
