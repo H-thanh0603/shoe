@@ -27,7 +27,8 @@ function parse(path) {
     if (c) return { name: 'collection', param: decodeURIComponent(c[1]) }
     const g = r.match(/^\/gio-hang\/(.+)/)
     if (g) return { name: 'claim', param: decodeURIComponent(g[1]) }
-    return { name: 'home' }
+    if (r === '/') return { name: 'home' }
+    return { name: 'notfound' }
   } catch {
     return { name: 'home' }
   }

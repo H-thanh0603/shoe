@@ -28,9 +28,9 @@ function Reports() {
   const [series, setSeries] = useState(null)
   const [summary, setSummary] = useState(null)
   useEffect(() => {
-    apiGet(`/admin/analytics/series?metric=${metric}&days=${days}`).then(setSeries).catch(() => setSeries({ points: [] }))
+    apiGet(`/admin/analytics/series?metric=${metric}&days=${days}`).then(setSeries).catch((e) => { setSeries({ points: [] }); window.dispatchEvent(new CustomEvent('admin-error', { detail: e?.message || 'Không tải được báo cáo' })) })
   }, [metric, days])
-  useEffect(() => { apiGet('/admin/analytics').then(setSummary).catch(() => {}) }, [])
+  useEffect(() => { apiGet('/admin/analytics').then(setSummary).catch((e) => window.dispatchEvent(new CustomEvent('admin-error', { detail: e?.message || 'Không tải được dữ liệu' }))) }, [])
 
   // SVG line chart: viewBox 600x180, đường doanh thu + grid + nhãn min/max
   const points = series?.points || []
@@ -119,8 +119,8 @@ function Dashboard() {
   const [a, setA] = useState(null)
   const [e, setE] = useState(null)
   useEffect(() => {
-    apiGet('/admin/analytics').then(setA).catch(() => {})
-    apiGet('/admin/analytics/events').then(setE).catch(() => {})
+    apiGet('/admin/analytics').then(setA).catch((e) => window.dispatchEvent(new CustomEvent('admin-error', { detail: e?.message || 'Không tải được dữ liệu' })))
+    apiGet('/admin/analytics/events').then(setE).catch((e) => window.dispatchEvent(new CustomEvent('admin-error', { detail: e?.message || 'Không tải được dữ liệu' })))
   }, [])
   if (!a) return <p className="font-mono text-xs text-paper/50">ĐANG TẢI SỐ LIỆU…</p>
   return (
@@ -184,7 +184,7 @@ function Orders() {
   const [status, setStatus] = useState('')
   const [rows, setRows] = useState([])
   const load = useCallback(() => {
-    apiGet(`/admin/orders?limit=20${status ? `&status=${status}` : ''}`).then((d) => setRows(d.items || d)).catch(() => {})
+    apiGet(`/admin/orders?limit=20${status ? `&status=${status}` : ''}`).then((d) => setRows(d.items || d)).catch((e) => window.dispatchEvent(new CustomEvent('admin-error', { detail: e?.message || 'Không tải được dữ liệu' })))
   }, [status])
   useEffect(load, [load])
 
@@ -237,7 +237,7 @@ function Collections() {
   const [draft, setDraft] = useState(null) // null | { ...fields } (edit khi có id)
   const [err, setErr] = useState('')
   const load = useCallback(() => {
-    apiGet('/admin/collections').then(setRows).catch(() => {})
+    apiGet('/admin/collections').then(setRows).catch((e) => window.dispatchEvent(new CustomEvent('admin-error', { detail: e?.message || 'Không tải được dữ liệu' })))
   }, [])
   useEffect(load, [load])
 
@@ -319,7 +319,7 @@ function Products() {
   const [images, setImages] = useState(null) // { id, name, list, busy }
   const [adjust, setAdjust] = useState({})
   const load = useCallback(() => {
-    apiGet('/admin/products').then(setRows).catch(() => {})
+    apiGet('/admin/products').then(setRows).catch((e) => window.dispatchEvent(new CustomEvent('admin-error', { detail: e?.message || 'Không tải được dữ liệu' })))
   }, [])
   useEffect(load, [load])
 
@@ -328,11 +328,11 @@ function Products() {
     load()
   }
   const openVariants = async (p) => {
-    const list = await apiGet(`/admin/products/${p.id}/variants`).catch(() => [])
+    const list = await apiGet(`/admin/products/${p.id}/variants`).catch((e) => { window.dispatchEvent(new CustomEvent('admin-error', { detail: e?.message || 'Không tải được dữ liệu' })); return [] })
     setVariants({ id: p.id, name: p.name, list })
   }
   const openImages = async (p) => {
-    const list = await apiGet(`/admin/products/${p.id}/images`).catch(() => [])
+    const list = await apiGet(`/admin/products/${p.id}/images`).catch((e) => { window.dispatchEvent(new CustomEvent('admin-error', { detail: e?.message || 'Không tải được dữ liệu' })); return [] })
     setImages({ id: p.id, name: p.name, list, busy: false })
   }
   // Resize client-side trước khi upload: max 1600px cạnh dài, JPEG q0.85 —
@@ -554,7 +554,7 @@ function Coupons() {
   const [rows, setRows] = useState([])
   const [form, setForm] = useState({ code: '', type: 'PERCENTAGE', value: '10', minimumOrderVnd: '0', usageLimit: '', expiresAt: '' })
   const load = useCallback(() => {
-    apiGet('/admin/coupons').then(setRows).catch(() => {})
+    apiGet('/admin/coupons').then(setRows).catch((e) => window.dispatchEvent(new CustomEvent('admin-error', { detail: e?.message || 'Không tải được dữ liệu' })))
   }, [])
   useEffect(load, [load])
 
@@ -624,7 +624,7 @@ function Coupons() {
 function ChangeApprovals() {
   const [rows, setRows] = useState([])
   const load = useCallback(() => {
-    apiGet('/admin/agent-changes?status=staged').then(setRows).catch(() => {})
+    apiGet('/admin/agent-changes?status=staged').then(setRows).catch((e) => window.dispatchEvent(new CustomEvent('admin-error', { detail: e?.message || 'Không tải được dữ liệu' })))
   }, [])
   useEffect(load, [load])
 
@@ -676,7 +676,7 @@ function Roles() {
 
   const load = useCallback(() => {
     apiGet('/admin/roles').then(setRoles).catch((e) => alert(e.message))
-    apiGet('/admin/permissions').then(setAllPerms).catch(() => {})
+    apiGet('/admin/permissions').then(setAllPerms).catch((e) => window.dispatchEvent(new CustomEvent('admin-error', { detail: e?.message || 'Không tải được dữ liệu' })))
   }, [])
   useEffect(load, [load])
   const loadUsers = useCallback(() => {
@@ -687,7 +687,7 @@ function Roles() {
         for (const u of (d.items || d)) draft[u.id] = u.roles || []
         setUserRoles(draft)
       })
-      .catch(() => {})
+      .catch((e) => window.dispatchEvent(new CustomEvent('admin-error', { detail: e?.message || 'Không tải được dữ liệu' })))
   }, [q])
   useEffect(loadUsers, [loadUsers])
 
@@ -907,7 +907,7 @@ function AIActivityLog() {
   }, [f.sessionId, f.tool, f.status, page])
   useEffect(load, [load])
   useEffect(() => {
-    apiFetch('/admin/ai-activity/stats', { method: 'GET' }).then(setStats).catch(() => {})
+    apiFetch('/admin/ai-activity/stats', { method: 'GET' }).then(setStats).catch((e) => window.dispatchEvent(new CustomEvent('admin-error', { detail: e?.message || 'Không tải được dữ liệu' })))
   }, [])
 
   const statusCls = (s) => s === 'ok' ? 'text-emerald-400' : s === 'blocked' ? 'text-amber-400' : 'text-red-400'
@@ -986,6 +986,15 @@ export default function Admin() {
   const [perms, setPerms] = useState([])
   const [checked, setChecked] = useState(false)
   const [tab, setTab] = useState('dash')
+  const [loadError, setLoadError] = useState('')
+
+  // Lỗi tải dữ liệu admin: hiện banner + nút thử lại thay vì bảng trống gây hiểu nhầm.
+  // Các tab con gọi window.dispatchEvent(new CustomEvent('admin-error', {detail: msg})).
+  useEffect(() => {
+    const fn = (e) => setLoadError(e.detail || 'Không tải được dữ liệu')
+    window.addEventListener('admin-error', fn)
+    return () => window.removeEventListener('admin-error', fn)
+  }, [])
 
   useEffect(() => {
     Promise.all([apiGet('/auth/me').catch(() => null), apiGet('/admin/me/permissions').catch(() => null)])
@@ -1015,6 +1024,13 @@ export default function Admin() {
     <main id="main-content" className="mx-auto max-w-6xl px-4 pt-24 pb-28 md:px-8 md:pt-32">
       <p className="font-mono text-xs tracking-widest text-accent">ADMIN // {me.email}</p>
       <h1 className="display-l mt-1 text-paper">QUẢN TRỊ<span className="text-accent">.</span></h1>
+      {loadError && (
+        <div role="alert" className="mt-4 flex flex-wrap items-center gap-3 border border-red-500/50 bg-red-500/10 px-4 py-2.5 text-sm text-red-200">
+          <span>⚠ {loadError}</span>
+          <button onClick={() => { setLoadError(''); location.reload() }} className={btn}>THỬ LẠI</button>
+          <button onClick={() => setLoadError('')} className={btn}>BỎ QUA</button>
+        </div>
+      )}
 
       <div className="mt-8 mb-6 flex flex-wrap gap-2 border-b border-white/10 pb-4">
         {visibleTabs.map(([id, label]) => (

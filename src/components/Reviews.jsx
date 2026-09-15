@@ -102,7 +102,7 @@ export default function Reviews({ slug }) {
               </p>
               {r.images?.length > 0 && (
                 <div className="mt-3 flex gap-2">
-                  {r.images.map((src, i) => (
+                  {r.images.filter((s) => typeof s === 'string' && /^(data:image\/(jpeg|png|webp);|https:\/\/)/.test(s)).map((src, i) => (
                     <a key={i} href={src} target="_blank" rel="noreferrer">
                       <img src={src} alt={`Ảnh đánh giá ${i + 1}`} className="h-16 w-16 border border-white/15 object-cover" loading="lazy" />
                     </a>

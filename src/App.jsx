@@ -96,6 +96,13 @@ export default function App() {
         <Wishlist onToggleCompare={compare.toggle} compareIds={compare.ids} />
       ) : route.name === 'admin' ? (
         <Suspense fallback={null}><Admin /></Suspense>
+      ) : route.name === 'notfound' ? (
+        <main className="mx-auto max-w-3xl px-4 pt-24 pb-28 md:pt-32">
+          <p className="font-mono text-xs tracking-widest text-accent">404 //</p>
+          <h1 className="display-l mt-1 text-paper">KHÔNG TÌM THẤY TRANG<span className="text-accent">.</span></h1>
+          <p className="mt-4 text-sm text-paper/60">Địa chỉ này không tồn tại. Quay lại mua sắm nhé.</p>
+          <a href="/shop" className="mt-6 inline-block border border-accent px-6 py-2.5 font-display text-xs font-bold tracking-widest text-accent hover:bg-accent hover:text-ink">MUA SẮM NGAY</a>
+        </main>
       ) : (
         <Home
           onQuiz={openQuiz}

@@ -22,7 +22,7 @@ export default function MyOrders() {
       {err && <p className="mt-6 font-mono text-xs text-accent" role="alert">{err}</p>}
 
       {orders && orders.length === 0 && (
-        <p className="mt-6 text-sm text-paper/60">Bạn chưa có đơn nào. <a href="#shop" className="text-accent hover:underline">Mua sắm ngay →</a></p>
+        <p className="mt-6 text-sm text-paper/60">Bạn chưa có đơn nào. <a href="/shop" className="text-accent hover:underline">Mua sắm ngay →</a></p>
       )}
 
       {orders?.length > 0 && (

@@ -30,7 +30,7 @@ export default function ClaimCart({ token }) {
       {state.phase === 'error' && (
         <div className="mt-6 border border-white/10 bg-charcoal p-6 text-center">
           <p className="font-mono text-xs text-accent">{state.err}</p>
-          <a href="#shop" className="mt-4 inline-block border border-accent px-6 py-2.5 font-display text-xs font-bold tracking-widest text-accent hover:bg-accent hover:text-ink">
+          <a href="/shop" className="mt-4 inline-block border border-accent px-6 py-2.5 font-display text-xs font-bold tracking-widest text-accent hover:bg-accent hover:text-ink">
             TỰ CHỌN GIÀY →
           </a>
         </div>

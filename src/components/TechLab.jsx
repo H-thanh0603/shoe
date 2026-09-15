@@ -221,7 +221,7 @@ export default function TechLab() {
 
             <div className="mt-8 pt-4">
               <a
-                href="#shop"
+                href="/shop"
                 className="block w-full border border-white/20 bg-charcoal-2 py-3.5 text-center font-display text-xs font-bold tracking-widest text-paper transition-colors hover:border-accent hover:text-accent"
               >
                 TÌM GIÀY TRANG BỊ CÔNG NGHỆ NÀY →
