@@ -16,13 +16,35 @@ session blacklist/uav quay về fail-open tới khi token hết hạn).
 **KHÔNG nằm trong backup:** root `.env` (chứa `JWT_SECRET`) — mất là toàn bộ token cũ vô
 giá trị + phải cấp lại cho user. Giữ `.env` trong vault/secret manager riêng.
 
-## Kiểm tra backup còn sống không
+## Offsite (chống chết đĩa — live + WAL cùng host)
+
+`scripts/offsite-backup.sh` (cron host mỗi 6h, sau backup compose):
+
+```bash
+# crontab: 17 */6 * * * /opt/shoe/scripts/offsite-backup.sh >> /var/log/offsite.log 2>&1
+```
+
+- Sync dumps 7 ngày + base mới nhất + WAL 48h ra remote `offsite:` (rclone —
+  S3/R2/B2 tuỳ cấu hình). Chưa cấu hình → log + exit 0, không vỡ deploy.
+- Kiểm tra: `rclone ls offsite:kinetic-backup/ | head`.
+
+## Drill restore (làm mỗi quý — backup chưa drill = chưa có backup)
 
 ```bash
 ls -lt backups/ | head            # dump mới mỗi 24h?
 ls backups/wal/ | tail -3         # WAL mới liên tục?
 ls -dt backups/base/base-* | head # base mới trong 7 ngày?
+rclone ls offsite:kinetic-backup/ | head  # offsite có bản mới?
 ```
+
+## Drill restore checklist (quý/năm — tick từng dòng, ký tên + ngày)
+
+- [ ] Dump restore vào `kinetic_restore`: orders/products count khớp kỳ vọng
+- [ ] PITR rehearsal: base + WAL replay lên port 5434, spot-check 5 orders mới nhất
+- [ ] Offsite pull: `rclone copy` 1 dump về + restore thử (remote đọc được?)
+- [ ] `.env`/secrets vault đọc được? (JWT_SECRET, PII_KEY, VNPay, SMTP)
+- [ ] RTO đo được: ___ phút (mục tiêu ≤ 30 phút)
+- [ ] Người drill: ___ — Ngày: ___ (lưu vào `docs/BACKUP_DRILLS.md`)
 
 ## Restore PITR (mất dữ liệu giữa 2 lần dump — cách chính)
 
