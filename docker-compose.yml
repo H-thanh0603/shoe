@@ -9,6 +9,7 @@ services:
       POSTGRES_DB: kinetic
     ports:
       - "5433:5432" # debug/test local trỏ vào DB container (app trong compose vẫn dùng host `postgres`)
+      # PROD: đóng port này (bind 127.0.0.1 hoặc bỏ) — DB không bao giờ public internet.
     volumes:
       - pgdata:/var/lib/postgresql # PG18+: mount cha, data nằm trong subdir (pg_upgrade-safe)
       - ./backups:/backups # WAL archive cho PITR (xem docs/BACKUP.md)
@@ -62,7 +63,7 @@ services:
       TRUST_PROXY: 1
       CACHE_TTL_SEC: 60
     ports:
-      - "3000-3002:3000" # dải port để --scale app=2..3 không đụng port
+      - "127.0.0.1:3000-3002:3000" # loopback only — internet đi qua edge:8081; prod TLS terminate ở LB/nginx trước edge
     healthcheck:
       test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000/readyz"]
       interval: 10s
