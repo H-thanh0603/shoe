@@ -56,8 +56,12 @@ X-Agent: shopping-assistant/1.0 (by:acme)
 | `compare_products` | Đọc | 30/phút | Tối đa 4 slug, bảng so sánh. |
 | `track_order` | Đọc | 20/phút | Theo refCode `KIN-XXXXXX`. Không trả địa chỉ/email. |
 | `add_to_cart` | Ghi | 12/phút | Giỏ server-side của agent → trả **shareUrl** `/gio-hang/:token`. |
+| `get_user_voucher` | Đọc | 20/phút | Mã giảm giá **công khai** đang chạy + preview mức giảm theo `subtotal`. KHÔNG áp mã hộ — khách tự nhập ở checkout. |
+| `claim_and_attach_cart` | Ghi | 12/phút | Đính `shareUrl` (do `add_to_cart` cùng phiên tạo) vào dòng chat để khách bấm nút nhận giỏ. Provenance gate: chỉ token do phiên này sinh mới được đính. |
+| `get_memory` | Đọc | 30/phút | Xem ghi nhớ về khách (brand/size/ngân sách/mục đích) của phân vùng hiện tại. |
+| `save_memory` | Ghi | 12/phút | Lưu preference khách — chỉ 5 key whitelist (`preferred_brand`, `shoe_size`, `budget`, `preferred_purpose`, `preferred_style`). Không nhận key nhạy cảm (thẻ/địa chỉ/mật khẩu). |
 
-**Không có tool checkout/payment** — cố tình. Xem chính sách dưới.
+**Không có tool checkout/payment** — cố tình. Workflow `draft_order` (`server/services/agent/workflows.js`) chạy chuỗi recommend → check_stock → add_to_cart → get_user_voucher → claim_and_attach_cart thành 1 macro, nhưng vẫn qua đúng `executeTool` (mọi gate policy/provenance/rate-limit vẫn áp) và dừng ở handoff link — đơn chỉ sinh khi người dùng tự bấm thanh toán. Xem chính sách dưới.
 
 ## Human-in-the-loop cho consequential actions
 
@@ -86,6 +90,9 @@ giờ giữ quyền chi tiền. Đơn VNPay/COD chỉ sinh ra khi người dùng
 ```
 server/routes/agentTools.js   — tool registry (đơn nguồn: discovery + invoke + stream + plugin manifest)
 server/services/match.js      — match engine server-side (port src/lib/match.js — giữ sync công thức)
+server/services/agent/memory.js     — Agent Memory: preference khách (whitelist 5 key, explicit đè inferred)
+server/services/agent/activity.js   — AI Activity Log: ghi mọi tool call của runtime (ok/error/blocked)
+server/services/agent/workflows.js  — macro draft_order qua executeTool (không đường tắt vượt policy)
 server/awil.js                — render agent.json / ai-plugin.json / llms.txt / llms-full.txt
 server/server.js              — mount /.well-known/*, /llms*.txt + /api/v1/agent (tools trước chat)
 ops/nginx.conf                — cache llms.txt 10m, agent tools chặt hơn catalog + SSE không buffer

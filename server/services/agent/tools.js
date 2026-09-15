@@ -16,15 +16,18 @@
 'use strict'
 
 const { TOOLS: AWI_TOOLS, buildZod: _buildZod } = require('../../routes/agentTools.js')
+const activity = require('./activity.js')
 
 // ————————————————————————————————————————————————
 // Policy: assistant public (khách) được tool nào
 // ————————————————————————————————————————————————
-// Mặc định: mọi tool readOnly + add_to_cart (human-in-the-loop qua shareUrl).
-// Merchant agent (admin, có perm agent:*) — sau này có thể mở tool stage change.
+// Mặc định: mọi tool readOnly + add_to_cart (human-in-the-loop qua shareUrl)
+// + memory (blueprint #10) + voucher preview + claim handoff (blueprint #1).
+// Merchant agent (admin, có perm agent:*) — có thể mở tool stage change.
 const PUBLIC_ALLOWED = new Set([
   'search_products', 'get_product', 'check_stock', 'get_reviews',
   'compare_products', 'recommend_products', 'track_order', 'add_to_cart',
+  'get_user_voucher', 'claim_and_attach_cart', 'get_memory', 'save_memory',
 ])
 
 const MAX_TOOL_RESULT_CHARS = Number(process.env.AI_TOOL_RESULT_MAX_CHARS) || 12_000
@@ -50,18 +53,45 @@ function toSpec(t) {
  * @returns {{ ok: boolean, result: any, summary: string }} — result để nhét vào
  *   tool_result content (đã fenced); summary ngắn cho SSE event
  */
+/**
+ * Ghi AI Activity Log (blueprint #5) — await để đảm bảo thứ tự ghi (mọi
+ * tool call TRƯỚC khi trả kết quả có dòng log tương ứng; admin + test tra
+ * cứu theo session không bị race). Track failure vẫn best-effort:
+ * logToolCall tự catch lỗi bên trong → DB lỗi không làm gãy tool call.
+ */
+async function logActivity(ctx, name, status, args, summary, errorCode) {
+  await activity.logToolCall({
+    sessionId: ctx?.sessionId || '',
+    userId: ctx?.req?.user?.id ?? null,
+    agentName: ctx?.role === 'merchant' ? 'merchant' : 'shopping',
+    agentId: ctx?.agentId || '',
+    tool: name,
+    status,
+    args,
+    summary,
+    errorCode,
+    sessionTurn: ctx?.sessionTurn ?? null,
+    requestId: ctx?.req?.id || '',
+    ip: ctx?.req?.ip || '',
+  }).catch(() => { /* log là best-effort */ })
+}
+
 async function executeTool(name, args, ctx) {
   const tool = AWI_TOOLS.find((t) => t.name === name)
   if (!tool) {
+    await logActivity(ctx, name, 'error', args, 'tool không tồn tại', 'TOOL_NOT_FOUND')
     return { ok: false, result: { error: { code: 'TOOL_NOT_FOUND', message: `Không có tool "${name}"` } }, summary: `tool "${name}" không tồn tại` }
   }
   if (ctx?.role === 'assistant' && !PUBLIC_ALLOWED.has(name)) {
+    await logActivity(ctx, name, 'blocked', args, 'policy chặn tool cho assistant public', 'TOOL_NOT_ALLOWED')
     return { ok: false, result: { error: { code: 'TOOL_NOT_ALLOWED', message: `Tool "${name}" không dành cho assistant public` } }, summary: `tool "${name}" bị policy chặn` }
   }
   // validate args theo schema của registry (chống tool-poisoning shape)
   const zodMirror = _buildZod(tool.inputSchema)
   const parsed = zodMirror.safeParse(args || {})
   if (!parsed.success) {
+    const summary = `args sai shape (${parsed.error.issues.length} lỗi)`
+    await logActivity(ctx, name, 'error', args, summary, 'INVALID_TOOL_ARGS')
     return {
       ok: false,
       result: { error: { code: 'INVALID_TOOL_ARGS', fields: parsed.error.issues.map((i) => ({ path: i.path.join('.'), message: i.message })) } },
@@ -75,6 +105,8 @@ async function executeTool(name, args, ctx) {
   if (name === 'add_to_cart' && ctx?.session) {
     const slug = String(parsed.data.slug || '').trim()
     if (!ctx.session.seenSlugs.has(slug)) {
+      const summary = 'bị provenance gate chặn (slug chưa thấy)'
+      await logActivity(ctx, name, 'blocked', parsed.data, summary, 'PROVENANCE_ERROR')
       return {
         ok: false,
         result: {
@@ -83,7 +115,26 @@ async function executeTool(name, args, ctx) {
             message: `slug "${slug}" chưa được catalog tool (search/get/recommend/compare) trả về trong phiên này — gọi tool tìm kiếm trước, dùng đúng slug từ kết quả.`,
           },
         },
-        summary: 'bị provenance gate chặn (slug chưa thấy)',
+        summary,
+      }
+    }
+  }
+  // claim_and_attach_cart: provenance tương tự — shareUrl phải do add_to_cart
+  // của session này sinh ra (session.seenShareUrls ghi khi add_to_cart ok).
+  if (name === 'claim_and_attach_cart' && ctx?.session) {
+    const token = /\/gio-hang\/([a-z0-9-]+)/i.exec(String(parsed.data.shareUrl || ''))?.[1]
+    if (!token || !ctx.session.seenShareUrls?.has(token)) {
+      const summary = 'bị provenance gate chặn (shareUrl chưa do add_to_cart tạo)'
+      await logActivity(ctx, name, 'blocked', parsed.data, summary, 'PROVENANCE_ERROR')
+      return {
+        ok: false,
+        result: {
+          error: {
+            code: 'PROVENANCE_ERROR',
+            message: 'shareUrl này không do add_to_cart tạo trong phiên — hãy dùng shareUrl từ kết quả add_to_cart vừa rồi.',
+          },
+        },
+        summary,
       }
     }
   }
@@ -97,13 +148,24 @@ async function executeTool(name, args, ctx) {
     if (ctx?.session && CATALOG_TOOLS.has(name)) {
       for (const s of collectSlugs(result)) ctx.session.seenSlugs.add(s)
     }
+    // add_to_cart ok → ghi shareUrl token cho claim_and_attach_cart
+    if (name === 'add_to_cart' && ctx?.session) {
+      const tok = /\/gio-hang\/([a-z0-9-]+)/i.exec(String(result?.shareUrl || ''))?.[1]
+      if (tok) {
+        if (!ctx.session.seenShareUrls) ctx.session.seenShareUrls = new Set()
+        ctx.session.seenShareUrls.add(tok)
+      }
+    }
+    await logActivity(ctx, name, 'ok', parsed.data, summarize(name, result))
     return { ok: true, result, summary: summarize(name, result) }
   } catch (e) {
     // handler throw httpError chuẩn — translate thành result có cấu trúc
+    const code = e?.code || 'TOOL_ERROR'
+    await logActivity(ctx, name, 'error', parsed.data, `tool lỗi: ${code}`, code)
     return {
       ok: false,
-      result: { error: { code: e?.code || 'TOOL_ERROR', message: e?.status && e.status < 500 ? e.message : 'Lỗi khi chạy tool' } },
-      summary: `tool lỗi: ${e?.code || e?.message || 'unknown'}`,
+      result: { error: { code, message: e?.status && e.status < 500 ? e.message : 'Lỗi khi chạy tool' } },
+      summary: `tool lỗi: ${code}`,
     }
   }
 }
@@ -137,6 +199,10 @@ function summarize(name, result) {
     if (name === 'recommend_products' && result?.recommendations) return `${result.recommendations.length} gợi ý`
     if (name === 'add_to_cart') return `đã thêm vào giỏ agent — ${result?.shareUrl || ''}`
     if (name === 'track_order') return `trạng thái: ${result?.status || '?'}`
+    if (name === 'get_user_voucher') return `${result?.vouchers?.length ?? 0} mã giảm giá công khai`
+    if (name === 'claim_and_attach_cart') return result?.attached ? 'đã đính link nhận giỏ' : 'chưa đính được'
+    if (name === 'get_memory') return `${result?.remembered?.length ?? 0} ghi nhớ về khách`
+    if (name === 'save_memory') return `đã lưu ${result?.savedCount ?? 0} ghi nhớ`
     return 'ok'
   } catch { return 'ok' }
 }

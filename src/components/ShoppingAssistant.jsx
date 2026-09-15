@@ -74,8 +74,8 @@ export default function ShoppingAssistant() {
           } else if (ev.kind === 'tool') {
             patchLive((m) => ({ tools: [...m.tools, ev.payload] }))
           } else if (ev.kind === 'tool_result') {
-            // lọc shareUrl từ add_to_cart để render nút nhận giỏ
-            if (ev.payload?.tool === 'add_to_cart' && ev.payload?.status === 'ok') {
+            // lọc shareUrl từ add_to_cart/claim_and_attach_cart để render nút nhận giỏ
+            if ((ev.payload?.tool === 'add_to_cart' || ev.payload?.tool === 'claim_and_attach_cart') && ev.payload?.status === 'ok') {
               patchLive((m) => ({ cartAdded: true }))
             }
           } else if (ev.kind === 'plan') {

@@ -2,7 +2,9 @@
 
 E-commerce giày thể thao: React 19 + Vite frontend, Express + PostgreSQL backend, VNPay sandbox, Redis cache/rate-limit, RBAC admin, jobs queue.
 
-**Agent layer (Agentic Web Interface)**: website expose tools cho AI agent — `/.well-known/agent.json`, `llms.txt`, `/api/v1/agent/tools` (search/stock/compare/reviews/add_to_cart với human-in-the-loop). Chi tiết: `docs/AGENT_LAYER.md`.
+**Agent layer (Agentic Web Interface)**: website expose tools cho AI agent — `/.well-known/agent.json`, `llms.txt`, `/api/v1/agent/tools` (12 tools: search/stock/compare/reviews/voucher/add_to_cart/memory với human-in-the-loop). Workflow agentic `draft_order` chuẩn bị đơn qua macro recommend → cart → voucher → handoff link (không checkout hộ). Chi tiết: `docs/AGENT_LAYER.md`.
+
+**Agent Memory + AI Activity Log**: trợ lý nhớ preference khách (brand/size/ngân sách, whitelist 5 key, explicit đè inferred, `agent_memory`) và mọi tool call được log (`ai_activity_log`, admin tab HOẠT ĐỘNG AI).
 
 **AI layer (provider-agnostic)**: trợ lý mua giày (`/api/v1/assistant`) chạy agent loop Node với tool-calling, streaming SSE — LLM provider đổi bằng env (`deepseek` | `openrouter` | `anthropic` | `openai` | `gemini` | `tokenrouter` | `mock` | custom OpenAI-compatible), kèm retry + fallback chain, KHÔNG ghép SDK nào vào business logic. Python bridge (blueprint commerce-agents) giờ chạy qua internal gateway `POST /api/v1/internal/llm/messages` — hết cần LiteLLM proxy. Chi tiết: `docs/AI_ARCHITECTURE.md` (thiết kế) + `docs/AI_PROVIDERS.md` (cấu hình/đổi provider).
 

@@ -10,6 +10,7 @@ const { requireAuth, loadPerms, requirePerm, bustPerms } = require('../middlewar
 const { bust, cacheGet } = require('../middleware/cache.js')
 const { audit } = require('../services/audit.js')
 const pii = require('../services/pii.js')
+const activitySvc = require('../services/agent/activity.js')
 const { z } = require('zod')
 
 const router = express.Router()
@@ -462,6 +463,29 @@ router.post('/agent-changes/:id/discard', requirePerm('agent:write'), async (req
   if (!c) return bad(res, 'CHANGE_NOT_FOUND', 'Không tìm thấy change', 404)
   await audit(req, 'agent.discard', 'agent_change', c.change_id, {})
   ok(res, c)
+})
+
+// ——— AI Activity Log (blueprint #5) — audit mọi tool call của assistant ———
+// Filter: session, tool, status; phân trang. Perm agent:read (tương tự tab
+// DUYỆT CHANGE — staff có quyền agent là xem được hoạt động AI).
+router.get('/ai-activity', requirePerm('agent:read'), async (req, res) => {
+  const { sessionId, tool, status } = req.query
+  if (status && !['ok', 'error', 'blocked'].includes(status)) {
+    return bad(res, 'INVALID_STATUS', 'status phải là ok | error | blocked', 400)
+  }
+  const limit = Math.min(Math.max(Number(req.query.limit) || 50, 1), 200)
+  const offset = Math.max(Number(req.query.offset) || 0, 0)
+  const { items, total } = await activitySvc.listActivity({
+    sessionId: sessionId ? String(sessionId).slice(0, 100) : undefined,
+    tool: tool ? String(tool).slice(0, 60) : undefined,
+    status,
+    limit, offset,
+  })
+  ok(res, { items, total, limit, offset })
+})
+
+router.get('/ai-activity/stats', requirePerm('agent:read'), async (_req, res) => {
+  ok(res, await activitySvc.activityStats())
 })
 
 // ——— Variants của 1 product (để admin xem/sửa stock) ———

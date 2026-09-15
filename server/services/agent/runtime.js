@@ -18,6 +18,7 @@ const { aiStream, AIError } = require('../ai/index.js')
 const sessions = require('./sessions.js')
 const { executeTool, fenceResult, publicToolSpecs, allToolSpecs } = require('./tools.js')
 const { shoppingSystemPrompt } = require('./prompts.js')
+const memorySvc = require('./memory.js')
 
 // ——— Plan artifact parser (explicit planning) ———
 // Model viết <plan><step>…</step></plan> + <step-done>…</step-done> theo
@@ -126,7 +127,18 @@ async function* runTurn({ sessionId, userMessage, agentName = 'shopping', agentI
   sessions.bumpTurn(sessionId)
 
   const tools = agentName === 'merchant' ? allToolSpecs() : publicToolSpecs()
-  const system = shoppingSystemPrompt({ cartUrlHint: true })
+
+  // ——— Agent Memory (blueprint #10) ———
+  // Turn đầu của session: nạp preference khách (brand/size/ngân sách...) vào
+  // system prompt → model cá nhân hóa ngay không hỏi lại. Guest: memory theo
+  // IP hash; login: theo user id (nền tảng memory xuyên phiên).
+  let memoryBlock = ''
+  try {
+    const { key: memoryKey } = memorySvc.resolveKey(req)
+    if (session.turns <= 1) memoryBlock = await memorySvc.preferencesForPrompt(memoryKey)
+  } catch { /* memory fail-open: không có cũng chạy */ }
+
+  const system = shoppingSystemPrompt({ cartUrlHint: true, memoryBlock })
 
   // push user message vào history
   session.messages.push({ role: 'user', content: userMessage })
@@ -241,6 +253,8 @@ async function* runTurn({ sessionId, userMessage, agentName = 'shopping', agentI
           role: agentName,
           req,
           session,
+          sessionId,
+          sessionTurn: session.turns,
           progress: (msg) => { /* progress từ tool — emit event */ },
         })
         results.push({ call, res })
@@ -297,6 +311,10 @@ function toolLabel(name, input) {
     if (name === 'recommend_products') return `gợi ý theo nhu cầu`
     if (name === 'track_order') return `tra đơn ${String(input.refCode || '').slice(0, 12)}`
     if (name === 'add_to_cart') return `thêm ${String(input.slug || '').slice(0, 30)} size ${input.size}`
+    if (name === 'get_user_voucher') return `xem mã giảm giá${input?.subtotal ? ` (tạm tính ${input.subtotal.toLocaleString('vi-VN')}₫)` : ''}`
+    if (name === 'claim_and_attach_cart') return `đính nút nhận giỏ`
+    if (name === 'get_memory') return `xem ghi nhớ về khách`
+    if (name === 'save_memory') return `lưu ghi nhớ (${(input.entries || []).length} mục)`
     return name
   } catch { return name }
 }

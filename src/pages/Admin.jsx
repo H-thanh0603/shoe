@@ -885,6 +885,88 @@ function AuditLog() {
   )
 }
 
+// AI Activity Log — blueprint #5: mọi tool call của assistant runtime
+// (ok/error/blocked) — debug, security, đánh giá hành xử agent.
+function AIActivityLog() {
+  const [rows, setRows] = useState([])
+  const [stats, setStats] = useState(null)
+  const [total, setTotal] = useState(0)
+  const [f, setF] = useState({ sessionId: '', tool: '', status: '' })
+  const [page, setPage] = useState(1)
+  const limit = 20
+  const load = useCallback(async () => {
+    const qs = new URLSearchParams({ limit, offset: (page - 1) * limit })
+    if (f.sessionId.trim()) qs.set('sessionId', f.sessionId.trim())
+    if (f.tool.trim()) qs.set('tool', f.tool.trim())
+    if (f.status) qs.set('status', f.status)
+    try {
+      const d = await apiFetch(`/admin/ai-activity?${qs}`, { method: 'GET' })
+      setRows(d.items || [])
+      setTotal(d.total || 0)
+    } catch (e) { alert(e.message) }
+  }, [f.sessionId, f.tool, f.status, page])
+  useEffect(load, [load])
+  useEffect(() => {
+    apiFetch('/admin/ai-activity/stats', { method: 'GET' }).then(setStats).catch(() => {})
+  }, [])
+
+  const statusCls = (s) => s === 'ok' ? 'text-emerald-400' : s === 'blocked' ? 'text-amber-400' : 'text-red-400'
+  const totalPages = Math.max(1, Math.ceil(total / limit))
+
+  return (
+    <div className="flex flex-col gap-4">
+      {stats && (
+        <div className="border border-white/10 bg-charcoal p-4">
+          <p className="font-mono text-[10px] tracking-widest text-paper/50">TOOL CALL 24H — TỔNG {stats.total24h}</p>
+          <div className="mt-2 flex flex-wrap gap-2">
+            {stats.byTool?.map((s, i) => (
+              <span key={i} className={`border border-white/15 px-2 py-1 font-mono text-[10px] ${statusCls(s.status)}`}>
+                {s.tool} · {s.status} · {s.n}
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
+      <div className="flex flex-wrap items-end gap-2 border border-white/10 bg-charcoal p-4">
+        <label className="flex flex-col gap-1 font-mono text-[10px] text-paper/50">SESSION<input value={f.sessionId} onChange={(e) => setF((s) => ({ ...s, sessionId: e.target.value }))} placeholder="uuid phiên" className={`${inputCls} w-52`} /></label>
+        <label className="flex flex-col gap-1 font-mono text-[10px] text-paper/50">TOOL<input value={f.tool} onChange={(e) => setF((s) => ({ ...s, tool: e.target.value }))} placeholder="add_to_cart" className={`${inputCls} w-44`} /></label>
+        <label className="flex flex-col gap-1 font-mono text-[10px] text-paper/50">STATUS
+          <select value={f.status} onChange={(e) => setF((s) => ({ ...s, status: e.target.value }))} className={`${inputCls} w-28`}>
+            <option value="">TẤT CẢ</option>
+            <option value="ok">ok</option>
+            <option value="error">error</option>
+            <option value="blocked">blocked</option>
+          </select>
+        </label>
+        <button onClick={() => { setPage(1); load() }} className="border border-accent bg-accent px-4 py-1.5 font-mono text-xs font-bold text-ink hover:bg-transparent hover:text-accent">LỌC</button>
+      </div>
+      <div className="overflow-x-auto border border-white/10">
+        <table className="w-full border-collapse bg-charcoal">
+          <thead><tr className="border-b border-white/10"><th className={th}>THỜI GIAN</th><th className={th}>SESSION</th><th className={th}>TOOL</th><th className={th}>STATUS</th><th className={th}>TÓM TẮT</th><th className={th}>ARGS</th></tr></thead>
+          <tbody>
+            {rows.map((a) => (
+              <tr key={a.id} className="border-b border-white/5">
+                <td className={`${td} font-mono text-[11px]`}>{new Date(a.created_at).toLocaleString('vi-VN')}</td>
+                <td className={`${td} font-mono text-[10px] text-paper/40`}>{a.session_id?.slice(0, 8)}…{a.session_turn != null ? ` turn ${a.session_turn}` : ''}</td>
+                <td className={`${td} font-mono text-xs text-accent`}>{a.tool}</td>
+                <td className={`${td} font-mono text-xs ${statusCls(a.status)}`}>{a.status}{a.error_code ? ` (${a.error_code})` : ''}</td>
+                <td className={`${td} max-w-xs truncate text-[11px] text-paper/60`} title={a.summary}>{a.summary}</td>
+                <td className={`${td} max-w-xs truncate font-mono text-[10px] text-paper/40`} title={JSON.stringify(a.args)}>{JSON.stringify(a.args)}</td>
+              </tr>
+            ))}
+            {rows.length === 0 && <tr><td colSpan={6} className={`${td} text-center text-paper/40`}>chưa có hoạt động AI nào</td></tr>}
+          </tbody>
+        </table>
+      </div>
+      <div className="flex items-center gap-3">
+        <button disabled={page <= 1} onClick={() => setPage((p) => p - 1)} className={btn}>← TRƯỚC</button>
+        <span className="font-mono text-xs text-paper/50">TRANG {page}/{totalPages}</span>
+        <button disabled={page >= totalPages} onClick={() => setPage((p) => p + 1)} className={btn}>SAU →</button>
+      </div>
+    </div>
+  )
+}
+
 // Mỗi tab yêu cầu 1 quyền — staff chỉ thấy tab mình có quyền
 const TABS = [
   ['dash', 'TỔNG QUAN', 'analytics:read'],
@@ -893,6 +975,7 @@ const TABS = [
   ['products', 'SẢN PHẨM', 'products:read'],
   ['coupons', 'MÃ GIẢM GIÁ', 'coupons:read'],
   ['changes', 'DUYỆT CHANGE', 'agent:read'],
+  ['aiactivity', 'HOẠT ĐỘNG AI', 'agent:read'],
   ['chat', 'TRỢ LÝ', 'agent:use'],
   ['roles', 'PHÂN QUYỀN', 'users:manage'],
   ['audit', 'NHẬT KÝ', 'audit:read'],
@@ -952,6 +1035,7 @@ export default function Admin() {
       {tab === 'coupons' && <Coupons />}
       {tab === 'chat' && <AdminChat />}
       {tab === 'changes' && <ChangeApprovals />}
+      {tab === 'aiactivity' && <AIActivityLog />}
       {tab === 'roles' && <Roles />}
       {tab === 'audit' && <AuditLog />}
     </main>

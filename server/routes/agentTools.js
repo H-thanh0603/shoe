@@ -25,6 +25,7 @@ const { z } = require('zod')
 const crypto = require('node:crypto')
 const productsSvc = require('../services/products.js')
 const { buildPrefs, matchScore, BUDGET } = require('../services/match.js')
+const memorySvc = require('../services/agent/memory.js')
 
 const router = express.Router()
 
@@ -309,6 +310,142 @@ const TOOLS = [
       }
     },
   },
+  {
+    // get_user_voucher — blueprint #2: agent đọc voucher hợp lệ (KHÔNG tự áp
+    // — áp ở checkout bởi người dùng, tool validate dùng cùng pricing svc).
+    name: 'get_user_voucher',
+    description: 'Xem mã giảm giá công khai đang chạy (chỉ mã public, mỗi ngành hàng nếu có). Không trả voucher cá nhân. Người dùng tự nhập mã ở checkout — agent không áp mã hộ.',
+    readOnly: true,
+    requiresUser: false,
+    rateLimit: 20,
+    inputSchema: {
+      type: 'object',
+      properties: {
+        subtotal: { type: 'integer', minimum: 0, description: 'Tổng tạm tính VND (để preview mức giảm, mặc định 0 = không preview)' },
+      },
+    },
+    handler: async ({ subtotal = 0 }, ctx) => {
+      const { rows } = await pool.query(
+        `SELECT c.id, c.code, c.type, c.value, c.minimum_order_vnd, c.starts_at, c.expires_at, c.status, c.usage_limit, c.per_user_limit,
+                COUNT(cu.order_id) AS used_count
+         FROM coupons c
+         LEFT JOIN coupon_usages cu ON cu.coupon_id = c.id
+         WHERE c.status = 'active' AND now() >= c.starts_at AND (c.expires_at IS NULL OR now() <= c.expires_at)
+         GROUP BY c.id
+         ORDER BY c.created_at DESC LIMIT 10`,
+      )
+      const { couponDiscount } = require('../services/pricing.js')
+      return {
+        vouchers: rows.map((c) => {
+          let preview = null
+          if (subtotal > 0) {
+            // couponDiscount cần user_used_count cho per_user_limit —
+            // đếm theo user thật nếu đang login (req.user), guest chỉ preview
+            const userCount = ctx?.req?.user?.id ? Number(c.used_count) : null
+            try {
+              const res = couponDiscount({ ...c, user_used_count: userCount }, subtotal, ctx?.req?.user?.id ?? null)
+              preview = res.discount
+            } catch { preview = null }
+          }
+          return {
+            code: c.code, type: c.type, valueVnd: c.value,
+            minSubtotalVnd: c.minimum_order_vnd,
+            expiresAt: c.expires_at,
+            previewDiscountVnd: preview,
+          }
+        }),
+        note: 'Khách nhập mã ở bước thanh toán (sau khi nhận giỏ) — mức giảm thật hiển thị ở checkout.',
+      }
+    },
+  },
+  {
+    // claim_and_attach_cart — blueprint #1 (step "checkout handoff"): agent
+    // gọi 1 LẦN để đính link nhận giỏ vào đơn NHÁP (draft) cho người dùng
+    // bấm nút tự thanh toán. Không tạo payment, không đổi trạng thái order.
+    name: 'claim_and_attach_cart',
+    description: 'Đính link nhận giỏ (shareUrl) đã tạo ở phiên này vào đúng một sản phẩm dòng chat để khách bấm ngay trong tin nhắn. KHÔNG tạo đơn/thanh toán — checkout vẫn do người dùng bấm nút. Chỉ gọi sau khi add_to_cart đã trả shareUrl.',
+    readOnly: false,
+    requiresUser: false,
+    rateLimit: 12,
+    inputSchema: {
+      type: 'object',
+      properties: {
+        shareUrl: { type: 'string', description: 'shareUrl từ kết quả add_to_cart (vd "/gio-hang/<token>")' },
+      },
+      required: ['shareUrl'],
+    },
+    handler: async ({ shareUrl }, ctx) => {
+      const token = /\/gio-hang\/([a-z0-9-]+)/i.exec(shareUrl || '')?.[1]
+      if (!token) throw httpError(400, 'INVALID_SHARE_URL', 'shareUrl không đúng định dạng /gio-hang/<token>')
+      // token phải thuộc giỏ agent này + chưa quá 24h (cart_share_tokens có TTL ở claim)
+      const { rows: [t] } = await pool.query(
+        `SELECT cst.token, cst.created_at FROM cart_share_tokens cst
+         JOIN carts c ON c.id = cst.cart_id
+         WHERE cst.token = $1 AND c.session_token = $2`,
+        [token, `agent:${ctx.agentId}`],
+      )
+      if (!t) throw httpError(404, 'SHARE_TOKEN_NOT_FOUND', 'shareUrl không thuộc giỏ agent của phiên này — gọi add_to_cart trước')
+      return {
+        attached: true,
+        shareUrl: `/gio-hang/${token}`,
+        note: 'Hiển thị nút "NHẬN GIỎ & THANH TOÁN" — khách tự bấm (human-in-the-loop cho checkout).',
+      }
+    },
+  },
+  {
+    // get_memory — blueprint #10: agent đọc preference khách của phiên này.
+    name: 'get_memory',
+    description: 'Xem ghi nhớ về khách (brand ưa thích, size, ngân sách, mục đích) của phiên hiện tại. Dùng khi khách hỏi "giày cho tôi" để cá nhân hóa mà không hỏi lại.',
+    readOnly: true,
+    requiresUser: false,
+    rateLimit: 30,
+    inputSchema: { type: 'object', properties: {} },
+    handler: async (_args, ctx) => {
+      const { key } = memorySvc.resolveKey(ctx?.req)
+      const prefs = await memorySvc.getPreferences(key)
+      return {
+        remembered: prefs,
+        note: prefs.length ? 'Dùng để cá nhân hóa đề xuất. Khách nói mới nhất → theo khách, rồi save_memory.' : 'Chưa có ghi nhớ — hỏi khách + save_memory khi khách nói rõ preference.',
+      }
+    },
+  },
+  {
+    // save_memory — blueprint #10: agent LƯU preference khách (chỉ whitelist).
+    name: 'save_memory',
+    description: 'Lưu ghi nhớ về khách (KHÔNG lưu thông tin nhạy cảm: thẻ, địa chỉ, mật khẩu). Chỉ nhận key: preferred_brand (vd "NIKE"), shoe_size (36-46), budget ("under-2m"|"2-4m"|"4m+"), preferred_purpose (running/street/court/daily/trail), preferred_style.',
+    readOnly: false,
+    requiresUser: false,
+    rateLimit: 12,
+    inputSchema: {
+      type: 'object',
+      properties: {
+        entries: {
+          type: 'array', minItems: 1, maxItems: 8,
+          description: 'Danh sách {key, value} — vd [{key:"preferred_brand", value:"NIKE"}, {key:"shoe_size", value:"42"}]',
+          items: {
+            type: 'object',
+            properties: {
+              key: { type: 'string', description: 'preferred_brand | shoe_size | budget | preferred_purpose | preferred_style' },
+              value: { type: 'string', description: 'Giá trị (string; size vd "42")' },
+            },
+            required: ['key', 'value'],
+          },
+        },
+      },
+      required: ['entries'],
+    },
+    handler: async ({ entries }, ctx) => {
+      const { key } = memorySvc.resolveKey(ctx?.req)
+      const results = await memorySvc.savePreferences(key, entries)
+      const saved = results.filter((r) => r.saved)
+      return {
+        savedCount: saved.length,
+        results: results.map((r) => r.saved
+          ? { key: r.key, value: r.value, ok: true }
+          : { key: r.key, error: r.reason || 'không lưu được', ok: false }),
+      }
+    },
+  },
 ]
 
 const toolByName = Object.fromEntries(TOOLS.map((t) => [t.name, t]))
@@ -437,7 +574,11 @@ function buildZod(schema) {
     }
     else if (v.type === 'number') s = z.number()
     else if (v.type === 'array') {
-      s = z.array(z.string().min(1))
+      const itemType = v.items || {}
+      const item = itemType.type === 'object'
+        ? buildZod(itemType) // array of objects (vd save_memory entries)
+        : z.string().min(1)
+      s = z.array(item)
       if (v.minItems) s = s.min(v.minItems)
       if (v.maxItems) s = s.max(v.maxItems)
     } else s = z.unknown()

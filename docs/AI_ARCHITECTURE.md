@@ -161,11 +161,14 @@ DEBUG log request/response đã redact (không key). `/metrics` bổ sung counte
 
 | File | Trách nhiệm |
 |---|---|
-| `runtime.js` | Vòng agent: system prompt → LLM call (stream) → tool_use → execute tool → tool_result → loop; giới hạn vòng `maxRounds` (8); emit events (text_delta, tool_call, tool_result, progress, turn_complete, error) đúng theo semantics của Blueprint events |
-| `tools.js` | Adapter cho AWI tool registry: lấy TOOLS từ `agentTools.js`, bọc handler trong validation + fencing (truncate kết quả lớn, JSON serialize, chèn fence như Blueprint fencing) + progress; tool interface độc lập provider: `{name, description, inputSchema, handler}` |
+| `runtime.js` | Vòng agent: system prompt (kèm Agent Memory block ở turn đầu) → LLM call (stream) → tool_use → execute tool → tool_result → loop; giới hạn vòng `maxRounds` (8); emit events (text_delta, tool_call, tool_result, progress, turn_complete, error) đúng theo semantics của Blueprint events |
+| `tools.js` | Adapter cho AWI tool registry: lấy TOOLS từ `agentTools.js`, bọc handler trong validation + fencing (truncate kết quả lớn, JSON serialize, chèn fence như Blueprint fencing) + progress; tool interface độc lập provider: `{name, description, inputSchema, handler}`. Mọi outcome (ok/error/blocked) được `await` ghi vào AI Activity Log trước khi trả kết quả |
 | `sessions.js` | In-memory session store (LRU, TTL) cho assistant chat: history + cart-hints; production-ready slot giới hạn (mỗi session max turn) |
+| `memory.js` | Agent Memory: đọc/ghi preference khách (`agent_memory`, phân vùng `user:<id>` / `anon:<ip-hash>`). Whitelist 5 key; explicit đè inferred; render block `## Ghi nhớ về khách` cho system prompt |
+| `activity.js` | AI Activity Log: `logToolCall` (bảng `ai_activity_log`, best-effort), `listActivity` (filter session/tool/status + phân trang), `activityStats` (tóm tắt 24h) |
+| `workflows.js` | Macro `draftOrder`: recommend → check_stock → add_to_cart → get_user_voucher → claim_and_attach_cart qua `executeTool` (không đường tắt vượt policy); handoff = shareUrl, không sinh order |
 | `policy.js` | Gates theo concept Blueprint: require-host-approval cho hành vi ghi (agent chỉ add_to_cart + shareUrl, không checkout) |
-| `prompts.js` | System prompts port từ Blueprint shopping/merchant: tiếng Việt, brand voice KINETIC, định dạng giá VND, grounding rules |
+| `prompts.js` | System prompts port từ Blueprint shopping/merchant: tiếng Việt, brand voice KINETIC, định dạng giá VND, grounding rules; `TOOL_RULES` có rules cho voucher/memory/handoff, `shoppingSystemPrompt({memoryBlock})` |
 
 Events (SSE ra frontend): `text` (delta), `tool` (tên tool + label), `tool_result` (status ok/error/blocked), `turn_complete` (usage), `error`. Frontend chỉ thấy events trung tính với provider — không lộ tên model của provider hay internal endpoint.
 

@@ -33,7 +33,7 @@ function mode() {
   return cacheInfo().backend === 'redis' ? 'redis' : 'memory'
 }
 
-/** @type {Map<string, {messages: Array, turns: number, lastSeen: number, seenSlugs: Set}>} */
+/** @type {Map<string, {messages: Array, turns: number, lastSeen: number, seenSlugs: Set, seenShareUrls: Set}>} */
 const sessions = new Map()
 /** đang hydrate từ Redis (tránh hydrate đè turn đang chạy trên replica này) */
 const hydrated = new Set()
@@ -61,7 +61,7 @@ function create(sid, initialMessages = []) {
     sessions.delete(oldest)
     hydrated.delete(oldest)
   }
-  const entry = { messages: [...initialMessages], turns: 0, lastSeen: Date.now(), seenSlugs: new Set() }
+  const entry = { messages: [...initialMessages], turns: 0, lastSeen: Date.now(), seenSlugs: new Set(), seenShareUrls: new Set() }
   sessions.set(sid, entry)
   return entry
 }
@@ -122,9 +122,11 @@ async function hydrateAsync(sid) {
     const raw = await cacheGet(REDIS_KEY(sid))
     if (!raw) return // chưa từng có — Map tiếp tục như session mới
     const s = typeof raw === 'string' ? JSON.parse(raw) : raw
-    // seenSlugs serialize thành array — dựng lại Set
+    // seenSlugs/seenShareUrls serialize thành array — dựng lại Set
     if (Array.isArray(s.seenSlugs)) s.seenSlugs = new Set(s.seenSlugs)
     if (!s.seenSlugs) s.seenSlugs = new Set()
+    if (Array.isArray(s.seenShareUrls)) s.seenShareUrls = new Set(s.seenShareUrls)
+    if (!s.seenShareUrls) s.seenShareUrls = new Set()
     s.lastSeen = Date.now()
     sessions.set(sid, s)
     while (sessions.size > maxSessions()) { // LRU giữ kích thước
@@ -148,6 +150,7 @@ async function flushAsync(sid) {
       messages: s.messages,
       turns: s.turns,
       seenSlugs: [...s.seenSlugs],
+      seenShareUrls: [...(s.seenShareUrls || [])],
       lastSeen: s.lastSeen,
     }, Math.ceil(SESSION_TTL_MS / 1000))
   } catch { /* fail-open */ }

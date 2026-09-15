@@ -6,4 +6,7 @@ module.exports = {
   sessions: require('./sessions.js'),
   tools: require('./tools.js'),
   prompts: require('./prompts.js'),
+  memory: require('./memory.js'),
+  activity: require('./activity.js'),
+  workflows: require('./workflows.js'),
 }

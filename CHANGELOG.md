@@ -3,6 +3,26 @@
 Mọi thay đổi đáng chú ý của KINETIC. Format theo [Keep a Changelog](https://keepachangelog.com/),
 phiên bản theo ngày release (dự án cá nhân, tag theo YYYY-MM-DD).
 
+## 2026-09-15 — Agentic commerce round 2: Memory, Activity Log, draft_order
+
+### Thêm
+- **Agent Memory** (`agent_memory`, `services/agent/memory.js`): trợ lý nhớ
+  preference khách (whitelist 5 key: brand/size/budget/purpose/style;
+  explicit đè inferred), phân vùng `user:<id>` / `anon:<ip-hash>`,
+  nạp vào system prompt ở turn đầu.
+- **Tools mới** trong registry AWI (12 tools): `get_user_voucher` (mã công
+  khai + preview giảm theo subtotal, KHÔNG áp hộ), `claim_and_attach_cart`
+  (đính nút nhận giỏ vào chat, provenance gate theo token do phiên tạo),
+  `get_memory` / `save_memory`.
+- **Workflow `draft_order`** (`services/agent/workflows.js`): macro
+  recommend → check_stock → add_to_cart → voucher → handoff qua
+  `executeTool` (không đường tắt vượt policy) — dừng ở shareUrl.
+- **AI Activity Log** (`ai_activity_log`, `GET /admin/ai-activity[ /stats]`
+  perm `agent:read`, admin tab HOẠT ĐỘNG AI): mọi outcome tool call của
+  runtime (ok/error/blocked) được await ghi trước khi trả kết quả.
+- Session multi-instance sync thêm `seenShareUrls` (provenance handoff
+  chia sẻ giữa replica).
+
 ## 2026-09-14 — Production hardening + AI agent layer
 
 ### Thêm
