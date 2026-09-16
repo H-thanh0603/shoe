@@ -118,13 +118,58 @@ function Reports() {
 function Dashboard() {
   const [a, setA] = useState(null)
   const [e, setE] = useState(null)
+  const [brief, setBrief] = useState(null)
+  const [anom, setAnom] = useState(null)
+  const [fore, setFore] = useState(null)
+  const [audit, setAudit] = useState(null)
+  const [reorder, setReorder] = useState({})
   useEffect(() => {
     apiGet('/admin/analytics').then(setA).catch((e) => window.dispatchEvent(new CustomEvent('admin-error', { detail: e?.message || 'Không tải được dữ liệu' })))
     apiGet('/admin/analytics/events').then(setE).catch((e) => window.dispatchEvent(new CustomEvent('admin-error', { detail: e?.message || 'Không tải được dữ liệu' })))
+    apiGet('/admin/insights/briefing').then(setBrief).catch(() => {})
+    apiGet('/admin/insights/anomaly').then(setAnom).catch(() => {})
+    apiGet('/admin/insights/forecast?days=14').then(setFore).catch(() => {})
+    apiGet('/admin/insights/catalog-audit').then(setAudit).catch(() => {})
   }, [])
+  const createReorder = async (item) => {
+    const qty = Math.max(Number(reorder[`${item.slug}::${item.size}`]) || item.suggestQty, 1)
+    try {
+      const id = `CHG-${Date.now().toString(36).toUpperCase()}`
+      await apiFetch(`/admin/agent-changes/${id}`, {
+        method: 'PUT',
+        body: {
+          kind: 'inventory_action', summary: `Nhập ${qty} đôi ${item.name} size ${item.size} (forecast ~${item.daysLeft} ngày)`,
+          items: [{ target: `${item.slug}::${item.size}`, field: 'restock', after: qty }],
+          payload: { slug: item.slug, size: item.size, qty }, createdBy: 'admin-ui',
+        },
+      })
+      alert(`Đã tạo phiếu nhập chờ duyệt (tab DUYỆT CHANGE): ${item.name} size ${item.size} x${qty}`)
+    } catch (err) { alert(err.message) }
+  }
   if (!a) return <p className="font-mono text-xs text-paper/50">ĐANG TẢI SỐ LIỆU…</p>
   return (
     <div className="flex flex-col gap-6">
+      {/* AI ACTION CENTER — mở dashboard là thấy việc cần làm */}
+      {(anom?.anomaly || (fore?.critical?.length > 0) || (audit && (audit.issues.noDesc + audit.issues.noImage + audit.issues.noPurpose) > 0)) && (
+        <div className="border border-accent/40 bg-charcoal p-4">
+          <p className="font-mono text-[10px] tracking-widest text-accent">🤖 AI ACTION CENTER</p>
+          <ul className="mt-2 flex flex-col gap-1.5 text-sm">
+            {anom?.anomaly && <li className="text-paper/85">🔴 {anom.line}</li>}
+            {fore?.critical?.length > 0 && <li className="text-paper/85">🔴 {fore.line}</li>}
+            {audit && (audit.issues.noDesc + audit.issues.noImage + audit.issues.noPurpose) > 0 && (
+              <li className="text-paper/85">💡 {audit.line}</li>
+            )}
+          </ul>
+        </div>
+      )}
+      {brief && (
+        <div className="border border-white/10 bg-charcoal p-4">
+          <p className="font-mono text-[10px] tracking-widest text-paper/50">🌅 BRIEFING SÁNG</p>
+          <ul className="mt-2 flex flex-col gap-1 font-mono text-xs text-paper/70">
+            {brief.lines.map((l) => <li key={l}>{l}</li>)}
+          </ul>
+        </div>
+      )}
       <div className="grid grid-cols-2 gap-3 md:grid-cols-5">
         <Stat label="DOANH THU" value={vnd(a.revenue)} accent />
         <Stat label="ĐƠN (TRỪ HỦY)" value={a.orders} />
@@ -176,6 +221,30 @@ function Dashboard() {
           </ul>
         </div>
       </div>
+
+      {/* Forecast nhập hàng — tạo phiếu chờ duyệt, không tự nhập */}
+      {fore?.critical?.length > 0 && (
+        <div className="border border-white/10 bg-charcoal p-4">
+          <p className="font-mono text-[10px] tracking-widest text-paper/50">🔮 DỰ BÁO HẾT HÀNG 14 NGÀY — TẠO PHIẾU NHẬP (CHỜ DUYỆT)</p>
+          <ul className="mt-2 flex flex-col gap-2">
+            {fore.critical.slice(0, 8).map((item) => {
+              const k = `${item.slug}::${item.size}`
+              return (
+                <li key={k} className="flex flex-wrap items-center gap-2 text-sm">
+                  <span className="flex-1 text-paper/80">{item.name} <span className="font-mono text-xs text-paper/40">size {item.size} · còn {item.stock} · bán 14 ngày {item.sold14} · ~{item.daysLeft} ngày hết</span></span>
+                  <input
+                    type="number" min="1" max="500" value={reorder[k] ?? item.suggestQty}
+                    onChange={(e) => setReorder((r) => ({ ...r, [k]: e.target.value }))}
+                    aria-label={`Số lượng nhập ${item.name} size ${item.size}`}
+                    className="w-20 border border-white/15 bg-ink-deep px-2 py-1 font-mono text-xs text-paper"
+                  />
+                  <button onClick={() => createReorder(item)} className={btn}>TẠO PHIẾU</button>
+                </li>
+              )
+            })}
+          </ul>
+        </div>
+      )}
     </div>
   )
 }
