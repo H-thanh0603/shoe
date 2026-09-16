@@ -61,9 +61,50 @@ function create(sid, initialMessages = []) {
     sessions.delete(oldest)
     hydrated.delete(oldest)
   }
-  const entry = { messages: [...initialMessages], turns: 0, lastSeen: Date.now(), seenSlugs: new Set(), seenShareUrls: new Set() }
+  const entry = { messages: [...initialMessages], turns: 0, lastSeen: Date.now(), seenSlugs: new Set(), seenShareUrls: new Set(), budget: null }
   sessions.set(sid, entry)
   return entry
+}
+
+/**
+ * Budget tracking xuyên turn (shopping task state): { total, spent, items:[{label, priceVnd}] }.
+ * Session TTL 2h — đủ cho 1 phiên mua sắm; qua phiên mới tính lại.
+ */
+function getBudget(sid) {
+  return get(sid)?.budget || null
+}
+
+function setBudget(sid, totalVnd) {
+  const s = get(sid) || create(sid)
+  s.budget = { total: Number(totalVnd), spent: 0, items: [] }
+  s.lastSeen = Date.now()
+  return s.budget
+}
+
+function budgetAdd(sid, label, priceVnd) {
+  const s = get(sid)
+  if (!s?.budget) return null
+  s.budget.items.push({ label: String(label).slice(0, 60), priceVnd: Number(priceVnd) })
+  s.budget.spent = s.budget.items.reduce((t, i) => t + i.priceVnd, 0)
+  s.lastSeen = Date.now()
+  return s.budget
+}
+
+function budgetRemove(sid, label) {
+  const s = get(sid)
+  if (!s?.budget) return null
+  const i = s.budget.items.findIndex((x) => x.label === label)
+  if (i >= 0) s.budget.items.splice(i, 1)
+  s.budget.spent = s.budget.items.reduce((t, i) => t + i.priceVnd, 0)
+  s.lastSeen = Date.now()
+  return s.budget
+}
+
+function budgetLine(b) {
+  if (!b) return ''
+  const vnd = (n) => Number(n || 0).toLocaleString('vi-VN') + '₫'
+  const rows = b.items.map((i) => `${i.label} ${vnd(i.priceVnd)}`).join('\n')
+  return `Ngân sách: ${vnd(b.total)}\n${rows}\nĐã dùng: ${vnd(b.spent)} — Còn lại: ${vnd(b.total - b.spent)}`
 }
 
 /** append 1 message; tự tạo session nếu chưa có. */
@@ -151,6 +192,7 @@ async function flushAsync(sid) {
       turns: s.turns,
       seenSlugs: [...s.seenSlugs],
       seenShareUrls: [...(s.seenShareUrls || [])],
+      budget: s.budget || null,
       lastSeen: s.lastSeen,
     }, Math.ceil(SESSION_TTL_MS / 1000))
   } catch { /* fail-open */ }
@@ -162,4 +204,5 @@ function isHydrated(sid) { return hydrated.has(sid) }
 module.exports = {
   get, create, append, bumpTurn, turnCount, atLimit, reset, stats,
   hydrateAsync, flushAsync, isHydrated, mode,
+  getBudget, setBudget, budgetAdd, budgetRemove, budgetLine,
 }

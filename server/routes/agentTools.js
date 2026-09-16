@@ -540,6 +540,49 @@ const TOOLS = [
       return { forgotten: true, deleted, note: 'Đã xoá mọi ghi nhớ phiên này.' }
     },
   },
+  {
+    // track_budget — ngân sách xuyên turn của 1 shopping task ("tôi có 5 triệu").
+    // action: set (tổng mới) | add (chốt món) | remove (đổi/bỏ món) | view.
+    // State trong session (TTL 2h) — qua phiên mới tính lại, không phải memory vĩnh viễn.
+    name: 'track_budget',
+    description: 'Theo dõi ngân sách mua sắm của phiên ("tôi có 5 triệu, tìm outfit"): set tổng, add khi chốt món, remove khi đổi món, view để báo còn lại. Luôn view + báo số còn lại sau mỗi lần add/remove.',
+    readOnly: false,
+    requiresUser: false,
+    rateLimit: 20,
+    inputSchema: {
+      type: 'object',
+      properties: {
+        action: { type: 'string', description: 'set | add | remove | view' },
+        totalVnd: { type: 'integer', minimum: 100000, maximum: 500000000, description: 'tổng ngân sách (action=set)' },
+        label: { type: 'string', description: 'tên món (add/remove), vd "Nike Pegasus 41"' },
+        priceVnd: { type: 'integer', minimum: 0, description: 'giá món (add)' },
+      },
+      required: ['action'],
+    },
+    handler: async ({ action, totalVnd, label, priceVnd }, ctx) => {
+      const sessions = require('../services/agent/sessions.js')
+      const sid = String(ctx?.sessionId || '')
+      if (!sid) throw httpError(400, 'NO_SESSION', 'Thiếu sessionId')
+      if (action === 'set') {
+        if (!totalVnd) throw httpError(400, 'NO_TOTAL', 'Thiếu totalVnd')
+        const b = sessions.setBudget(sid, totalVnd)
+        return { budget: b, line: sessions.budgetLine(b) }
+      }
+      if (action === 'add') {
+        const b = sessions.budgetAdd(sid, label || 'món', priceVnd || 0)
+        if (!b) throw httpError(400, 'NO_BUDGET', 'Chưa set ngân sách — gọi action=set trước')
+        return { budget: b, line: sessions.budgetLine(b), over: b.spent > b.total }
+      }
+      if (action === 'remove') {
+        const b = sessions.budgetRemove(sid, label || '')
+        if (!b) throw httpError(400, 'NO_BUDGET', 'Chưa set ngân sách')
+        return { budget: b, line: sessions.budgetLine(b) }
+      }
+      const b = sessions.getBudget(sid)
+      if (!b) return { budget: null, line: 'Chưa có ngân sách phiên này.' }
+      return { budget: b, line: sessions.budgetLine(b) }
+    },
+  },
 ]
 
 const toolByName = Object.fromEntries(TOOLS.map((t) => [t.name, t]))
