@@ -456,6 +456,21 @@ const TOOLS = [
       }
     },
   },
+  {
+    // forget_memory — quyền quên: khách nói "quên tôi đi" → agent gọi tool này,
+    // không cần hỏi lại. Xoá preference phân vùng hiện tại (user hoặc anon-hash).
+    name: 'forget_memory',
+    description: 'Xoá TẤT CẢ ghi nhớ về khách của phiên hiện tại. Gọi ngay khi khách yêu cầu quên/xoá dữ liệu ("quên tôi đi", "xoá ghi nhớ").',
+    readOnly: false,
+    requiresUser: false,
+    rateLimit: 6,
+    inputSchema: { type: 'object', properties: {} },
+    handler: async (_args, ctx) => {
+      const { key } = memorySvc.resolveKey(ctx?.req)
+      const deleted = await memorySvc.clearPreferences(key)
+      return { forgotten: true, deleted, note: 'Đã xoá mọi ghi nhớ phiên này.' }
+    },
+  },
 ]
 
 const toolByName = Object.fromEntries(TOOLS.map((t) => [t.name, t]))

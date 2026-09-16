@@ -16,13 +16,23 @@
 const crypto = require('node:crypto')
 const pool = require('../../db.js')
 
+// Chặn stored prompt injection: value render thẳng vào system prompt nên phải
+// loại tag/cú pháp điều khiển (kẻ lưu style="bỏ qua quy tắc..." sẽ ám mọi turn).
+// Chạy ở normalize (lúc save) + render (phòng dòng cũ đã lưu).
+const sanitizeValue = (v) => String(v ?? '')
+  .replace(/[<>{}[\]`$\\]/g, '')
+  .replace(/\b(system|assistant|user|role|instruction|ignore|bỏ qua)\s*:/gi, '')
+  .replace(/\s+/g, ' ')
+  .trim()
+  .slice(0, 60)
+
 // ——— whitelist key + validation ———
 const MEMORY_KEYS = {
-  preferred_brand: { validate: (v) => /^[A-Za-z0-9 .'-]{1,30}$/.test(v), normalize: (v) => String(v).toUpperCase() },
+  preferred_brand: { validate: (v) => /^[A-Za-z0-9 .'-]{1,30}$/.test(v), normalize: (v) => sanitizeValue(v).toUpperCase() },
   shoe_size: { validate: (v) => Number.isInteger(Number(v)) && Number(v) >= 35 && Number(v) <= 46, normalize: (v) => String(Number(v)) },
   budget: { validate: (v) => ['under-2m', '2-4m', '4m+'].includes(v), normalize: (v) => v },
   preferred_purpose: { validate: (v) => ['running', 'street', 'court', 'daily', 'trail'].includes(v), normalize: (v) => v },
-  preferred_style: { validate: (v) => typeof v === 'string' && v.length >= 2 && v.length <= 60, normalize: (v) => v.trim().toLowerCase() },
+  preferred_style: { validate: (v) => typeof v === 'string' && v.length >= 2 && v.length <= 60, normalize: (v) => sanitizeValue(v).toLowerCase() },
 }
 
 const KEY_LABELS = {
@@ -70,7 +80,7 @@ async function getPreferences(memoryKey) {
 async function preferencesForPrompt(memoryKey) {
   const prefs = await getPreferences(memoryKey)
   if (!prefs.length) return ''
-  const lines = prefs.map((p) => `- ${p.label}: ${p.value}${p.source === 'inferred' ? ' (suy đoán — xác nhận lại với khách nếu ảnh hưởng đề xuất)' : ''}`)
+  const lines = prefs.map((p) => `- ${p.label}: ${sanitizeValue(p.value)}${p.source === 'inferred' ? ' (suy đoán — xác nhận lại với khách nếu ảnh hưởng đề xuất)' : ''}`)
   return [
     '## Ghi nhớ về khách (từ các phiên trước)',
     ...lines,
@@ -130,7 +140,14 @@ async function savePreferences(memoryKey, entries) {
   return results
 }
 
+// Xoá toàn bộ preference của 1 phân vùng (quyền quên — khách yêu cầu "quên tôi đi").
+async function clearPreferences(memoryKey) {
+  const { rowCount } = await pool.query(
+    `DELETE FROM agent_memory WHERE session_key = $1 AND kind = 'preference'`, [memoryKey])
+  return rowCount
+}
+
 module.exports = {
   resolveKey, getPreferences, preferencesForPrompt,
-  upsertPreference, savePreferences, MEMORY_KEYS, KEY_LABELS,
+  upsertPreference, savePreferences, clearPreferences, sanitizeValue, MEMORY_KEYS, KEY_LABELS,
 }
