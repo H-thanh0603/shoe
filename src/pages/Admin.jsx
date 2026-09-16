@@ -692,8 +692,11 @@ function Coupons() {
 
 function ChangeApprovals() {
   const [rows, setRows] = useState([])
+  const [biz, setBiz] = useState([])
+  const [bizForm, setBizForm] = useState({ key: 'margin_first', value: 'true' })
   const load = useCallback(() => {
     apiGet('/admin/agent-changes?status=staged').then(setRows).catch((e) => window.dispatchEvent(new CustomEvent('admin-error', { detail: e?.message || 'Không tải được dữ liệu' })))
+    apiGet('/admin/business-memory').then(setBiz).catch(() => {})
   }, [])
   useEffect(load, [load])
 
@@ -706,9 +709,39 @@ function ChangeApprovals() {
     } catch (e) { alert(e.message) }
   }
 
-  if (!rows.length) return <p className="font-mono text-xs text-paper/50">Không có change nào chờ duyệt.</p>
+  const saveBiz = async (e) => {
+    e.preventDefault()
+    try {
+      await apiFetch('/admin/business-memory', { method: 'PUT', body: bizForm })
+      playTechClick(); setBizForm({ key: 'margin_first', value: 'true' }); load()
+    } catch (err) { alert(err.message) }
+  }
+
   return (
-    <div className="flex flex-col gap-3">
+    <div className="flex flex-col gap-4">
+      <form onSubmit={saveBiz} className="flex flex-wrap items-end gap-2 border border-white/10 bg-charcoal p-4">
+        <p className="w-full font-mono text-[10px] tracking-widest text-paper/50">🧠 NGỮ CẢNH KINH DOANH — AGENT TÔN TRỌNG KHI ĐỀ XUẤT</p>
+        <label className="flex flex-col gap-1 font-mono text-[10px] text-paper/50">NGUYÊN TẮC
+          <select value={bizForm.key} onChange={(e) => setBizForm((f) => ({ ...f, key: e.target.value }))} className={`${inputCls}`}>
+            <option value="margin_first">ƯU TIÊN LỢI NHUẬN</option>
+            <option value="no_discount_premium">KHÔNG GIẢM GIÁ PREMIUM</option>
+            <option value="focus_category">DANH MỤC TRỌNG TÂM</option>
+            <option value="restock_policy">CHÍNH SÁCH NHẬP HÀNG</option>
+          </select>
+        </label>
+        <label className="flex flex-col gap-1 font-mono text-[10px] text-paper/50">GIÁ TRỊ<input value={bizForm.value} onChange={(e) => setBizForm((f) => ({ ...f, value: e.target.value }))} required className={`${inputCls} w-40`} placeholder="true / running" /></label>
+        <button type="submit" className="border border-accent bg-accent px-4 py-1.5 font-mono text-xs font-bold text-ink hover:bg-transparent hover:text-accent">+ DẶN AGENT</button>
+        <span className="flex flex-wrap gap-2">
+          {biz.map((b) => (
+            <span key={b.key} className="border border-white/15 px-2 py-1 font-mono text-[11px] text-paper/70">
+              {b.label}: <b className="text-accent">{b.value}</b>
+              <button type="button" aria-label={`Xóa ${b.label}`} onClick={async () => { await apiFetch(`/admin/business-memory/${b.key}`, { method: 'DELETE' }).catch((e) => alert(e.message)); load() }} className="ml-2 text-paper/40 hover:text-accent">✕</button>
+            </span>
+          ))}
+        </span>
+      </form>
+
+      {!rows.length && <p className="font-mono text-xs text-paper/50">Không có change nào chờ duyệt.</p>}
       {rows.map((c) => (
         <div key={c.change_id} className="border border-white/10 bg-charcoal p-4">
           <div className="flex flex-wrap items-baseline justify-between gap-2">

@@ -150,4 +150,59 @@ async function clearPreferences(memoryKey) {
 module.exports = {
   resolveKey, getPreferences, preferencesForPrompt,
   upsertPreference, savePreferences, clearPreferences, sanitizeValue, MEMORY_KEYS, KEY_LABELS,
+  getBusiness, setBusiness, clearBusiness, businessForPrompt,
+}
+
+// ——— Business memory: merchant agent nhớ ngữ cảnh shop ———
+// session_key='biz' (shop-level, mọi admin cùng thấy). Key whitelist hẹp:
+// margin_first (ưu tiên lợi nhuận), no_discount_premium, focus_category,
+// restock_policy. Admin set/xóa qua /admin/business-memory (perm agent:write).
+const BIZ_KEY = 'biz'
+const BIZ_KEYS = {
+  margin_first: { validate: (v) => ['true', 'false'].includes(String(v)), normalize: (v) => String(v) },
+  no_discount_premium: { validate: (v) => ['true', 'false'].includes(String(v)), normalize: (v) => String(v) },
+  focus_category: { validate: (v) => /^[a-z]{2,20}$/.test(String(v)), normalize: (v) => String(v) },
+  restock_policy: { validate: (v) => String(v).length >= 2 && String(v).length <= 120, normalize: (v) => sanitizeValue(v) },
+}
+const BIZ_LABELS = {
+  margin_first: 'ưu tiên lợi nhuận hơn doanh số',
+  no_discount_premium: 'không giảm giá dòng premium',
+  focus_category: 'danh mục trọng tâm',
+  restock_policy: 'chính sách nhập hàng',
+}
+
+async function getBusiness() {
+  const { rows } = await pool.query(
+    `SELECT key, value FROM agent_memory WHERE session_key = $1 AND kind = 'business' ORDER BY key ASC`, [BIZ_KEY])
+  return rows.map((r) => ({ key: r.key, label: BIZ_LABELS[r.key] || r.key, value: r.value }))
+}
+
+async function businessForPrompt() {
+  const rows = await getBusiness()
+  if (!rows.length) return ''
+  return ['## Ngữ cảnh kinh doanh (admin đã dặn)',
+    ...rows.map((r) => `- ${r.label}: ${sanitizeValue(r.value)}`),
+    '- Khi đề xuất promotion/nhập hàng/giá: tôn trọng các nguyên tắc này, gắn cờ nếu phương án vi phạm.',
+  ].join('\n')
+}
+
+async function setBusiness(userId, key, value) {
+  const spec = BIZ_KEYS[key]
+  if (!spec) return { saved: false, reason: `key cho phép: ${Object.keys(BIZ_KEYS).join(', ')}` }
+  const raw = String(value ?? '')
+  if (!spec.validate(raw)) return { saved: false, key, reason: 'giá trị không hợp lệ' }
+  await pool.query(
+    `INSERT INTO agent_memory (user_id, session_key, kind, key, value, source, confidence, last_seen)
+     VALUES ($1, 'biz', 'business', $2, $3, 'explicit', 100, now())
+     ON CONFLICT (session_key, kind, key) DO UPDATE SET value = EXCLUDED.value, user_id = EXCLUDED.user_id, last_seen = now()`,
+    [userId, key, spec.normalize(raw)])
+  return { saved: true, key, value: spec.normalize(raw) }
+}
+
+async function clearBusiness(userId, key) {
+  const { rowCount } = await pool.query(
+    key ? `DELETE FROM agent_memory WHERE session_key = 'biz' AND kind = 'business' AND key = $1`
+        : `DELETE FROM agent_memory WHERE session_key = 'biz' AND kind = 'business'`,
+    key ? [key] : [])
+  return rowCount
 }

@@ -342,6 +342,29 @@ router.post('/inventory', requirePerm('inventory:write'), validate(z.object({
   } finally { client.release() }
 })
 
+// ——— Business memory: admin dặn ngữ cảnh shop, merchant agent tôn trọng ———
+router.get('/business-memory', requirePerm('agent:read'), async (_req, res) => {
+  ok(res, await require('../services/agent/memory.js').getBusiness())
+})
+router.put('/business-memory', requirePerm('agent:write'), validate(z.object({
+  key: z.string().min(1).max(40), value: z.string().min(1).max(120),
+})), async (req, res) => {
+  const r = await require('../services/agent/memory.js').setBusiness(req.user.id, req.body.key, req.body.value)
+  if (!r.saved) return bad(res, 'INVALID_KEY', r.reason, 400)
+  await audit(req, 'agent.bizmem_set', 'agent_memory', r.key, { value: r.value })
+  ok(res, r)
+})
+router.delete('/business-memory', requirePerm('agent:write'), async (req, res) => {
+  const n = await require('../services/agent/memory.js').clearBusiness(req.user.id)
+  await audit(req, 'agent.bizmem_clear', 'agent_memory', 'all', {})
+  ok(res, { cleared: n })
+})
+router.delete('/business-memory/:key', requirePerm('agent:write'), async (req, res) => {
+  const n = await require('../services/agent/memory.js').clearBusiness(req.user.id, req.params.key)
+  await audit(req, 'agent.bizmem_clear', 'agent_memory', req.params.key, {})
+  ok(res, { cleared: n })
+})
+
 // ——— Merchant insights: AI chủ động phát hiện (briefing/anomaly/forecast/audit/review/why) ———
 // Read-only, perm analytics:read (xem) — hành động vẫn qua agent_changes + duyệt tay.
 router.get('/insights/briefing', requirePerm('analytics:read'), async (_req, res) => {
