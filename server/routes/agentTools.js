@@ -233,6 +233,7 @@ const TOOLS = [
 
       const cap = BUDGET[validBudget]
       const scored = items
+        .filter((p) => !profile.brands.length || profile.brands.includes(p.brand)) // khách nêu brand → chỉ brand đó (eval 0.28→: brand +4đ không đủ loại Adidas khỏi query Nike)
         .map((p) => {
           const m = matchScore(profile, p)
           return m ? {

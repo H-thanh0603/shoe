@@ -19,6 +19,7 @@
     "test:agent-prompt": "node --test test/agent-prompt.test.js",
     "test:agent-memory": "node --test test/agent-memory.test.js",
     "test:e2e": "node --test test/checkout-e2e.test.js",
+    "test:eval": "node --test test/ranking-eval.test.js",
     "test:ai-activity-log": "node --test test/ai-activity-log.test.js",
     "test:agent-workflow": "node --test test/agent-workflow.test.js",
     "test:edge": "node --test test/edge-agent.test.js",
