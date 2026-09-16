@@ -110,4 +110,66 @@ async function draftOrder({ request, ctx }) {
   }
 }
 
-module.exports = { draftOrder, enabled }
+// ——— draftBundle: "bundle một chạm" ———
+// Khách nêu NHU CẦU ("đi chạy mùa mưa", "đi học cả tuần") → agent dựng sẵn cả
+// combo 2–3 món bổ trợ (giày chính + món phụ cùng purpose/budget) trong CÙNG
+// 1 giỏ agent → 1 shareUrl. Khác chatbot thường ở chỗ: không dừng ở gợi ý chữ,
+// khách bấm 1 link là có cả combo trong giỏ, chỉ việc thanh toán.
+//
+// Chọn món: recommend top-1 làm món chính, search thêm 1–2 món phụ khác slug
+// (ưu tiên rẻ hơn 50% giá chính — phụ kiện/tất/lót). Mỗi món add_to_cart riêng
+// (mỗi call sinh token riêng) nhưng cùng giỏ agent → dùng shareUrl CUỐI (token
+// nào của cùng cart cũng claim được cả giỏ).
+async function draftBundle({ request, ctx }) {
+  const steps = []
+  const note = (tool, summary, status) => steps.push({ tool, summary, status })
+  const { purpose, budget, brands = [], size, qty = 1 } = request || {}
+
+  // 1) món chính = draftOrder có sẵn (recommend → stock → add)
+  const main = await draftOrder({ request, ctx })
+  for (const s of main.steps) steps.push(s)
+  if (!main.ok) return { ok: false, steps, error: main.error || 'Không dựng được món chính' }
+
+  // 2) món phụ: recommend cùng profile nhưng lấy hạng 2–4 (khác món chính),
+  // rẻ hơn hoặc bằng giá chính — tối đa 2 món bổ trợ cùng nhu cầu.
+  const picked = main.picked
+  const extras = []
+  const rec2 = await executeTool('recommend_products', { purpose, budget, brands, limit: 4 }, ctx)
+  note('recommend_products', `phụ: ${rec2.summary}`, rec2.ok ? 'ok' : 'error')
+  if (rec2.ok) {
+    const cands = (rec2.result?.recommendations || [])
+      .filter((r) => r.slug !== picked.slug && r.priceVnd <= picked.priceVnd)
+      .slice(0, 2)
+    for (const cand of cands) {
+      const st = await executeTool('check_stock', { slug: cand.slug }, ctx)
+      note('check_stock', `${cand.slug}: ${st.summary}`, st.ok ? 'ok' : 'error')
+      if (!st.ok) continue
+      const sizes = st.result?.sizes || []
+      const avail = size
+        ? sizes.filter((s) => s.size === Number(size) && s.stock >= 1)
+        : sizes.filter((s) => s.stock >= 1).sort((a, b) => b.stock - a.stock)
+      if (!avail.length) continue
+      const add = await executeTool('add_to_cart', { slug: cand.slug, size: avail[0].size, qty: 1 }, ctx)
+      note('add_to_cart', `${cand.slug}: ${add.summary}`, add.ok ? 'ok' : 'error')
+      if (add.ok) extras.push({ slug: cand.slug, name: cand.name, size: avail[0].size, priceVnd: cand.priceVnd })
+      if (extras.length >= 2) break
+    }
+  }
+
+  // 3) voucher cho tổng combo + handoff link cuối (cùng giỏ agent)
+  const subtotal = picked.subtotalVnd + extras.reduce((s, e) => s + e.priceVnd, 0)
+  let vouchers = main.vouchers || []
+  const vRes = await executeTool('get_user_voucher', { subtotal }, ctx)
+  note('get_user_voucher', vRes.summary, vRes.ok ? 'ok' : 'error')
+  if (vRes.ok) vouchers = vRes.result?.vouchers || []
+
+  return {
+    ok: true, steps,
+    shareUrl: main.shareUrl,
+    vouchers,
+    bundle: { main: picked, extras, subtotalVnd: subtotal, count: 1 + extras.length },
+    note: `Combo ${1 + extras.length} món đã trong giỏ — khách mở shareUrl → thanh toán 1 lần.`,
+  }
+}
+
+module.exports = { draftOrder, draftBundle, enabled }

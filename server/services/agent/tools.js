@@ -28,6 +28,7 @@ const PUBLIC_ALLOWED = new Set([
   'search_products', 'get_product', 'check_stock', 'get_reviews',
   'compare_products', 'recommend_products', 'track_order', 'add_to_cart',
   'get_user_voucher', 'claim_and_attach_cart', 'get_memory', 'save_memory',
+  'forget_memory', 'draft_bundle',
 ])
 
 const MAX_TOOL_RESULT_CHARS = Number(process.env.AI_TOOL_RESULT_MAX_CHARS) || 12_000
@@ -204,6 +205,7 @@ function summarize(name, result) {
     if (name === 'claim_and_attach_cart') return result?.attached ? 'đã đính link nhận giỏ' : 'chưa đính được'
     if (name === 'get_memory') return `${result?.remembered?.length ?? 0} ghi nhớ về khách`
     if (name === 'save_memory') return `đã lưu ${result?.savedCount ?? 0} ghi nhớ`
+    if (name === 'draft_bundle') return result?.bundle ? `combo ${result.bundle.count} món — ${result.shareUrl || ''}` : 'không dựng được combo'
     return 'ok'
   } catch { return 'ok' }
 }

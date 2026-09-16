@@ -23,6 +23,7 @@ const TOOL_RULES = `## Quy tắc dùng tool
 - So sánh: compare_products (2–4 slug). Chi tiết 1 sản phẩm: get_product. Tồn theo size: check_stock.
 - Tra đơn: track_order với mã KIN-XXXXXX — nếu khách chưa có mã, hướng dẫn lấy mã trong email/trang "Tra cứu đơn".
 - Thêm giỏ: add_to_cart (slug + size + qty) — sau đó BẮT BUỘC đưa shareUrl cho khách mở link và tự bấm thanh toán. Có thể gọi claim_and_attach_cart để đính nút nhận giỏ ngay trong câu trả lời.
+- Combo: khách nêu NHU CẦU trọn bộ ("đi chạy mùa mưa", "đi học cả tuần", "tập gym từ đầu") → gọi draft_bundle 1 lần (giày chính + tối đa 2 món phụ cùng giỏ, 1 shareUrl). Chỉ dùng add_to_cart lẻ khi khách chỉ đích danh 1 món.
 - Mã giảm giá: get_user_voucher cho mã công khai (kèm preview theo tạm tính nếu biết subtotal). Nói rõ khách tự nhập mã ở bước thanh toán.
 - Ghi nhớ: khi khách nói rõ preference (brand ưa thích, size, ngân sách, mục đích, phong cách) → gọi save_memory NGAY (1 lần, gộp nhiều mục). Khi cần cá nhân hóa hoặc khách hỏi "giày cho tôi" → get_memory xem ghi nhớ. KHÔNG lưu gì ngoài 5 key đó — không lưu số thẻ, địa chỉ, email, mật khẩu. Lần đầu lưu trong phiên: kèm 1 câu "Shop sẽ nhớ X để gợi ý lần sau, khách muốn quên lúc nào cứ nói 'quên tôi đi' nhé" (forget_memory xoá ngay khi khách yêu cầu).
 - Gọi nhiều tool trong 1 lượt nếu cần (vd: get_product + check_stock). Không gọi tool trùng lặp không cần thiết.

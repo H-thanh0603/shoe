@@ -149,3 +149,19 @@ test('executeTool riêng lẻ: claim_and_attach_cart bị provenance chặn nế
   assert.equal(res.ok, false)
   assert.equal(res.result.error.code, 'PROVENANCE_ERROR')
 })
+
+test('draftBundle: combo chính+phụ cùng giỏ, 1 shareUrl, KHÔNG tạo order', async () => {
+  const { draftBundle } = require('../services/agent/workflows.js')
+  const out = await draftBundle({ request: { purpose: 'running', budget: '2-4m' }, ctx: makeCtx() })
+  assert.ok(out.ok, JSON.stringify(out.error || out.steps))
+  assert.ok(out.bundle.count >= 1, 'ít nhất món chính')
+  assert.ok(out.shareUrl.startsWith('/gio-hang/'), 'có handoff link')
+  assert.equal(out.bundle.subtotalVnd,
+    out.bundle.main.subtotalVnd + out.bundle.extras.reduce((s, e) => s + e.priceVnd, 0))
+  // cùng 1 giỏ agent
+  const { rows } = await pool.query(
+    'SELECT COUNT(DISTINCT cart_id) AS n FROM cart_share_tokens WHERE source_session = $1', [SESS])
+  assert.equal(Number(rows[0].n), 1, 'mọi token cùng 1 giỏ')
+  const { rows: [o] } = await pool.query('SELECT COUNT(*) AS n FROM orders WHERE source_session = $1', [SESS])
+  assert.equal(Number(o.n), 0, 'không tạo order')
+})

@@ -406,6 +406,40 @@ const TOOLS = [
     },
   },
   {
+    // draft_bundle — "bundle một chạm": khách nêu nhu cầu → dựng sẵn combo
+    // 2–3 món (chính + phụ bổ trợ) trong cùng 1 giỏ → 1 shareUrl.
+    // Gọi workflows.draftBundle (qua executeTool từng bước nên mọi gate vẫn áp).
+    // Human-in-the-loop như add_to_cart: chỉ chuẩn bị giỏ, checkout do khách bấm.
+    name: 'draft_bundle',
+    description: 'Dựng combo theo nhu cầu ("đi chạy mùa mưa", "đi học cả tuần"): giày chính + tối đa 2 món phụ bổ trợ cùng giỏ, trả 1 shareUrl nhận cả combo. Dùng khi khách muốn trọn bộ, không phải từng món lẻ.',
+    readOnly: false,
+    rateLimit: 6,
+    inputSchema: {
+      type: 'object',
+      properties: {
+        purpose: { type: 'string', description: 'running | street | court | daily | trail' },
+        budget: { type: 'string', description: 'under-2m | 2-4m | 4m+' },
+        brands: { type: 'array', items: { type: 'string' }, maxItems: 5 },
+        size: { type: 'integer', description: 'Size EU nếu khách đã cho' },
+        qty: { type: 'integer', minimum: 1, maximum: 2 },
+      },
+    },
+    handler: async (args, ctx) => {
+      const { draftBundle } = require('../services/agent/workflows.js')
+      // Dùng session của caller (nếu có) để provenance + seenShareUrls nối tiếp:
+      // model gọi draft_bundle rồi claim_and_attach_cart sau vẫn qua gate.
+      const shared = ctx?.session || { seenSlugs: new Set(), seenShareUrls: new Set() }
+      const wfCtx = {
+        role: 'assistant', agentId: ctx?.agentId || 'runtime', req: ctx?.req,
+        sessionId: ctx?.sessionId || '', sessionTurn: 1, session: shared,
+        progress: ctx?.progress || (() => {}),
+      }
+      const out = await draftBundle({ request: args, ctx: wfCtx })
+      if (!out.ok) throw httpError(400, 'BUNDLE_FAILED', out.error || 'Không dựng được combo')
+      return out
+    },
+  },
+  {
     // get_memory — blueprint #10: agent đọc preference khách của phiên này.
     name: 'get_memory',
     description: 'Xem ghi nhớ về khách (brand ưa thích, size, ngân sách, mục đích) của phiên hiện tại. Dùng khi khách hỏi "giày cho tôi" để cá nhân hóa mà không hỏi lại.',
