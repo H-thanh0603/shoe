@@ -342,6 +342,29 @@ router.post('/inventory', requirePerm('inventory:write'), validate(z.object({
   } finally { client.release() }
 })
 
+// ——— Merchant insights: AI chủ động phát hiện (briefing/anomaly/forecast/audit/review/why) ———
+// Read-only, perm analytics:read (xem) — hành động vẫn qua agent_changes + duyệt tay.
+router.get('/insights/briefing', requirePerm('analytics:read'), async (_req, res) => {
+  ok(res, await require('../services/merchant/insights.js').briefing())
+})
+router.get('/insights/anomaly', requirePerm('analytics:read'), async (_req, res) => {
+  ok(res, await require('../services/merchant/insights.js').anomaly())
+})
+router.get('/insights/forecast', requirePerm('analytics:read'), async (req, res) => {
+  const days = Math.min(Math.max(Number(req.query.days) || 7, 1), 30)
+  ok(res, await require('../services/merchant/insights.js').forecast({ days }))
+})
+router.get('/insights/catalog-audit', requirePerm('products:read'), async (_req, res) => {
+  ok(res, await require('../services/merchant/insights.js').catalogAudit())
+})
+router.get('/insights/reviews', requirePerm('analytics:read'), async (_req, res) => {
+  ok(res, await require('../services/merchant/insights.js').reviewIntel())
+})
+router.get('/insights/why-revenue', requirePerm('analytics:read'), async (req, res) => {
+  const days = Math.min(Math.max(Number(req.query.days) || 7, 1), 30)
+  ok(res, await require('../services/merchant/insights.js').whyRevenue({ days }))
+})
+
 // ——— Analytics (§71): revenue, orders, AOV, top products, low stock ———
 // Aggregate toàn bảng mỗi lần mở dashboard → cache 120s (private: số liệu nội bộ).
 // Bust khi đơn đổi trạng thái (ảnh hưởng paid/pending) — xem PATCH /orders/:id.
