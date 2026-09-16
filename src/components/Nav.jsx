@@ -149,6 +149,8 @@ export default function Nav({ onQuiz, onLogoTap, secret, onSearch }) {
             setUser(u)
             setShowAuth(false)
             window.dispatchEvent(new CustomEvent('auth-changed')) // wishlist merge lên server
+            // giỏ gộp bị cắt qty (tối đa 10/mẫu) — báo ngay, không im lặng mất hàng
+            if (u?.cartNotice) alert(u.cartNotice)
           }}
         />
       )}

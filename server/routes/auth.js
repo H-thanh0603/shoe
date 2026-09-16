@@ -38,24 +38,34 @@ const credentials = z.object({
 })
 
 // guest cart (cookie session_token) → cart của user. Gộp qty theo variant.
+// Trả {merged, truncated}: truncated=true khi LEAST() cắt qty (khách thêm 8 + giỏ có 5
+// → giữ 10 thay vì 13) để client báo rõ, không im lặng mất hàng.
 async function mergeGuestCart(client, userId, sessionToken) {
   const { rows: [guest] } = await client.query('SELECT id FROM carts WHERE session_token = $1', [sessionToken])
-  if (!guest) return
+  if (!guest) return { merged: false, truncated: false }
   const { rows: [user] } = await client.query('SELECT id FROM carts WHERE user_id = $1', [userId])
   const target = user?.id
   if (!target) {
     // user chưa có cart — trao guest cart cho user
     await client.query('UPDATE carts SET user_id = $1 WHERE id = $2', [userId, guest.id])
-    return
+    return { merged: true, truncated: false }
   }
-  if (target === guest.id) return
-  await client.query(
+  if (target === guest.id) return { merged: false, truncated: false }
+  const { rows: capped } = await client.query(
     `INSERT INTO cart_items (cart_id, variant_id, qty)
      SELECT $1, variant_id, qty FROM cart_items WHERE cart_id = $2
-     ON CONFLICT (cart_id, variant_id) DO UPDATE SET qty = LEAST(cart_items.qty + EXCLUDED.qty, 10)`,
+     ON CONFLICT (cart_id, variant_id) DO UPDATE SET qty = LEAST(cart_items.qty + EXCLUDED.qty, 10)
+     RETURNING variant_id`,
     [target, guest.id],
   )
+  // truncated: dòng nào tổng vượt 10 (so tổng cũ+mới với kết quả sau LEAST)
+  const { rows: check } = await client.query(
+    `SELECT 1 FROM cart_items ci JOIN (SELECT variant_id, qty FROM cart_items WHERE cart_id = $2) g
+     ON g.variant_id = ci.variant_id WHERE ci.cart_id = $1 AND ci.qty = 10 AND g.qty + ci.qty > 10 LIMIT 1`,
+    [target, guest.id],
+  ).catch(() => ({ rows: [] }))
   await client.query('DELETE FROM carts WHERE id = $1', [guest.id])
+  return { merged: capped.length > 0, truncated: check.length > 0 }
 }
 
 router.post('/register', validate(z.object({
@@ -85,12 +95,14 @@ router.post('/login', validate(credentials), async (req, res) => {
 
   // merge guest cart trong 1 transaction
   const sessionToken = req.cookies?.session_token
+  let cartNotice = null
   if (sessionToken) {
     const client = await pool.connect()
     try {
       await client.query('BEGIN')
-      await mergeGuestCart(client, user.id, sessionToken)
+      const r = await mergeGuestCart(client, user.id, sessionToken)
       await client.query('COMMIT')
+      if (r?.truncated) cartNotice = 'Giỏ gộp vượt quá 10 đôi/mẫu — đã giữ tối đa 10, kiểm tra lại giỏ nhé.'
     } catch {
       await client.query('ROLLBACK').catch(() => {})
     } finally {
@@ -100,7 +112,7 @@ router.post('/login', validate(credentials), async (req, res) => {
 
   const { password_hash, ...safe } = user
   await createSession(req, res, user)
-  res.json({ success: true, data: safe })
+  res.json({ success: true, data: cartNotice ? { ...safe, cartNotice } : safe })
 })
 
 // §37: refresh — rotation: mỗi lần dùng cấp refresh mới, jti cũ hết giá trị.
