@@ -143,17 +143,18 @@ const TOOLS = [
   },
   {
     name: 'compare_products',
-    description: 'So sánh tối đa 4 sản phẩm theo giá, điểm perf/comfort/style/durability, tồn kho — trả bảng để agent tóm tắt cho người dùng.',
+    description: 'So sánh tối đa 4 sản phẩm theo giá, điểm perf/comfort/style/durability, tồn kho — trả bảng để agent tóm tắt cho người dùng. Truyền purpose để nhận verdict theo use-case ("đi bộ cả ngày" → đôi nào, "chạy nhẹ" → đôi nào) thay vì bảng số khô.',
     readOnly: true,
     rateLimit: 30,
     inputSchema: {
       type: 'object',
       properties: {
         slugs: { type: 'array', items: { type: 'string' }, minItems: 2, maxItems: 4 },
+        purpose: { type: 'string', description: 'Use-case cần verdict: running | street | court | daily | trail' },
       },
       required: ['slugs'],
     },
-    handler: async ({ slugs }) => {
+    handler: async ({ slugs, purpose }) => {
       const out = []
       for (const slug of [...new Set(slugs)].slice(0, 4)) {
         try {
@@ -167,7 +168,24 @@ const TOOLS = [
         } catch { /* slug lạ — bỏ qua, trả phần còn lại */ }
       }
       if (!out.length) throw httpError(404, 'PRODUCT_NOT_FOUND', 'Không tìm thấy sản phẩm nào trong danh sách')
-      return out
+      if (!['running', 'street', 'court', 'daily', 'trail'].includes(purpose)) return out
+      // verdict theo use-case: chấm mỗi đôi theo trục của purpose, xếp hạng +
+      // nêu winner + khi nào chọn đôi còn lại (mapping nhu cầu, không đọc bảng).
+      const AXIS = { running: 'perf', street: 'style', court: 'durability', daily: 'comfort', trail: 'durability' }
+      const VN = { running: 'chạy bộ', street: 'đi chơi', court: 'bóng rổ', daily: 'đi bộ cả ngày', trail: 'đi địa hình' }
+      const axis = AXIS[purpose]
+      const ranked = [...out].sort((a, b) => (b.scores[axis] ?? 0) - (a.scores[axis] ?? 0))
+      const cheapest = [...out].sort((a, b) => a.priceVnd - b.priceVnd)[0]
+      return {
+        items: out,
+        verdict: {
+          purpose, purposeVn: VN[purpose], axis,
+          winner: ranked[0].slug,
+          winnerWhy: `${ranked[0].name} — ${axis} cao nhất (${ranked[0].scores[axis]}) cho nhu cầu ${VN[purpose]}`,
+          runnerUp: ranked[1] ? { slug: ranked[1].slug, when: `chọn ${ranked[1].name} nếu cần tiết kiệm hoặc thích brand ${ranked[1].brand}` } : null,
+          cheapest: cheapest.slug !== ranked[0].slug ? { slug: cheapest.slug, saveVs: ranked[0].priceVnd - cheapest.priceVnd } : null,
+        },
+      }
     },
   },
   {
