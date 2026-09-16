@@ -186,6 +186,11 @@ export default function TrackOrder({ initialCode }) {
 
           {/* Bản đồ hành trình (feature #8) — SVG, không map SDK */}
           <JourneyMap order={order} />
+          {order.eta && (
+            <p className="mt-2 font-mono text-xs tracking-widest text-accent" role="status">
+              📦 {order.eta.label}
+            </p>
+          )}
 
           <ul className="mt-6 flex flex-col gap-2 border-t border-white/10 pt-4">
             {order.items.map((it, i) => (
@@ -212,6 +217,33 @@ export default function TrackOrder({ initialCode }) {
             >
               {cancelling ? 'ĐANG HỦY…' : 'HỦY ĐƠN NÀY'}
             </button>
+          )}
+
+          {/* Post-purchase: đã nhận → nudge review + gợi ý đôi bổ trợ */}
+          {order.status === 'done' && order.items.length > 0 && (
+            <div className="mt-4 border border-accent/40 bg-ink-deep p-4">
+              <p className="font-mono text-[11px] tracking-widest text-accent">ĐÃ NHẬN HÀNG — BẠN THẤY SAO?</p>
+              <div className="mt-2 flex flex-wrap gap-2">
+                <a
+                  href={`/san-pham/${order.items[0].slug || ''}`}
+                  className="border border-accent px-3 py-1.5 font-mono text-[11px] font-bold text-accent hover:bg-accent hover:text-ink"
+                >
+                  ⭐ ĐÁNH GIÁ ĐÔI NÀY
+                </a>
+                <button
+                  onClick={() => {
+                    const first = order.items[0]?.name_snapshot || ''
+                    window.dispatchEvent(new CustomEvent('assistant-ask', {
+                      detail: `Tôi vừa nhận ${first} — gợi ý đôi tiếp theo hợp với tôi đi`,
+                    }))
+                    playTechClick()
+                  }}
+                  className="border border-white/20 px-3 py-1.5 font-mono text-[11px] text-paper/70 hover:border-accent hover:text-accent"
+                >
+                  🤖 GỢI Ý ĐÔI TIẾP THEO
+                </button>
+              </div>
+            </div>
           )}
         </div>
       )}

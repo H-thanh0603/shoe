@@ -208,11 +208,71 @@ const TOOLS = [
         'SELECT name_snapshot, size_snapshot, qty, unit_price_vnd FROM order_items oi JOIN orders o2 ON o2.id = oi.order_id WHERE o2.ref_code = $1',
         [refCode],
       )
+      const DOW = ['Chủ nhật', 'Thứ Hai', 'Thứ Ba', 'Thứ Tư', 'Thứ Năm', 'Thứ Sáu', 'Thứ Bảy']
+      let etaLine = null
+      if (['paid', 'shipped'].includes(o.status)) {
+        const d = new Date(new Date(o.created_at).getTime() + 48 * 3600_000)
+        etaLine = `Đơn dự kiến đến ${DOW[d.getDay()]} (${d.toLocaleDateString('vi-VN')})`
+      }
       return {
         refCode: o.ref_code, status: o.status, paymentStatus: o.payment_status,
         totalVnd: o.total_vnd, createdAt: o.created_at,
         items: items.map((i) => ({ name: i.name_snapshot, size: i.size_snapshot, qty: i.qty, unitPriceVnd: i.unit_price_vnd })),
         trackUrl: `/tra-don/${o.ref_code}`,
+        etaLine,
+      }
+    },
+  },
+  {
+    // review_cart — "AI kiểm tra giỏ hàng": agent đọc giỏ browser hiện tại
+    // (client gửi items) → check tồn/size/voucher → tóm tắt xác nhận trước checkout.
+    // Không chạm DB giỏ (giỏ nằm ở client cookie) — check tồn theo slug+size.
+    name: 'review_cart',
+    description: 'Kiểm tra giỏ hàng trước checkout: client gửi items [{slug,size,qty}] → trả từng món còn hàng không, tổng tiền, voucher hợp lệ. Dùng khi khách hỏi "kiểm tra giỏ giúp tôi" hoặc trước khi bấm thanh toán.',
+    readOnly: true,
+    requiresUser: false,
+    rateLimit: 20,
+    inputSchema: {
+      type: 'object',
+      properties: {
+        items: {
+          type: 'array', minItems: 1, maxItems: 20,
+          items: {
+            type: 'object',
+            properties: {
+              slug: { type: 'string' },
+              size: { type: 'integer' },
+              qty: { type: 'integer', minimum: 1, maximum: 10 },
+            },
+            required: ['slug', 'size'],
+          },
+        },
+      },
+      required: ['items'],
+    },
+    handler: async ({ items }) => {
+      const lines = []
+      let total = 0, allOk = true
+      for (const it of items.slice(0, 20)) {
+        const d = await productsSvc.getProductDetail(it.slug).catch(() => null)
+        if (!d) { lines.push(`${it.slug}: không còn bán`); allOk = false; continue }
+        const v = d.variants.find((x) => x.size === Number(it.size))
+        const qty = Number(it.qty) || 1
+        if (!v || v.stock < qty) {
+          lines.push(`${d.name} size ${it.size}: chỉ còn ${v ? v.stock : 0} (cần ${qty})`)
+          allOk = false
+          continue
+        }
+        total += d.price_vnd * qty
+        lines.push(`${d.name} size ${it.size} x${qty}: OK`)
+      }
+      const vnd = (n) => Number(n).toLocaleString('vi-VN') + '₫'
+      return {
+        allOk, totalVnd: total,
+        lines,
+        summary: allOk
+          ? `Giỏ OK — ${items.length} món, tổng ${vnd(total)}. Bấm thanh toán được.`
+          : `Giỏ có vấn đề — tổng tạm ${vnd(total)}. Đổi size/món bị gạch rồi checkout.`,
       }
     },
   },

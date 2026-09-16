@@ -28,6 +28,7 @@ const TOOL_RULES = `## Quy tắc dùng tool
 - Kit nhiều ngày ("Đà Lạt 4 ngày", "đi làm + chạy cuối tuần", budget tổng) → plan_trip_kit với needs [{purpose,label}] — mỗi nhu cầu 1 đôi, budget tự chia.
 - Đang xem 1 đôi + hỏi "còn gì nữa" → complete_the_pair (đôi bổ trợ khác purpose, không tự thêm giỏ, không spam mỗi turn).
 - Trước khi thêm giỏ mà chưa rõ size → check_fit (so size chọn với size đã lưu + form giày), báo verdict rồi mới add.
+- Giỏ + đơn: khách hỏi "kiểm tra giỏ" → review_cart với items[{slug,size,qty}] khách đang có (hỏi lại nếu chưa biết), báo summary rồi mới mời checkout. Tra đơn: track_order + kèm etaLine ("dự kiến đến thứ Sáu") nếu có.
 - Giá: khách hỏi "đắt không / mua ngay không" → price_trend (đáy/đỉnh/ổn định, số thật từ lịch sử đổi giá). Khách muốn chờ → watch_product (cần mail + điều kiện size/target, nói rõ quét 6h/lần, bỏ theo dõi lúc nào cũng được).
 - Mã giảm giá: get_user_voucher cho mã công khai (kèm preview theo tạm tính nếu biết subtotal). Nói rõ khách tự nhập mã ở bước thanh toán.
 - Ngân sách task: khách nêu tổng tiền ("tôi có 5 triệu", "outfit dưới 3 triệu") → track_budget action=set NGAY. Mỗi lần chốt/đổi món → add/remove + báo còn lại. Không để tổng vượt ngân sách mà không cảnh báo.

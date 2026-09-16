@@ -334,6 +334,17 @@ export default function ProductDetail({ slug, back }) {
             >
               {adding ? 'ĐANG THÊM VÀO GIỎ…' : size ? `THÊM SIZE ${size.size} VÀO GIỎ HÀNG` : 'CHỌN SIZE ĐỂ ĐẶT HÀNG'}
             </button>
+            <button
+              onClick={() => {
+                window.dispatchEvent(new CustomEvent('assistant-ask', {
+                  detail: `Đôi ${p.slug} có hợp với tôi không? (đi size ${size?.size || 'chưa chọn'})`,
+                }))
+                playTechClick()
+              }}
+              className="w-full border border-white/20 py-2.5 font-display text-xs font-bold tracking-widest text-paper transition-colors hover:border-accent hover:text-accent"
+            >
+              🤖 HỎI AI ĐÔI NÀY CÓ HỢP TÔI KHÔNG
+            </button>
             {msg && <p className="font-mono text-xs text-accent" role="alert">{msg}</p>}
           </div>
 

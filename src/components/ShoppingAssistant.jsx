@@ -31,6 +31,18 @@ export default function ShoppingAssistant() {
 
   useEffect(() => { if (open) scrollDown() }, [open, msgs.length])
 
+  // journey slices: giỏ/product/track mở chat với câu hỏi có sẵn
+  useEffect(() => {
+    const fn = (e) => {
+      const q = String(e.detail || '').slice(0, 300)
+      if (!q) return
+      setOpen(true)
+      setTimeout(() => send(null, q), 100)
+    }
+    window.addEventListener('assistant-ask', fn)
+    return () => window.removeEventListener('assistant-ask', fn)
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
   const patchLive = (fn) => setMsgs((m) => {
     const next = [...m]
     const i = next.map((x) => x.live).lastIndexOf(true)

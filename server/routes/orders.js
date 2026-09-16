@@ -237,7 +237,9 @@ router.get('/ref/:code', async (req, res) => {
   )
   if (!o) return res.status(404).json({ success: false, error: { code: 'ORDER_NOT_FOUND', message: 'Không tìm thấy đơn hàng' } })
   const { rows: items } = await pool.query(
-    'SELECT qty, unit_price_vnd, name_snapshot, size_snapshot FROM order_items WHERE order_id = $1',
+    `SELECT oi.qty, oi.unit_price_vnd, oi.name_snapshot, oi.size_snapshot, p.slug
+     FROM order_items oi LEFT JOIN product_variants pv ON pv.id = oi.variant_id
+     LEFT JOIN products p ON p.id = pv.product_id WHERE oi.order_id = $1`,
     [o.id],
   )
   const { subtotalVnd } = items.reduce((a, i) => ({ subtotalVnd: a.subtotalVnd + i.qty * i.unit_price_vnd }), { subtotalVnd: 0 })
@@ -248,7 +250,15 @@ router.get('/ref/:code', async (req, res) => {
   try { rawCity = String(pii.decrypt(o.shipping_address) || '').split(',').pop()?.trim() || '' } catch { /* enc hỏng — giữ rỗng */ }
   const shipCity = rawCity
   delete o.shipping_address
-  res.json({ success: true, data: { ...o, items, subtotalVnd, shipCity } })
+  // ETA text cho journey ("dự kiến thứ Sáu"): paid/shipped +48h từ created_at;
+  // done/cancelled không ETA. Thứ tiếng Việt, deterministic theo status.
+  const DOW = ['Chủ nhật', 'Thứ Hai', 'Thứ Ba', 'Thứ Tư', 'Thứ Năm', 'Thứ Sáu', 'Thứ Bảy']
+  let eta = null
+  if (['paid', 'shipped'].includes(o.status)) {
+    const d = new Date(new Date(o.created_at).getTime() + 48 * 3600_000)
+    eta = { date: d.toISOString().slice(0, 10), label: `Dự kiến giao ${DOW[d.getDay()]} (${d.toLocaleDateString('vi-VN')})` }
+  }
+  res.json({ success: true, data: { ...o, items, subtotalVnd, shipCity, eta } })
 })
 
 module.exports = router

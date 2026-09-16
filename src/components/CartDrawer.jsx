@@ -69,6 +69,18 @@ export default function CartDrawer() {
                 {cart.totalVnd.toLocaleString('vi-VN')}₫
               </span>
             </div>
+            <button
+              onClick={() => {
+                close()
+                window.dispatchEvent(new CustomEvent('assistant-ask', {
+                  detail: `Kiểm tra giỏ giúp tôi: ${cart.items.map((it) => `${it.slug} size ${it.size} x${it.qty}`).join(', ')}`,
+                }))
+                playTechClick()
+              }}
+              className="mb-2 w-full border border-white/20 py-2.5 font-display text-xs font-bold tracking-widest text-paper transition-colors hover:border-accent hover:text-accent"
+            >
+              🤖 AI KIỂM TRA GIỎ NÀY
+            </button>
             <div className="mb-2 flex gap-2">
               <button
                 onClick={async () => {
