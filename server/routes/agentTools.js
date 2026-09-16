@@ -24,7 +24,7 @@ const { cacheGet } = require('../middleware/cache.js')
 const { z } = require('zod')
 const crypto = require('node:crypto')
 const productsSvc = require('../services/products.js')
-const { buildPrefs, matchScore, BUDGET } = require('../services/match.js')
+const { buildPrefs, matchScore, BUDGET, topWeakAxis, funnelLine } = require('../services/match.js')
 const memorySvc = require('../services/agent/memory.js')
 
 const router = express.Router()
@@ -232,8 +232,14 @@ const TOOLS = [
       ctx?.progress?.(`Đã tải ${items.length} sản phẩm — đang chấm điểm theo nhu cầu`)
 
       const cap = BUDGET[validBudget]
-      const scored = items
+      const total = items.length
+      const brandCut = profile.brands.length
+        ? items.filter((p) => !profile.brands.includes(p.brand)).length : 0
+      const afterBrand = items
         .filter((p) => !profile.brands.length || profile.brands.includes(p.brand)) // khách nêu brand → chỉ brand đó (eval 0.28→: brand +4đ không đủ loại Adidas khỏi query Nike)
+      const budgetCut = cap == null
+        ? 0 : afterBrand.filter((p) => p.price_vnd > cap).length
+      const scored = afterBrand
         .map((p) => {
           const m = matchScore(profile, p)
           return m ? {
@@ -243,6 +249,10 @@ const TOOLS = [
             url: `/san-pham/${p.slug}`,
             inBudget: cap == null ? null : p.price_vnd <= cap,
             stockTotal: p.stock_total,
+            // why-explain: điểm DNA thô để agent nói "vì sao đôi này" bằng số liệu;
+            // tradeOff: trục khách cần nhưng đôi này yếu (<60) — agent cảnh báo thật.
+            dna: { perf: p.perf, comfort: p.comfort, style: p.style, durability: p.durability, daily: p.daily },
+            tradeOff: topWeakAxis(profile.prefs, p),
           } : null
         })
         .filter(Boolean)
@@ -250,6 +260,7 @@ const TOOLS = [
         .sort((a, b) => b.match - a.match)
 
       ctx?.progress?.(`Chấm xong — top: ${scored.slice(0, 3).map((s) => `${s.name} ${s.match}%`).join(', ')}`)
+      const funnel = { scanned: total, brandCut, budgetCut, kept: scored.length }
       return {
         interpreted: {
           purpose: validPurpose || 'không rõ',
@@ -257,6 +268,9 @@ const TOOLS = [
           budget: validBudget || 'không giới hạn',
           brands: profile.brands,
         },
+        // counts loại để agent nói được: "loại X vì vượt ngân sách, Y vì khác brand"
+        funnel,
+        funnelLine: funnelLine(funnel, validBudget, profile.brands),
         recommendations: scored.slice(0, limit),
       }
     },

@@ -66,4 +66,25 @@ function matchScore(profile, product) {
   return { pct, reasons: reasons.length <= 4 ? reasons : [reasons[0], ...reasons.slice(1, -1).slice(0, 2), reasons.at(-1)] }
 }
 
-module.exports = { buildPrefs, matchScore, BUDGET, LABEL_PURPOSE }
+// Trục khách CẦN (prefs >= 25) mà đôi này YẾU (<60) — agent cảnh báo trade-off
+// thật thay vì khen hết ("không hợp chạy cường độ cao" thay vì im lặng).
+function topWeakAxis(prefs, product) {
+  const AXIS_VN = { performance: 'chạy/bứt tốc', comfort: 'êm chân', style: 'kiểu dáng', durability: 'bền bỉ', daily: 'đi hằng ngày' }
+  const KEY = { performance: 'perf', comfort: 'comfort', style: 'style', durability: 'durability', daily: 'daily' }
+  const weak = []
+  for (const k of Object.keys(AXIS_VN)) {
+    if ((prefs?.[k] || 0) >= 25 && (product?.[KEY[k]] ?? 100) < 60) weak.push(AXIS_VN[k])
+  }
+  return weak
+}
+
+// Câu funnel để agent nói được số loại ("loại 18 vì vượt ngân sách...").
+function funnelLine(funnel, budget, brands) {
+  const parts = [`quét ${funnel.scanned} mẫu`]
+  if (funnel.brandCut) parts.push(`loại ${funnel.brandCut} khác brand${brands?.length ? ` (${brands.join('/')})` : ''}`)
+  if (funnel.budgetCut) parts.push(`loại ${funnel.budgetCut} vượt ngân sách${budget ? ` (${budget})` : ''}`)
+  parts.push(`giữ ${funnel.kept} phù hợp`)
+  return parts.join(', ')
+}
+
+module.exports = { buildPrefs, matchScore, BUDGET, LABEL_PURPOSE, topWeakAxis, funnelLine }
