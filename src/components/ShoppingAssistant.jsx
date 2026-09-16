@@ -23,6 +23,8 @@ export default function ShoppingAssistant() {
   const [msgs, setMsgs] = useState([])
   const [input, setInput] = useState('')
   const [busy, setBusy] = useState(false)
+  const [profile, setProfile] = useState(null) // {prefs, budget} — panel 🧠
+  const [showProfile, setShowProfile] = useState(false)
   const boxRef = useRef(null)
 
   const scrollDown = () => setTimeout(() => boxRef.current?.scrollTo({ top: 999999, behavior: 'smooth' }), 60)
@@ -128,10 +130,56 @@ export default function ShoppingAssistant() {
               <p className="font-display text-xs font-bold tracking-widest text-paper">TRỢ LÝ MUA GIÀY</p>
               <p className="text-[10px] text-paper/50">Tìm · so sánh · gợi ý · thêm giỏ giúp bạn</p>
             </div>
-            <button onClick={() => setOpen(false)} aria-label="Đóng" className="text-paper/60 transition-colors hover:text-accent focus-visible:text-accent">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12" /></svg>
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={async () => {
+                  if (!showProfile) {
+                    try {
+                      const r = await fetch(`/api/v1/assistant/profile?sessionId=${encodeURIComponent(sid)}`)
+                      const j = await r.json()
+                      if (j.success) setProfile(j.data)
+                    } catch { /* panel mở rỗng */ }
+                  }
+                  setShowProfile((v) => !v)
+                }}
+                aria-label="Sở thích đã nhớ"
+                title="Shop nhớ gì về bạn"
+                className="border border-white/15 px-2 py-1 font-mono text-[10px] text-paper/60 transition-colors hover:border-accent hover:text-accent"
+              >
+                🧠 {profile?.prefs?.length ? profile.prefs.length : ''}
+              </button>
+              <button onClick={() => setOpen(false)} aria-label="Đóng" className="text-paper/60 transition-colors hover:text-accent focus-visible:text-accent">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12" /></svg>
+              </button>
+            </div>
           </header>
+
+          {showProfile && (
+            <div className="border-b border-white/10 bg-ink-deep px-4 py-3 text-xs">
+              <p className="font-mono text-[10px] tracking-widest text-paper/50">SHOP NHỚ VỀ BẠN</p>
+              {profile?.prefs?.length ? (
+                <ul className="mt-2 space-y-1">
+                  {profile.prefs.map((p) => (
+                    <li key={p.key} className="text-paper/80">✓ {p.label || p.key}: <span className="text-accent">{p.value}</span></li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="mt-1 text-paper/50">Chưa nhớ gì — nói "tôi thích Nike, đi size 42" là shop nhớ.</p>
+              )}
+              {profile?.budget && (
+                <p className="mt-1 text-paper/60">Ngân sách phiên: {profile.budget.spent.toLocaleString('vi-VN')}₫ / {profile.budget.total.toLocaleString('vi-VN')}₫</p>
+              )}
+              <button
+                onClick={async () => {
+                  await fetch('/api/v1/assistant/profile', { method: 'DELETE' }).catch(() => {})
+                  setProfile({ prefs: [], budget: null })
+                }}
+                className="mt-2 border border-white/15 px-2 py-1 font-mono text-[10px] text-paper/60 hover:border-accent hover:text-accent"
+              >
+                QUÊN HẾT
+              </button>
+            </div>
+          )}
 
           <div ref={boxRef} className="flex-1 space-y-3 overflow-y-auto p-4">
             {msgs.length === 0 && (

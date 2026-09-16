@@ -113,6 +113,25 @@ router.post('/chat',
     res.json({ success: true, data: { text: text.trim(), tools } })
   }))
 
+// ——— Shopping profile: GET prefs (hiển thị) + DELETE (quên) ———
+// Memory controls cho UI: panel 🧠 trong chat hiện prefs + nút Quên.
+// resolveKey theo login/IP — đúng phân vùng agent đang dùng.
+router.get('/profile', asyncHandler(async (req, res) => {
+  const memorySvc = require('../services/agent/memory.js')
+  const { key } = memorySvc.resolveKey(req)
+  const prefs = await memorySvc.getPreferences(key)
+  const sessions = require('../services/agent/sessions.js')
+  const budget = req.query.sessionId ? sessions.getBudget(String(req.query.sessionId)) : null
+  res.json({ success: true, data: { prefs, budget: budget ? { total: budget.total, spent: budget.spent } : null } })
+}))
+
+router.delete('/profile', asyncHandler(async (req, res) => {
+  const memorySvc = require('../services/agent/memory.js')
+  const { key } = memorySvc.resolveKey(req)
+  const deleted = await memorySvc.clearPreferences(key)
+  res.json({ success: true, data: { forgotten: true, deleted } })
+}))
+
 // ————————————————————————————————————————————————
 // GET /api/v1/assistant/config — để UI biết agent bật/tắt + caps (không lộ key)
 // ————————————————————————————————————————————————
