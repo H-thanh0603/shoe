@@ -52,14 +52,18 @@ export default function CheckoutForm({ totalVnd, onDone, onBack }) {
       const data = await apiFetch('/orders', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Idempotency-Key': idemKey.current },
-        body: { ...form, couponCode: form.couponCode || undefined, paymentMethod: payMethod, sourceSession },
+        // expectedSubtotal: giá khách thấy — server 409 PRICE_CHANGED nếu admin đổi giá giữa chừng
+        body: { ...form, couponCode: form.couponCode || undefined, paymentMethod: payMethod, sourceSession, expectedSubtotal: totalVnd },
       })
       try { sessionStorage.removeItem('claimSession') } catch { /* đã gửi xong, kệ */ }
       // VNPay: bay sang cổng thanh toán — return URL sẽ quay về #/tra-don/:code
       if (data.paymentUrl) { location.href = data.paymentUrl; return }
       setOk(data)
     } catch (e2) {
-      setErr(e2.message)
+      // PRICE_CHANGED: giá đổi giữa chừng — báo rõ + mở lại giỏ để khách thấy giá mới
+      setErr(e2.code === 'PRICE_CHANGED'
+        ? `${e2.message} Nhấn THANH TOÁN lần nữa để xác nhận giá mới, hoặc quay lại giỏ kiểm tra.`
+        : e2.message)
     } finally {
       setBusy(false)
     }

@@ -24,6 +24,9 @@ const orderSchema = z.object({
   couponCode: z.string().trim().max(50).optional(),
   // funnel draft→claim→paid: session agent tạo giỏ (claim trả về, frontend gửi kèm)
   sourceSession: z.string().trim().max(100).optional(),
+  // giá khách THẤY lúc bấm đặt (subtotal giỏ). Lệch với DB (admin đổi giá giữa
+  // chừng) → 409 PRICE_CHANGED để khách xác nhận lại, không âm thầm tính giá mới.
+  expectedSubtotal: z.number().int().min(0).optional(),
 })
 
 // ref code KIN-XXXXXX — 6 ký tự, alphabet tránh confused chars
@@ -104,6 +107,14 @@ router.post('/', validate(orderSchema), async (req, res) => {
     }
 
     const subtotal = items.reduce((s, i) => s + i.price_vnd * i.qty, 0)
+
+    // Giá đổi giữa lúc khách xem giỏ và bấm đặt → từ chối để khách xác nhận lại.
+    if (req.body.expectedSubtotal != null && Number(req.body.expectedSubtotal) !== subtotal) {
+      throw Object.assign(
+        new Error(`Giá đã đổi (giỏ bạn thấy ${Number(req.body.expectedSubtotal).toLocaleString('vi-VN')}₫, hiện tại ${subtotal.toLocaleString('vi-VN')}₫) — kiểm tra lại giỏ rồi đặt tiếp`),
+        { status: 409, code: 'PRICE_CHANGED' },
+      )
+    }
 
     // coupon (§27)
     let couponId = null

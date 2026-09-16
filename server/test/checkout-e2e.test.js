@@ -85,6 +85,16 @@ test('e2e: cart → COD order → track by ref', async (t) => {
   assert.equal(track.body.data.ref_code, ref)
 })
 
+test('e2e: expectedSubtotal lệch → 409 PRICE_CHANGED (giỏ giữ nguyên)', async (t) => {
+  if (!alive) t.skip('server không chạy')
+  const j = jar()
+  await api(j, 'POST', '/api/v1/cart/items', { variantId, qty: 1 })
+  const bad = await api(j, 'POST', '/api/v1/orders', { ...buyer(), paymentMethod: 'cod', expectedSubtotal: 1 })
+  assert.equal(bad.status, 409)
+  assert.equal(bad.body.error?.code, 'PRICE_CHANGED')
+  await api(j, 'DELETE', '/api/v1/cart/')
+})
+
 test('e2e: VNPay order → mock IPN signed → paid', async (t) => {
   if (!alive) t.skip('server không chạy')
   const j = jar()
