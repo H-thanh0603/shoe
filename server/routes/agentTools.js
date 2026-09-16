@@ -699,6 +699,98 @@ const TOOLS = [
       return { budget: b, line: sessions.budgetLine(b) }
     },
   },
+  {
+    // price_trend — price intelligence: giá hiện tại so với lịch sử đổi giá
+    // (admin đổi giá → append price_history). Chưa từng đổi giá → nói rõ
+    // "giá ổn định", không bịa highest/typical.
+    name: 'price_trend',
+    description: 'Giá hiện tại có tốt không: so với lịch sử đổi giá (cao nhất/thấp nhất/số lần đổi). Dùng khi khách hỏi "có nên mua ngay không", "giá này đắt không".',
+    readOnly: true,
+    requiresUser: false,
+    rateLimit: 20,
+    inputSchema: {
+      type: 'object',
+      properties: { slug: { type: 'string' } },
+      required: ['slug'],
+    },
+    handler: async ({ slug }) => {
+      const d = await productsSvc.getProductDetail(slug).catch(() => null)
+      if (!d) throw httpError(404, 'PRODUCT_NOT_FOUND', `Không có ${slug}`)
+      const { rows } = await pool.query(
+        'SELECT price_vnd, created_at FROM price_history WHERE product_id = $1 ORDER BY created_at DESC LIMIT 20',
+        [d.id])
+      if (!rows.length) {
+        return {
+          slug, currentVnd: d.price_vnd,
+          verdict: 'stable',
+          line: `Giá ${d.price} ổn định từ trước tới nay (chưa từng điều chỉnh) — không có tín hiệu đắt/rẻ bất thường.`,
+        }
+      }
+      const prices = rows.map((r) => r.price_vnd)
+      const hi = Math.max(d.price_vnd, ...prices), lo = Math.min(d.price_vnd, ...prices)
+      const verdict = d.price_vnd <= lo ? 'low' : d.price_vnd >= hi ? 'high' : 'mid'
+      const vnd = (n) => Number(n).toLocaleString('vi-VN') + '₫'
+      return {
+        slug, currentVnd: d.price_vnd, highestVnd: hi, lowestVnd: lo, changes: rows.length,
+        verdict,
+        line: verdict === 'low'
+          ? `Giá hiện tại ${vnd(d.price_vnd)} đang ở ĐÁY (thấp nhất ${vnd(lo)}, cao nhất ${vnd(hi)}) — nên mua ngay.`
+          : verdict === 'high'
+            ? `Giá hiện tại ${vnd(d.price_vnd)} đang ở ĐỈNH (thấp nhất ${vnd(lo)}) — chưa cần gấp thì theo dõi giá.`
+            : `Giá hiện tại ${vnd(d.price_vnd)} ở giữa (đáy ${vnd(lo)}, đỉnh ${vnd(hi)}) — mua được, không quá hời.`,
+      }
+    },
+  },
+  {
+    // watch_product — đăng ký theo dõi: giá chạm target hoặc có hàng → mail.
+    // Consent = chính hành động đăng ký (khách tự cho mail); bỏ theo dõi = unwatch.
+    // Chống spam phía job (notified_at); tool validate mail + slug tồn tại.
+    name: 'watch_product',
+    description: 'Theo dõi sản phẩm hộ khách ("báo tôi khi đôi này giảm dưới 2tr / có size 42"): action=watch (cần email + slug, targetVnd/size tùy chọn) | unwatch | list. Báo qua mail khi chạm điều kiện (job quét 6h/lần).',
+    readOnly: false,
+    requiresUser: false,
+    rateLimit: 10,
+    inputSchema: {
+      type: 'object',
+      properties: {
+        action: { type: 'string', description: 'watch | unwatch | list' },
+        email: { type: 'string', description: 'mail nhận báo (watch/unwatch)' },
+        slug: { type: 'string' },
+        size: { type: 'integer', description: 'size cần báo có hàng (tùy chọn)' },
+        targetVnd: { type: 'integer', minimum: 100000, description: 'báo khi giá <= target (tùy chọn)' },
+      },
+      required: ['action'],
+    },
+    handler: async ({ action, email, slug, size, targetVnd }) => {
+      const mail = String(email || '').trim().slice(0, 120)
+      if (action === 'list') {
+        if (!/.+@.+\..+/.test(mail)) throw httpError(400, 'BAD_EMAIL', 'Thiếu email để liệt kê theo dõi')
+        const { rows } = await pool.query(
+          'SELECT slug, size, target_vnd, notified_at, created_at FROM watchlist WHERE email = $1 ORDER BY id', [mail])
+        return { watches: rows }
+      }
+      if (!/.+@.+\..+/.test(mail)) throw httpError(400, 'BAD_EMAIL', 'Cần email thật để nhận báo giá/hàng về')
+      if (!slug) throw httpError(400, 'NO_SLUG', 'Thiếu slug sản phẩm')
+      const d = await productsSvc.getProductDetail(slug).catch(() => null)
+      if (!d) throw httpError(404, 'PRODUCT_NOT_FOUND', `Không có ${slug}`)
+      if (action === 'unwatch') {
+        const { rowCount } = await pool.query(
+          'DELETE FROM watchlist WHERE email = $1 AND slug = $2 AND (size IS NOT DISTINCT FROM $3::int)',
+          [mail, slug, size ?? null])
+        return { unwatched: rowCount > 0 }
+      }
+      if (!size && !targetVnd) throw httpError(400, 'NO_CONDITION', 'Cần ít nhất size hoặc targetVnd để theo dõi')
+      await pool.query(
+        `INSERT INTO watchlist (email, slug, size, target_vnd, notified_at)
+         VALUES ($1, $2, $3::int, $4::int, NULL)
+         ON CONFLICT (email, slug, size) DO UPDATE SET target_vnd = EXCLUDED.target_vnd, notified_at = NULL`,
+        [mail, slug, size ?? null, targetVnd ?? null])
+      return {
+        watching: true, slug, size: size ?? null, targetVnd: targetVnd ?? null,
+        note: 'Đã đăng ký — shop mail khi chạm điều kiện (quét 6h/lần). Nhắn "bỏ theo dõi" lúc nào cũng được.',
+      }
+    },
+  },
 ]
 
 const toolByName = Object.fromEntries(TOOLS.map((t) => [t.name, t]))

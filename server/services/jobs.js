@@ -5,7 +5,7 @@
 const pool = require('../db.js')
 const mailer = require('./mailer.js')
 
-const TYPES = ['order_confirmation', 'events_cleanup', 'low_stock_scan', 'vnpay_refund', 'analytics_rollup', 'cart_purge']
+const TYPES = ['order_confirmation', 'events_cleanup', 'low_stock_scan', 'vnpay_refund', 'analytics_rollup', 'cart_purge', 'watchlist_scan']
 const POLL_MS = 2000
 
 async function enqueue(type, payload = {}, opts = {}) {
@@ -119,6 +119,41 @@ const handlers = {
     for (const r of rows) console.log(`[job] low_stock ${r.slug} size ${r.size}: còn ${r.stock}`)
     return rows.length
   },
+  // Proactive: quét watchlist — giá chạm target hoặc size có hàng trở lại →
+  // mail 1 lần/đợt (notified_at guard). Thiếu SMTP → mailer skip, KHÔNG set
+  // notified (đợt sau báo lại khi đã cấu hình).
+  async watchlist_scan({ limit = 100 } = {}) {
+    const { rows } = await pool.query(
+      `SELECT w.id, w.email, w.slug, w.size, w.target_vnd, w.notified_at,
+              p.name, p.price_vnd,
+              (SELECT COALESCE(SUM(pv.stock), 0) FROM product_variants pv
+                JOIN products p2 ON p2.id = pv.product_id
+                WHERE p2.slug = w.slug AND (w.size IS NULL OR pv.size = w.size)) AS stock
+       FROM watchlist w JOIN products p ON p.slug = w.slug AND p.is_active
+       WHERE w.notified_at IS NULL
+       ORDER BY w.id LIMIT $1`, [limit])
+    let sent = 0
+    for (const w of rows) {
+      // target đặt → báo khi giá chạm; không target → báo khi có hàng trở lại
+      const fire = w.target_vnd != null ? w.price_vnd <= w.target_vnd : Number(w.stock) > 0
+      if (!fire) continue
+      const fmt = Number(w.price_vnd).toLocaleString('vi-VN')
+      const why = w.target_vnd != null
+        ? `giá ${fmt}₫ đã chạm mục tiêu ${Number(w.target_vnd).toLocaleString('vi-VN')}₫`
+        : `size ${w.size ?? 'mọi size'} đã có hàng (${w.stock} đôi)`
+      const id = await mailer.send({
+        to: w.email,
+        subject: `KINETIC: ${w.name} — ${why}`,
+        text: `${w.name}\n${why}\nXem: /san-pham/${w.slug}\nBỏ theo dõi: trả lời mail này hoặc nhắn shop.`,
+        html: `<p><b>${w.name}</b> — ${why}.</p><p><a href="${process.env.SITE_URL || ''}/san-pham/${w.slug}">Xem sản phẩm</a></p>`,
+      })
+      if (id) {
+        await pool.query('UPDATE watchlist SET notified_at = now() WHERE id = $1', [w.id])
+        sent += 1
+      }
+    }
+    return { checked: rows.length, sent }
+  },
   // Hoàn tiền VNPay nền (admin hủy đơn paid): provider chậm/timeout không giữ request.
   // Guard refund_pending — retry trùng không hoàn 2 lần (claim SKIP LOCKED + status check).
   async vnpay_refund({ orderId }) {
@@ -145,8 +180,7 @@ const handlers = {
   },
 }
 
-async function tickOnce() {
-  const job = await claimOne()
+async function tickOnce() {  const job = await claimOne()
   if (!job) return false
   try {
     const payload = typeof job.payload === 'string' ? JSON.parse(job.payload) : (job.payload || {})
@@ -178,6 +212,7 @@ function startWorker() {
     await enqueue('low_stock_scan', { threshold: 3 })
     await enqueue('analytics_rollup', {})
     await enqueue('cart_purge', { olderThanDays: 30 })
+    await enqueue('watchlist_scan', {})
   }
   schedule().catch(() => {})
   setInterval(schedule, 6 * 3600 * 1000).unref?.()

@@ -224,6 +224,7 @@ router.post('/products', requirePerm('products:write'), validate(productBody.ext
 
 router.patch('/products/:id', requirePerm('products:write'), validate(productBody.partial()), async (req, res) => {
   const b = req.body
+  const { rows: [old] } = await pool.query('SELECT price_vnd FROM products WHERE id = $1', [req.params.id])
   const { rows: [p] } = await pool.query(
     `UPDATE products SET name = COALESCE($2, name), slug = COALESCE($3, slug), brand = COALESCE($4, brand),
        description = COALESCE($5, description), price_vnd = COALESCE($6, price_vnd), tag = $7,
@@ -231,6 +232,11 @@ router.patch('/products/:id', requirePerm('products:write'), validate(productBod
      WHERE id = $1 RETURNING *`,
     [req.params.id, b.name, b.slug, b.brand, b.description, b.priceVnd, b.tag ?? null, b.collectionId ?? null, b.purpose ?? null])
   if (!p) return bad(res, 'PRODUCT_NOT_FOUND', 'Không tìm thấy sản phẩm', 404)
+  // price intelligence: giá đổi → append history (best-effort, không vỡ request admin)
+  if (old && b.priceVnd != null && Number(b.priceVnd) !== old.price_vnd) {
+    pool.query('INSERT INTO price_history (product_id, price_vnd, changed_by) VALUES ($1, $2, $3)',
+      [p.id, Number(b.priceVnd), req.user?.id ?? null]).catch(() => {})
+  }
   await bust('products:list', 'products:detail')
   await audit(req, 'product.update', 'product', p.id, { fields: Object.keys(b) })
   ok(res, p)

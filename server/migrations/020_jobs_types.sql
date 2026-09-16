@@ -3,5 +3,5 @@
 ALTER TABLE jobs DROP CONSTRAINT IF EXISTS jobs_type_check;
 ALTER TABLE jobs ADD CONSTRAINT jobs_type_check CHECK (type IN (
   'order_confirmation', 'events_cleanup', 'low_stock_scan',
-  'vnpay_refund', 'analytics_rollup', 'cart_purge'
+  'vnpay_refund', 'analytics_rollup', 'cart_purge', 'watchlist_scan', 'watchlist_alert'
 ));

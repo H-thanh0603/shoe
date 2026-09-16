@@ -30,6 +30,7 @@ const PUBLIC_ALLOWED = new Set([
   'get_user_voucher', 'claim_and_attach_cart', 'get_memory', 'save_memory',
   'forget_memory', 'draft_bundle', 'track_budget',
   'plan_trip_kit', 'complete_the_pair', 'check_fit',
+  'price_trend', 'watch_product',
 ])
 
 const MAX_TOOL_RESULT_CHARS = Number(process.env.AI_TOOL_RESULT_MAX_CHARS) || 12_000
@@ -211,6 +212,8 @@ function summarize(name, result) {
     if (name === 'plan_trip_kit') return result?.kit ? `kit ${result.kit.count} đôi — ${result.shareUrl || ''}` : 'không dựng được kit'
     if (name === 'complete_the_pair') return result?.line || 'ok'
     if (name === 'check_fit') return result?.verdict || 'ok'
+    if (name === 'price_trend') return result?.verdict ? `giá ${result.verdict} — ${result.currentVnd}` : 'ok'
+    if (name === 'watch_product') return result?.watching ? `đang theo dõi ${result.slug}` : result?.unwatched ? 'đã bỏ theo dõi' : `${result?.watches?.length ?? 0} đang theo dõi`
     return 'ok'
   } catch { return 'ok' }
 }
