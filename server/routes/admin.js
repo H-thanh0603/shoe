@@ -342,13 +342,25 @@ router.post('/inventory', requirePerm('inventory:write'), validate(z.object({
 const ANALYTICS_CC = { cacheControl: 'private, max-age=60' }
 router.get('/analytics', requirePerm('analytics:read'), cacheGet('admin:analytics', 120, () => 'summary', ANALYTICS_CC), async (_req, res) => {
   // Doanh thu/đơn chỉ tính tiền thật (paid+) — pending chưa phải tiền về,
-  // số dashboard sẽ thấp hơn trước nhưng đúng
-  const { rows: [summary] } = await pool.query(
-    `SELECT COUNT(*) FILTER (WHERE status IN ('paid','shipped','done')) AS orders,
-            COALESCE(SUM(total_vnd) FILTER (WHERE status IN ('paid','shipped','done')), 0) AS revenue,
-            COALESCE(ROUND(AVG(total_vnd) FILTER (WHERE status IN ('paid','shipped','done'))), 0) AS aov,
-            COUNT(*) FILTER (WHERE status = 'pending') AS pending
-     FROM orders`)
+  // số dashboard sẽ thấp hơn trước nhưng đúng.
+  // Đọc analytics_daily (rollup job 6h) — fallback full scan khi rollup chưa chạy.
+  const { rows: roll } = await pool.query(
+    `SELECT COALESCE(SUM(orders),0) AS orders, COALESCE(SUM(revenue),0) AS revenue,
+            COALESCE(SUM(pending),0) AS pending FROM analytics_daily
+     WHERE day >= CURRENT_DATE - INTERVAL '30 days'`)
+  let summary, aov
+  if (Number(roll[0].orders) + Number(roll[0].pending) > 0) {
+    summary = roll[0]
+    aov = Number(summary.orders) > 0 ? Math.round(Number(summary.revenue) / Number(summary.orders)) : 0
+  } else {
+    const { rows: [s] } = await pool.query(
+      `SELECT COUNT(*) FILTER (WHERE status IN ('paid','shipped','done')) AS orders,
+              COALESCE(SUM(total_vnd) FILTER (WHERE status IN ('paid','shipped','done')), 0) AS revenue,
+              COALESCE(ROUND(AVG(total_vnd) FILTER (WHERE status IN ('paid','shipped','done'))), 0) AS aov,
+              COUNT(*) FILTER (WHERE status = 'pending') AS pending FROM orders`)
+    summary = s
+    aov = Number(s.aov)
+  }
   const { rows: top } = await pool.query(
     `SELECT oi.name_snapshot AS name, SUM(oi.qty) AS qty, SUM(oi.qty * oi.unit_price_vnd) AS revenue
      FROM order_items oi JOIN orders o ON o.id = oi.order_id
@@ -357,9 +369,10 @@ router.get('/analytics', requirePerm('analytics:read'), cacheGet('admin:analytic
     'SELECT pv.id, pv.size, pv.stock, p.name FROM product_variants pv JOIN products p ON p.id = pv.product_id WHERE pv.stock <= 3 ORDER BY pv.stock LIMIT 10')
   const { rows: [customers] } = await pool.query('SELECT COUNT(*) AS total FROM users')
   ok(res, {
-    orders: Number(summary.orders), revenue: Number(summary.revenue), aov: Number(summary.aov),
+    orders: Number(summary.orders), revenue: Number(summary.revenue),
+    aov: Number(aov),
     pendingOrders: Number(summary.pending), customers: Number(customers.total),
-    topProducts: top, lowStock,
+    topProducts: top, lowStock, rolled: Number(roll[0].orders) + Number(roll[0].pending) > 0,
   })
 })
 

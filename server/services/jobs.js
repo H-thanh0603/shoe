@@ -5,7 +5,7 @@
 const pool = require('../db.js')
 const mailer = require('./mailer.js')
 
-const TYPES = ['order_confirmation', 'events_cleanup', 'low_stock_scan', 'vnpay_refund']
+const TYPES = ['order_confirmation', 'events_cleanup', 'low_stock_scan', 'vnpay_refund', 'analytics_rollup', 'cart_purge']
 const POLL_MS = 2000
 
 async function enqueue(type, payload = {}, opts = {}) {
@@ -86,6 +86,30 @@ const handlers = {
       [String(olderThanDays)])
     if (rowCount) console.log(`[job] events_cleanup xóa ${rowCount} events cũ`)
   },
+  // Rollup doanh thu theo ngày: upsert hôm nay + 7 ngày gần nhất (đơn đổi trạng
+  // thái muộn vẫn đúng). Dashboard đọc analytics_daily — O(ngày) thay vì O(orders).
+  async analytics_rollup() {
+    const { rowCount } = await pool.query(
+      `INSERT INTO analytics_daily (day, orders, revenue, pending)
+       SELECT created_at::date AS day,
+         COUNT(*) FILTER (WHERE status IN ('paid','shipped','done')),
+         COALESCE(SUM(total_vnd) FILTER (WHERE status IN ('paid','shipped','done')), 0),
+         COUNT(*) FILTER (WHERE status = 'pending')
+       FROM orders WHERE created_at >= CURRENT_DATE - INTERVAL '7 days'
+       GROUP BY day
+       ON CONFLICT (day) DO UPDATE SET orders = EXCLUDED.orders, revenue = EXCLUDED.revenue,
+         pending = EXCLUDED.pending, updated_at = now()`)
+    return rowCount
+  },
+  // Xoá giỏ guest rỗng >30 ngày (bảng carts phình làm join chậm). Giỏ user + giỏ có đồ giữ.
+  async cart_purge({ olderThanDays = 30 } = {}) {
+    const { rowCount } = await pool.query(
+      `DELETE FROM carts WHERE user_id IS NULL AND created_at < now() - ($1 || ' days')::interval
+       AND NOT EXISTS (SELECT 1 FROM cart_items WHERE cart_id = carts.id)`,
+      [String(olderThanDays)])
+    if (rowCount) console.log(`[job] cart_purge xóa ${rowCount} giỏ guest rỗng`)
+    return rowCount
+  },
   // Quét variant sắp hết (stock <= ngưỡng) để admin nhập hàng.
   async low_stock_scan({ threshold = 3 } = {}) {
     const { rows } = await pool.query(
@@ -152,6 +176,8 @@ function startWorker() {
   const schedule = async () => {
     await enqueue('events_cleanup', { olderThanDays: 90 })
     await enqueue('low_stock_scan', { threshold: 3 })
+    await enqueue('analytics_rollup', {})
+    await enqueue('cart_purge', { olderThanDays: 30 })
   }
   schedule().catch(() => {})
   setInterval(schedule, 6 * 3600 * 1000).unref?.()
