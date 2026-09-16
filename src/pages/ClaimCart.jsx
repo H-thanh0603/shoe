@@ -13,7 +13,15 @@ export default function ClaimCart({ token }) {
   useEffect(() => {
     let alive = true
     apiFetch('/cart/claim', { method: 'POST', body: { token } })
-      .then((cart) => { if (alive) { setState({ phase: 'done', cart, err: null }); refresh() } })
+      .then((cart) => {
+        if (!alive) return
+        // funnel draft→claim→paid: nhớ session AI tạo giỏ, checkout gửi kèm vào đơn
+        try {
+          if (cart.sourceSession) sessionStorage.setItem('claimSession', cart.sourceSession)
+          else sessionStorage.removeItem('claimSession')
+        } catch { /* private mode — checkout vẫn chạy, chỉ mất dấu funnel */ }
+        setState({ phase: 'done', cart, err: null }); refresh()
+      })
       .catch((e) => { if (alive) setState({ phase: 'error', cart: null, err: e.message }) })
     return () => { alive = false }
   }, [token])

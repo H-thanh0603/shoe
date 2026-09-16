@@ -22,6 +22,8 @@ const orderSchema = z.object({
   address: z.string().min(8).max(300),
   paymentMethod: z.enum(['cod', 'vnpay']),
   couponCode: z.string().trim().max(50).optional(),
+  // funnel draft→claim→paid: session agent tạo giỏ (claim trả về, frontend gửi kèm)
+  sourceSession: z.string().trim().max(100).optional(),
 })
 
 // ref code KIN-XXXXXX — 6 ký tự, alphabet tránh confused chars
@@ -117,11 +119,12 @@ router.post('/', validate(orderSchema), async (req, res) => {
     const ref = refCode()
     const { rows: [order] } = await client.query(
       `INSERT INTO orders (ref_code, user_id, status, total_vnd, customer_name, customer_phone, customer_email,
-        shipping_address, payment_method, payment_status, shipping_fee_vnd, discount_vnd, coupon_id, idempotency_key)
-       VALUES ($1,$12,'pending',$2,$3,$4,$5,$6,$7,'unpaid',$8,$9,$10,$11) RETURNING id`,
+        shipping_address, payment_method, payment_status, shipping_fee_vnd, discount_vnd, coupon_id, idempotency_key, source_session)
+       VALUES ($1,$12,'pending',$2,$3,$4,$5,$6,$7,'unpaid',$8,$9,$10,$11,$13) RETURNING id`,
       [ref, total,
         pii.encrypt(req.body.customerName), pii.encrypt(req.body.phone), pii.encrypt(req.body.email), pii.encrypt(req.body.address),
-        req.body.paymentMethod, shippingFeeVnd, discount, couponId, idemKey, req.user?.id || null],
+        req.body.paymentMethod, shippingFeeVnd, discount, couponId, idemKey, req.user?.id || null,
+        String(req.body.sourceSession || '').slice(0, 100)],
     )
 
     for (const it of items) {

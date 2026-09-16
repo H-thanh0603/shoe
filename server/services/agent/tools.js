@@ -142,6 +142,7 @@ async function executeTool(name, args, ctx) {
     const result = await tool.handler(parsed.data, {
       agentId: ctx?.agentId || 'runtime',
       req: ctx?.req,
+      sessionId: ctx?.sessionId || '',
       progress: ctx?.progress || (() => {}),
     })
     // catalog tools → ghi nhận slugs đã thấy (nếu session có track)

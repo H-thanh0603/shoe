@@ -47,11 +47,14 @@ export default function CheckoutForm({ totalVnd, onDone, onBack }) {
     e.preventDefault()
     setBusy(true); setErr(null)
     try {
+      let sourceSession
+      try { sourceSession = sessionStorage.getItem('claimSession') || undefined } catch { /* không có — đơn thường */ }
       const data = await apiFetch('/orders', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Idempotency-Key': idemKey.current },
-        body: { ...form, couponCode: form.couponCode || undefined, paymentMethod: payMethod },
+        body: { ...form, couponCode: form.couponCode || undefined, paymentMethod: payMethod, sourceSession },
       })
+      try { sessionStorage.removeItem('claimSession') } catch { /* đã gửi xong, kệ */ }
       // VNPay: bay sang cổng thanh toán — return URL sẽ quay về #/tra-don/:code
       if (data.paymentUrl) { location.href = data.paymentUrl; return }
       setOk(data)

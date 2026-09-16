@@ -303,9 +303,11 @@ const TOOLS = [
         if (line) await client.query('UPDATE cart_items SET qty = $1 WHERE id = $2', [newQty, line.id])
         else await client.query('INSERT INTO cart_items (cart_id, variant_id, qty) VALUES ($1,$2,$3)', [cartId, v.id, qty])
 
-        // single-use share token — người dùng claim giỏ ở web rồi tự checkout
+        // single-use share token — người dùng claim giỏ ở web rồi tự checkout.
+        // source_session: nối funnel draft→claim→paid (§funnel).
         const shareToken = crypto.randomUUID()
-        await client.query('INSERT INTO cart_share_tokens (token, cart_id) VALUES ($1,$2)', [shareToken, cartId])
+        await client.query('INSERT INTO cart_share_tokens (token, cart_id, source_session) VALUES ($1,$2,$3)',
+          [shareToken, cartId, String(ctx?.sessionId || '').slice(0, 100)])
         await client.query('COMMIT')
         return {
           slug, size, qty: newQty, stockLeft: v.stock - newQty,
@@ -507,6 +509,7 @@ router.get('/tools',
 const callSchema = z.object({
   name: z.string().trim().min(1).max(60),
   arguments: z.record(z.string(), z.unknown()).default({}),
+  sessionId: z.string().trim().max(100).optional(),
 })
 
 // Invoke chung cho /call (JSON) và /call/stream (SSE):
@@ -545,6 +548,7 @@ async function invokeTool(req) {
 
   const result = await tool.handler(parsed.data, {
     agentId, req,
+    sessionId: String(req.body.sessionId || '').slice(0, 100),
     // /call (JSON) không stream được → progress no-op; /call/stream truyền hàm emit SSE
     progress: req._toolProgress || (() => {}),
   })

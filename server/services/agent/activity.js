@@ -104,7 +104,34 @@ async function activityStats() {
      GROUP BY tool, status ORDER BY tool, status`)
   const { rows: [total] } = await pool.query(
     `SELECT COUNT(*) AS n FROM ai_activity_log WHERE created_at > now() - interval '24 hours'`)
-  return { total24h: Number(total.n), byTool }
+  return { total24h: Number(total.n), byTool, funnel: await draftFunnel() }
 }
 
-module.exports = { logToolCall, listActivity, activityStats }
+// Funnel draft→claim→paid (7 ngày): token AI tạo → khách nhận → đơn paid.
+// Đếm theo source_session để biết AI có ra tiền không.
+async function draftFunnel() {
+  const { rows } = await pool.query(
+    `WITH drafts AS (
+       SELECT source_session, MIN(created_at) AS drafted_at
+       FROM cart_share_tokens WHERE source_session <> '' AND created_at > now() - interval '7 days'
+       GROUP BY source_session
+     ), claimed AS (
+       SELECT DISTINCT source_session FROM cart_share_tokens
+       WHERE source_session <> '' AND claimed_at IS NOT NULL AND created_at > now() - interval '7 days'
+     ), paid AS (
+       SELECT DISTINCT source_session FROM orders
+       WHERE source_session <> '' AND payment_status = 'paid' AND created_at > now() - interval '7 days'
+     )
+     SELECT (SELECT COUNT(*) FROM drafts) AS drafted,
+            (SELECT COUNT(*) FROM claimed) AS claimed,
+            (SELECT COUNT(*) FROM paid) AS paid`)
+  const r = rows[0] || { drafted: 0, claimed: 0, paid: 0 }
+  const drafted = Number(r.drafted), claimed = Number(r.claimed), paid = Number(r.paid)
+  return {
+    drafted, claimed, paid,
+    claimRate: drafted ? Math.round((claimed / drafted) * 100) : 0,
+    paidRate: drafted ? Math.round((paid / drafted) * 100) : 0,
+  }
+}
+
+module.exports = { logToolCall, listActivity, activityStats, draftFunnel }

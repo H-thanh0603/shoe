@@ -168,8 +168,9 @@ router.post('/claim', validate(z.object({ token: z.string().trim().min(1).max(10
     await client.query('BEGIN')
     // token share mới (single-use, 24h) trước, session_token cũ (tương thích link cũ) sau
     let src = null
+    let sourceSession = ''
     const { rows: [t] } = await client.query(
-      'SELECT cart_id, used, expires_at FROM cart_share_tokens WHERE token = $1 FOR UPDATE',
+      'SELECT cart_id, used, expires_at, source_session FROM cart_share_tokens WHERE token = $1 FOR UPDATE',
       [req.body.token],
     )
     if (t) {
@@ -177,7 +178,8 @@ router.post('/claim', validate(z.object({ token: z.string().trim().min(1).max(10
         await client.query('ROLLBACK')
         return res.status(404).json({ success: false, error: { code: 'SHARE_NOT_FOUND', message: 'Link nhận giỏ hết hạn hoặc đã dùng' } })
       }
-      await client.query('UPDATE cart_share_tokens SET used = true WHERE token = $1', [req.body.token])
+      await client.query('UPDATE cart_share_tokens SET used = true, claimed_at = now() WHERE token = $1', [req.body.token])
+      sourceSession = t.source_session || ''
       ;({ rows: [src] } = await client.query('SELECT id FROM carts WHERE id = $1 FOR UPDATE', [t.cart_id]))
     } else {
       // DEPRECATED 2026-09: link cũ trỏ thẳng session_token (lộ phiên 30 ngày).
@@ -218,7 +220,7 @@ router.post('/claim', validate(z.object({ token: z.string().trim().min(1).max(10
     }
     await client.query('DELETE FROM cart_items WHERE cart_id = $1', [src.id])
     await client.query('COMMIT')
-    res.json({ success: true, data: { ...(await cartPayload(req.cartId)), merged: items.length } })
+    res.json({ success: true, data: { ...(await cartPayload(req.cartId)), merged: items.length, sourceSession } })
   } catch (e) {
     await client.query('ROLLBACK').catch(() => {})
     throw e
