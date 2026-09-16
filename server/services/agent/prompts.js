@@ -25,6 +25,9 @@ const TOOL_RULES = `## Quy tắc dùng tool
 - Tra đơn: track_order với mã KIN-XXXXXX — nếu khách chưa có mã, hướng dẫn lấy mã trong email/trang "Tra cứu đơn".
 - Thêm giỏ: add_to_cart (slug + size + qty) — sau đó BẮT BUỘC đưa shareUrl cho khách mở link và tự bấm thanh toán. Có thể gọi claim_and_attach_cart để đính nút nhận giỏ ngay trong câu trả lời.
 - Combo: khách nêu NHU CẦU trọn bộ ("đi chạy mùa mưa", "đi học cả tuần", "tập gym từ đầu") → gọi draft_bundle 1 lần (giày chính + tối đa 2 món phụ cùng giỏ, 1 shareUrl). Chỉ dùng add_to_cart lẻ khi khách chỉ đích danh 1 món.
+- Kit nhiều ngày ("Đà Lạt 4 ngày", "đi làm + chạy cuối tuần", budget tổng) → plan_trip_kit với needs [{purpose,label}] — mỗi nhu cầu 1 đôi, budget tự chia.
+- Đang xem 1 đôi + hỏi "còn gì nữa" → complete_the_pair (đôi bổ trợ khác purpose, không tự thêm giỏ, không spam mỗi turn).
+- Trước khi thêm giỏ mà chưa rõ size → check_fit (so size chọn với size đã lưu + form giày), báo verdict rồi mới add.
 - Mã giảm giá: get_user_voucher cho mã công khai (kèm preview theo tạm tính nếu biết subtotal). Nói rõ khách tự nhập mã ở bước thanh toán.
 - Ngân sách task: khách nêu tổng tiền ("tôi có 5 triệu", "outfit dưới 3 triệu") → track_budget action=set NGAY. Mỗi lần chốt/đổi món → add/remove + báo còn lại. Không để tổng vượt ngân sách mà không cảnh báo.
 - Ghi nhớ: khi khách nói rõ preference (brand ưa thích, size, ngân sách, mục đích, phong cách) → gọi save_memory NGAY (1 lần, gộp nhiều mục). Khi cần cá nhân hóa hoặc khách hỏi "giày cho tôi" → get_memory xem ghi nhớ. KHÔNG lưu gì ngoài 5 key đó — không lưu số thẻ, địa chỉ, email, mật khẩu. Lần đầu lưu trong phiên: kèm 1 câu "Shop sẽ nhớ X để gợi ý lần sau, khách muốn quên lúc nào cứ nói 'quên tôi đi' nhé" (forget_memory xoá ngay khi khách yêu cầu).

@@ -172,4 +172,65 @@ async function draftBundle({ request, ctx }) {
   }
 }
 
-module.exports = { draftOrder, draftBundle, enabled }
+// ——— planTripKit: "kit nhiều ngày" cho shop 100% giày ———
+// "Đà Lạt 4 ngày", "tuần đi làm + cuối tuần chạy" → 2 đôi khác purpose
+// (1 đi nhiều/comfort + 1 theo dịp) + chia ngân sách qua track_budget.
+// Khác draftBundle (combo bổ trợ cùng lúc): kit là 2 ĐÔI cho 2 use khác nhau.
+async function planTripKit({ request, ctx }) {
+  const steps = []
+  const note = (tool, summary, status) => steps.push({ tool, summary, status })
+  const { needs = [], budget, brands = [], size } = request || {}
+  // needs: [{purpose, label}] — vd [{daily,"đi bộ cả ngày"},{street,"đi tối"}]
+  if (!needs.length) return { ok: false, steps, error: 'Thiếu needs (mỗi need 1 purpose)' }
+
+  const sessions = require('./sessions.js')
+  if (budget) {
+    sessions.setBudget(ctx?.sessionId || 'nacial', budget)
+    note('track_budget', `ngân sách ${budget.toLocaleString('vi-VN')}₫`, 'ok')
+  }
+
+  const pairs = []
+  for (const need of needs.slice(0, 2)) {
+    const rec = await executeTool('recommend_products',
+      { purpose: need.purpose, budget: budget ? budgetBand(budget) : undefined, brands, limit: 3 }, ctx)
+    note('recommend_products', `${need.label || need.purpose}: ${rec.summary}`, rec.ok ? 'ok' : 'error')
+    if (!rec.ok) continue
+    const cand = (rec.result?.recommendations || []).find((r) => !pairs.some((p) => p.slug === r.slug))
+    if (!cand) continue
+    const st = await executeTool('check_stock', { slug: cand.slug }, ctx)
+    note('check_stock', `${cand.slug}: ${st.summary}`, st.ok ? 'ok' : 'error')
+    if (!st.ok) continue
+    const sizes = st.result?.sizes || []
+    const avail = size
+      ? sizes.filter((s) => s.size === Number(size) && s.stock >= 1)
+      : sizes.filter((s) => s.stock >= 1).sort((a, b) => b.stock - a.stock)
+    if (!avail.length) continue
+    const add = await executeTool('add_to_cart', { slug: cand.slug, size: avail[0].size, qty: 1 }, ctx)
+    note('add_to_cart', `${cand.slug}: ${add.summary}`, add.ok ? 'ok' : 'error')
+    if (!add.ok) continue
+    pairs.push({ slug: cand.slug, name: cand.name, size: avail[0].size, priceVnd: cand.priceVnd, for: need.label || need.purpose, shareUrl: add.result.shareUrl })
+    if (budget && ctx?.sessionId) sessions.budgetAdd(ctx.sessionId, `${cand.name} (${need.label || need.purpose})`, cand.priceVnd)
+  }
+  if (!pairs.length) return { ok: false, steps, error: 'Không tìm được đôi nào còn hàng cho các nhu cầu' }
+  const subtotal = pairs.reduce((s, p) => s + p.priceVnd, 0)
+  const over = budget ? subtotal - budget : 0
+  if (over > 0) note('track_budget', `vượt ngân sách ${over.toLocaleString('vi-VN')}₫ — agent báo khách đổi/bỏ món`, 'ok')
+  return {
+    ok: true, steps,
+    shareUrl: pairs[pairs.length - 1].shareUrl, // cùng giỏ agent
+    kit: { pairs, subtotalVnd: subtotal, count: pairs.length },
+    budgetLine: budget && ctx?.sessionId ? sessions.budgetLine(sessions.getBudget(ctx.sessionId)) : '',
+    over: over > 0 ? over : 0,
+    note: `Kit ${pairs.length} đôi cho ${pairs.map((p) => p.for).join(' + ')} — 1 link nhận cả kit.` +
+      (over > 0 ? ` Vượt ngân sách ${over.toLocaleString('vi-VN')}₫.` : ''),
+  }
+}
+
+// VND → band ngân sách của recommend (under-2m/2-4m/4m+).
+function budgetBand(vnd) {
+  if (vnd <= 2000000) return 'under-2m'
+  if (vnd <= 4000000) return '2-4m'
+  return '4m+'
+}
+
+module.exports = { draftOrder, draftBundle, planTripKit, enabled }

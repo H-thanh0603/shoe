@@ -472,6 +472,122 @@ const TOOLS = [
     },
   },
   {
+    // plan_trip_kit — kit nhiều ngày cho shop giày: 2 đôi khác purpose + chia budget.
+    // "Đà Lạt 4 ngày" → 1 đôi đi bộ + 1 đôi đi tối. Cùng giỏ agent, 1 shareUrl.
+    name: 'plan_trip_kit',
+    description: 'Dựng kit giày cho chuyến đi/tuần nhiều nhu cầu ("Đà Lạt 4 ngày", "đi làm + chạy cuối tuần"): mỗi nhu cầu 1 đôi khác purpose, chia ngân sách, 1 link nhận cả kit. Needs: [{purpose, label}].',
+    readOnly: false,
+    requiresUser: false,
+    rateLimit: 6,
+    inputSchema: {
+      type: 'object',
+      properties: {
+        needs: {
+          type: 'array', minItems: 1, maxItems: 2,
+          items: {
+            type: 'object',
+            properties: {
+              purpose: { type: 'string' },
+              label: { type: 'string', description: 'vd "đi bộ cả ngày", "đi tối"' },
+            },
+            required: ['purpose'],
+          },
+        },
+        budget: { type: 'integer', minimum: 500000, maximum: 50000000, description: 'tổng ngân sách VND' },
+        brands: { type: 'array', items: { type: 'string' }, maxItems: 5 },
+        size: { type: 'integer' },
+      },
+      required: ['needs'],
+    },
+    handler: async (args, ctx) => {
+      const { planTripKit } = require('../services/agent/workflows.js')
+      const shared = ctx?.session || { seenSlugs: new Set(), seenShareUrls: new Set() }
+      const out = await planTripKit({
+        request: args,
+        ctx: {
+          role: 'assistant', agentId: ctx?.agentId || 'runtime', req: ctx?.req,
+          sessionId: ctx?.sessionId || '', sessionTurn: 1, session: shared,
+          progress: ctx?.progress || (() => {}),
+        },
+      })
+      if (!out.ok) throw httpError(400, 'KIT_FAILED', out.error || 'Không dựng được kit')
+      return out
+    },
+  },
+  {
+    // complete_the_pair — "complete the look" bản giày: đang xem đôi A (purpose X)
+    // → gợi ý đôi bổ trợ purpose KHÁC (đi làm có street rồi → thêm running).
+    // Không spam: chỉ gọi khi khách đang ở trang sản phẩm hoặc hỏi "còn đôi nào nữa".
+    name: 'complete_the_pair',
+    description: 'Đang xem 1 đôi → gợi ý 1 đôi bổ trợ khác purpose (có street rồi thêm running, có chạy rồi thêm đi chơi). Trả slug + lý do bổ trợ, KHÔNG tự thêm giỏ.',
+    readOnly: true,
+    requiresUser: false,
+    rateLimit: 20,
+    inputSchema: {
+      type: 'object',
+      properties: {
+        slug: { type: 'string', description: 'slug đôi đang xem' },
+        size: { type: 'integer' },
+      },
+      required: ['slug'],
+    },
+    handler: async ({ slug, size }) => {
+      const d = await productsSvc.getProductDetail(slug).catch(() => null)
+      if (!d) throw httpError(404, 'PRODUCT_NOT_FOUND', `Không có ${slug}`)
+      const COMPLEMENT = { running: 'street', street: 'running', court: 'daily', daily: 'street', trail: 'daily' }
+      const want = COMPLEMENT[d.purpose] || 'daily'
+      const { items } = await productsSvc.listProducts({ limit: 100, page: 1 })
+      const cands = items
+        .filter((p) => p.slug !== slug && p.purpose === want && (p.stock_total ?? 0) > 0)
+        .sort((a, b) => (b.comfort + b.style) - (a.comfort + a.style))
+        .slice(0, 2)
+        .map((p) => ({ slug: p.slug, name: p.name, brand: p.brand, priceVnd: p.price_vnd, purpose: p.purpose, url: `/san-pham/${p.slug}` }))
+      return {
+        viewing: { slug: d.slug, name: d.name, purpose: d.purpose },
+        complementPurpose: want,
+        pairs: cands,
+        line: cands.length
+          ? `Đã có ${d.name} (${d.purpose}) — thêm ${cands[0].name} cho dịp ${want}`
+          : `Chưa có đôi ${want} nào còn hàng để ghép với ${d.name}`,
+      }
+    },
+  },
+  {
+    // check_fit — dự đoán vừa chân: size đã lưu (memory) + DNA comfort/daily của form.
+    // comfort>=85: form ôm êm → true-size; 70–84: bình thường; <70: form cứng → nửa size up.
+    name: 'check_fit',
+    description: 'Dự đoán vừa chân cho slug + size: dùng size khách đã lưu (memory) + độ êm form giày. Trả vừa/chật + lời khuyên, không thay order.',
+    readOnly: true,
+    requiresUser: false,
+    rateLimit: 20,
+    inputSchema: {
+      type: 'object',
+      properties: {
+        slug: { type: 'string' },
+        size: { type: 'integer' },
+      },
+      required: ['slug', 'size'],
+    },
+    handler: async ({ slug, size }, ctx) => {
+      const d = await productsSvc.getProductDetail(slug).catch(() => null)
+      if (!d) throw httpError(404, 'PRODUCT_NOT_FOUND', `Không có ${slug}`)
+      const { key } = memorySvc.resolveKey(ctx?.req)
+      const prefs = await memorySvc.getPreferences(key).catch(() => [])
+      const saved = prefs.find((p) => p.key === 'shoe_size')?.value
+      const comfort = d.comfort ?? 75
+      const form = comfort >= 85 ? 'ôm êm' : comfort >= 70 ? 'chuẩn' : 'cứng'
+      let verdict = 'vừa', advice = `Size ${size} đúng form ${form} — lấy đúng size.`
+      if (saved && Number(saved) !== Number(size)) {
+        verdict = 'lệch size đã lưu'
+        advice = `Khách hay đi size ${saved} mà chọn ${size} — xác nhận lại trước khi thêm giỏ.`
+      } else if (comfort < 70) {
+        verdict = 'form cứng'
+        advice = `Form ${d.name} cứng (comfort ${comfort}) — chân bè nên lên nửa size, chân thon giữ ${size}.`
+      }
+      return { slug, size, savedSize: saved || null, form, comfort, verdict, advice }
+    },
+  },
+  {
     // get_memory — blueprint #10: agent đọc preference khách của phiên này.
     name: 'get_memory',
     description: 'Xem ghi nhớ về khách (brand ưa thích, size, ngân sách, mục đích) của phiên hiện tại. Dùng khi khách hỏi "giày cho tôi" để cá nhân hóa mà không hỏi lại.',
