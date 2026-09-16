@@ -64,6 +64,23 @@ router.post('/', validate(orderSchema), async (req, res) => {
     if (dup[0]) return res.status(200).json({ success: true, data: { refCode: dup[0].ref_code, duplicate: true } })
   }
 
+  // Chống bom hàng COD: 1 SĐT tối đa 3 đơn pending/24h. Phone lưu enc (PII) nên
+  // đếm qua phone_hash (sha256 số chuẩn hoá). Vượt → 429 + hướng dẫn cọc VNPay.
+  if (req.body.paymentMethod === 'cod') {
+    const digits = String(req.body.phone).replace(/\D/g, '').replace(/^84/, '0')
+    const ph = crypto.createHash('sha256').update(digits).digest('hex')
+    const { rows: [ab] } = await pool.query(
+      `INSERT INTO cod_abuse (phone_hash, attempts, last_at) VALUES ($1, 1, now())
+       ON CONFLICT (phone_hash) DO UPDATE SET
+         attempts = CASE WHEN cod_abuse.last_at < now() - interval '24 hours' THEN 1 ELSE cod_abuse.attempts + 1 END,
+         last_at = now() RETURNING attempts`,
+      [ph],
+    )
+    if (Number(ab.attempts) > 3) {
+      return res.status(429).json({ success: false, error: { code: 'COD_LIMITED', message: 'SĐT này đã đặt 3 đơn COD trong 24h — vui lòng thanh toán VNPay hoặc liên hệ shop' } })
+    }
+  }
+
   const client = await pool.connect()
   try {
     await client.query('BEGIN')
