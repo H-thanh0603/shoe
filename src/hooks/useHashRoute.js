@@ -27,6 +27,8 @@ function parse(path) {
     if (c) return { name: 'collection', param: decodeURIComponent(c[1]) }
     const g = r.match(/^\/gio-hang\/(.+)/)
     if (g) return { name: 'claim', param: decodeURIComponent(g[1]) }
+    const pol = r.match(/^\/chinh-sach\/(.+)/)
+    if (pol) return { name: 'policy', param: decodeURIComponent(pol[1]) }
     if (r === '/') return { name: 'home' }
     return { name: 'notfound' }
   } catch {

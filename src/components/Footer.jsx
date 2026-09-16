@@ -1,4 +1,5 @@
 // Ft6 oversized statement footer — shoe brand mark lớn, nav tối giản.
+import { POLICY_LINKS } from '../pages/Policy.jsx'
 export default function Footer() {
   return (
     <footer className="border-t border-white/10 bg-ink-deep">
@@ -20,8 +21,7 @@ export default function Footer() {
                 ['COLLECTIONS', '/bo-suu-tap'],
                 ['YÊU THÍCH', '/yeu-thich'],
                 ['SIZE GUIDE', '#'],
-                ['SHIPPING', '#'],
-                ['RETURNS', '#'],
+                ...POLICY_LINKS,
               ].map(([l, href]) => (
                 <li key={l}>
                   <a href={href} className="text-paper/60 transition-colors duration-200 hover:text-accent focus-visible:text-accent">

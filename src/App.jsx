@@ -21,6 +21,7 @@ import NewDrops from './pages/NewDrops.jsx'
 import Wishlist from './pages/Wishlist.jsx'
 import CollectionDetail from './pages/CollectionDetail.jsx'
 import Collections from './components/Collections.jsx'
+import Policy from './pages/Policy.jsx'
 // Admin hiếm khi vào — tách chunk riêng, không kéo theo trang chủ
 const Admin = lazy(() => import('./pages/Admin.jsx'))
 import Preloader from './components/Preloader.jsx'
@@ -84,6 +85,8 @@ export default function App() {
         <MyOrders />
       ) : route.name === 'claim' ? (
         <ClaimCart token={route.param} />
+      ) : route.name === 'policy' ? (
+        <Policy slug={route.param} />
       ) : route.name === 'shop' ? (
         <Shop onToggleCompare={compare.toggle} compareIds={compare.ids} />
       ) : route.name === 'new' ? (
