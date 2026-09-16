@@ -107,6 +107,7 @@ function buildApp() {
   app.use('/api/v1/internal/llm', require('./routes/internalLlm.js'))
   app.use('/api/v1/coupons', require('./routes/coupons.js'))
   app.use('/api/v1/events', require('./routes/events.js'))
+  app.use('/api/v1/newsletter', checkoutLimiter, require('./routes/newsletter.js'))
   app.use('/api/v1/live', require('./routes/live.js'))
   app.use('/api/v1', require('./routes/meta.js'))
   // Sitemap SEO ở root — robots.txt trỏ tới đây
