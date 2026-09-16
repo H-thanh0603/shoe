@@ -185,8 +185,9 @@ router.post('/forgot-password', validate(z.object({ email: z.string().email() })
     const { send, configured } = require('../services/mailer.js')
     if (configured()) {
       await send({ to: req.body.email, subject: 'Đặt lại mật khẩu KINETIC', text: `Link đặt lại (15 phút): /dat-lai-mat-khau?token=${resetToken}` }).catch(() => {})
-    } else if (process.env.NODE_ENV !== 'production') {
-      // ponytail: dev/test không có SMTP vẫn cần token để chạy flow demo + test.
+    } else if (process.env.NODE_ENV === 'test') {
+      // ponytail: test không có SMTP vẫn cần token để chạy flow demo + test.
+      // Dev (NODE_ENV khác production/test): chỉ log server-side, KHÔNG trả token.
       // Production KHÔNG SMTP → chỉ {ok:true}, admin phải cấu hình SMTP.
       console.log(`[auth] forgot-password (SMTP off) user=${user.id} — token giữ server-side, không trả client`)
       return res.json({ success: true, data: { ok: true, resetToken } })
