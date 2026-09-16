@@ -275,38 +275,48 @@ const TOOLS = [
       required: ['slug', 'size'],
     },
     handler: async ({ slug, size, qty = 1 }, ctx) => {
-      const { rows: [v] } = await pool.query(
-        `SELECT pv.id, pv.stock, pv.size FROM product_variants pv
-         JOIN products p ON p.id = pv.product_id
-         WHERE p.slug = $1 AND pv.size = $2 AND p.is_active`,
-        [slug, size],
-      )
-      if (!v) throw httpError(404, 'VARIANT_NOT_FOUND', `Không có ${slug} size ${size}`)
-      if (v.stock < qty) throw httpError(409, 'OUT_OF_STOCK', `Chỉ còn ${v.stock} đôi size ${size}`)
+      const client = await pool.connect()
+      try {
+        await client.query('BEGIN')
+        const { rows: [v] } = await client.query(
+          `SELECT pv.id, pv.stock, pv.size FROM product_variants pv
+           JOIN products p ON p.id = pv.product_id
+           WHERE p.slug = $1 AND pv.size = $2 AND p.is_active FOR UPDATE OF pv`,
+          [slug, size],
+        )
+        if (!v) throw httpError(404, 'VARIANT_NOT_FOUND', `Không có ${slug} size ${size}`)
+        if (v.stock < qty) throw httpError(409, 'OUT_OF_STOCK', `Chỉ còn ${v.stock} đôi size ${size}`)
 
-      // giỏ agent: carts.session_token = "agent:" + ctx.agentId (1 agent 1 giỏ, TTL 30 ngày)
-      const sessionToken = `agent:${ctx.agentId}`
-      const { rows: [existing] } = await pool.query('SELECT id FROM carts WHERE session_token = $1', [sessionToken])
-      let cartId = existing?.id
-      if (!cartId) {
-        const { rows: [created] } = await pool.query(
-          'INSERT INTO carts (session_token) VALUES ($1) RETURNING id', [sessionToken])
-        cartId = created.id
-      }
-      const { rows: [line] } = await pool.query(
-        'SELECT id, qty FROM cart_items WHERE cart_id = $1 AND variant_id = $2', [cartId, v.id])
-      const newQty = (line?.qty || 0) + qty
-      if (newQty > v.stock) throw httpError(409, 'OUT_OF_STOCK', `Chỉ còn ${v.stock} đôi (giỏ đã có ${line?.qty || 0})`)
-      if (line) await pool.query('UPDATE cart_items SET qty = $1 WHERE id = $2', [newQty, line.id])
-      else await pool.query('INSERT INTO cart_items (cart_id, variant_id, qty) VALUES ($1,$2,$3)', [cartId, v.id, qty])
+        // giỏ agent: carts.session_token = "agent:" + ctx.agentId (1 agent 1 giỏ, TTL 30 ngày)
+        const sessionToken = `agent:${ctx.agentId}`
+        const { rows: [existing] } = await client.query('SELECT id FROM carts WHERE session_token = $1 FOR UPDATE', [sessionToken])
+        let cartId = existing?.id
+        if (!cartId) {
+          const { rows: [created] } = await client.query(
+            'INSERT INTO carts (session_token) VALUES ($1) RETURNING id', [sessionToken])
+          cartId = created.id
+        }
+        const { rows: [line] } = await client.query(
+          'SELECT id, qty FROM cart_items WHERE cart_id = $1 AND variant_id = $2 FOR UPDATE', [cartId, v.id])
+        const newQty = (line?.qty || 0) + qty
+        if (newQty > v.stock) throw httpError(409, 'OUT_OF_STOCK', `Chỉ còn ${v.stock} đôi (giỏ đã có ${line?.qty || 0})`)
+        if (line) await client.query('UPDATE cart_items SET qty = $1 WHERE id = $2', [newQty, line.id])
+        else await client.query('INSERT INTO cart_items (cart_id, variant_id, qty) VALUES ($1,$2,$3)', [cartId, v.id, qty])
 
-      // single-use share token — người dùng claim giỏ ở web rồi tự checkout
-      const shareToken = crypto.randomUUID()
-      await pool.query('INSERT INTO cart_share_tokens (token, cart_id) VALUES ($1,$2)', [shareToken, cartId])
-      return {
-        slug, size, qty: newQty, stockLeft: v.stock - newQty,
-        shareUrl: `/gio-hang/${shareToken}`,
-        note: 'Người dùng mở shareUrl để nhận giỏ và tự thanh toán (human-in-the-loop).',
+        // single-use share token — người dùng claim giỏ ở web rồi tự checkout
+        const shareToken = crypto.randomUUID()
+        await client.query('INSERT INTO cart_share_tokens (token, cart_id) VALUES ($1,$2)', [shareToken, cartId])
+        await client.query('COMMIT')
+        return {
+          slug, size, qty: newQty, stockLeft: v.stock - newQty,
+          shareUrl: `/gio-hang/${shareToken}`,
+          note: 'Người dùng mở shareUrl để nhận giỏ và tự thanh toán (human-in-the-loop).',
+        }
+      } catch (e) {
+        await client.query('ROLLBACK').catch(() => {})
+        throw e
+      } finally {
+        client.release()
       }
     },
   },
@@ -495,10 +505,12 @@ async function invokeTool(req) {
   const agentId = (req.get('X-Agent') || '').slice(0, 120) || `user:${req.user?.id ?? 'anonymous'}`
 
   // rate-limit theo (tool, agent) qua cache incr — fail-open (Redis chết → vẫn cho gọi,
-  // có rateLimit express ở router ngoài cùng chặn tổng)
+  // có rateLimit express ở router ngoài cùng chặn tổng).
+  // Write tools (readOnly=false): key thêm IP để xoay X-Agent không né được limit.
   try {
     const cache = require('../services/cache.js')
-    const key = `rl:agenttool:${tool.name}:${agentId}`
+    const rlId = tool.readOnly === false ? `${agentId}|${req.ip}` : agentId
+    const key = `rl:agenttool:${tool.name}:${rlId}`
     const hits = await cache.incrWithTtl(key, 60)
     if (hits > tool.rateLimit) throw httpError(429, 'TOOL_RATE_LIMITED', `Tool "${tool.name}" giới hạn ${tool.rateLimit} lần/phút`)
   } catch (e) {

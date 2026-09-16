@@ -198,20 +198,19 @@ router.post('/claim', validate(z.object({ token: z.string().trim().min(1).max(10
       `SELECT ci.variant_id, ci.qty, pv.stock FROM cart_items ci
        JOIN product_variants pv ON pv.id = ci.variant_id
        JOIN products p ON p.id = pv.product_id
-       WHERE ci.cart_id = $1 AND p.is_active AND pv.stock > 0`,
+       WHERE ci.cart_id = $1 AND p.is_active AND pv.stock > 0
+       ORDER BY ci.variant_id FOR UPDATE OF pv`,
       [src.id],
     )
     for (const it of items) {
       const qty = Math.min(it.qty, it.stock, 10)
       const { rows: [ex] } = await client.query(
-        'SELECT id, qty FROM cart_items WHERE cart_id = $1 AND variant_id = $2',
+        'SELECT id, qty FROM cart_items WHERE cart_id = $1 AND variant_id = $2 FOR UPDATE',
         [req.cartId, it.variant_id],
       )
       if (ex) {
-        const { rows: [{ stock }] } = await client.query(
-          'SELECT stock FROM product_variants WHERE id = $1', [it.variant_id])
         await client.query('UPDATE cart_items SET qty = $1 WHERE id = $2',
-          [Math.min(ex.qty + qty, stock, 10), ex.id])
+          [Math.min(ex.qty + qty, it.stock, 10), ex.id])
       } else {
         await client.query('INSERT INTO cart_items (cart_id, variant_id, qty) VALUES ($1,$2,$3)',
           [req.cartId, it.variant_id, qty])
@@ -222,7 +221,7 @@ router.post('/claim', validate(z.object({ token: z.string().trim().min(1).max(10
     res.json({ success: true, data: { ...(await cartPayload(req.cartId)), merged: items.length } })
   } catch (e) {
     await client.query('ROLLBACK').catch(() => {})
-    res.status(500).json({ success: false, error: { code: 'INTERNAL', message: 'Lỗi server' } })
+    throw e
   } finally {
     client.release()
   }
