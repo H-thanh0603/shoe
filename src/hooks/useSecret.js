@@ -3,7 +3,7 @@ import { useKonami } from './useKonami.js'
 import { track } from '../lib/track.js'
 import { haptic } from '../lib/haptic.js'
 
-// Secret mode — sessionStorage: sống sót hash nav, mất khi đóng tab
+// Secret mode — sessionStorage: sống sót chuyển trang trong tab, mất khi đóng tab
 export function useSecret() {
   const [secret, setSecret] = useState(() => {
     try { return sessionStorage.getItem('secret_v1') === '1' } catch { return false }

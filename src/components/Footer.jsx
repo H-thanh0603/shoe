@@ -62,7 +62,7 @@ export default function Footer() {
                 ['NEW', '/new'],
                 ['COLLECTIONS', '/bo-suu-tap'],
                 ['YÊU THÍCH', '/yeu-thich'],
-                ['SIZE GUIDE', '#'],
+                ['SIZE GUIDE', '/chinh-sach/huong-dan-size'],
                 ...POLICY_LINKS,
               ].map(([l, href]) => (
                 <li key={l}>

@@ -42,7 +42,7 @@ export function useAnimeReveal(ref, opts = {}) {
       cleanup()
     }
 
-    // 1) đã trong viewport ngay lúc mount (vd hash-navigate, page ngắn) → reveal luôn
+    // 1) đã trong viewport ngay lúc mount (vd page ngắn) → reveal luôn
     if (isVisible()) { reveal(); return cleanup }
 
     // 2) thiết lập trạng thái "chờ" cho children [data-anime] — CSS var, không cần lib

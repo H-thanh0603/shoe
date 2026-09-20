@@ -4,8 +4,7 @@ import { useEffect } from 'react'
 // adds `is-in` when the section enters the viewport.
 // Fail-safe: never leave a section stuck at opacity:0 forever.
 // - IntersectionObserver (when available) + scroll/resize listener fallback + mount-time check.
-// - If the section is already in the viewport when the effect runs
-//   (e.g. hash navigation like #drop) -> reveal immediately.
+// - Nếu section đã trong viewport lúc effect chạy (vd trang policy ngắn) -> reveal ngay.
 export function useScrollReveal(ref, { threshold = 0.1, rootMargin = '0px 0px 80px 0px' } = {}) {
   useEffect(() => {
     const el = ref.current

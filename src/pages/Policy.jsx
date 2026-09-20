@@ -39,11 +39,22 @@ const SECTIONS = {
       'Email newsletter: chỉ gửi khi khách tự đăng ký, huỷ đăng ký 1 chạm trong mỗi mail.',
     ],
   },
+  'huong-dan-size': {
+    title: 'HƯỚNG DẪN CHỌN SIZE',
+    body: [
+      'Giày KINETIC làm theo phom EU 39–44, chuẩn True To Size so với Nike/Adidas: bạn mang size nào ở 2 hãng đó thì chọn đúng size đó.',
+      'Đo chân buổi tối (bàn chân giãn to nhất), đứng thẳng dồn trọng lượng đều 2 chân, đo từ gót tới đầu ngón dài nhất rồi cộng 0.5–1cm.',
+      'Đổi size Nike/Adidas US→EU lệch nửa số không thành vấn đề vì KINETIC có đủ size .5 (42.5, 43...). New Balance US 9 / 9.5 / 10 ≈ EU 42.5 / 43 / 44.',
+      'Chạy bộ/thể thao nhiều: lấy dư 0.5–1 size so với đo thực (chân sưng khi vận động). Mang street hàng ngày: lấy đúng số đo.',
+      'Đổi size miễn phí 30 ngày — nếu lưỡng lự giữa 2 size, cứ lấy size lớn hơn rồi đổi sau.',
+    ],
+  },
 }
 
 export const POLICY_LINKS = [
   ['VẬN CHUYỂN', '/chinh-sach/van-chuyen'],
   ['ĐỔI TRẢ', '/chinh-sach/doi-tra'],
+  ['HƯỚNG DẪN SIZE', '/chinh-sach/huong-dan-size'],
   ['ĐIỀU KHOẢN', '/chinh-sach/dieu-khoan'],
   ['BẢO MẬT', '/chinh-sach/bao-mat'],
 ]

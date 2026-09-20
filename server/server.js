@@ -41,7 +41,7 @@ function buildApp() {
     },
   }))
   // limit 2mb: review kèm ảnh data-URL (tối đa 3 ảnh ~500KB)
-  app.use(express.json({ limit: '2mb' }))
+  app.use(express.json({ limit: '3mb' })) // review 3 ảnh data-URL ~700k chars/ảnh (products.js) → 2mb vỡ trước validate; admin upload 5MB đi express.raw riêng
   app.use(cookieParser())
   app.use(require('./middleware/csrf.js').csrf)
   app.use(require('./middleware/auth.js').attachUser)
