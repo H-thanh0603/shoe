@@ -39,4 +39,7 @@ module.exports = {
   // Ngưỡng rate-limit checkout (/orders). Test suite bắn ~12 POST orders/run —
   // chạy dồn nhiều run trong 1 phút sẽ 429 oan, CI nâng qua env.
   checkoutRateLimit: Number(process.env.CHECKOUT_RATE_LIMIT) || 20,
+  // Giới hạn mua hàng LIMITED/drop theo tài khoản (chống bot gom hàng).
+  // null/0 = không giới hạn. Guest (không user_id) không định danh được → bỏ qua.
+  limitedMaxPerUser: Number(process.env.LIMITED_MAX_PER_USER) || 2,
 }

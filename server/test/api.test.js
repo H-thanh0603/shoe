@@ -269,3 +269,50 @@ test('cod: SĐT 4 đơn COD/24h → COD_LIMITED', async () => {
     [require('node:crypto').createHash('sha256').update(phone.replace(/\D/g, '').replace(/^84/, '0')).digest('hex')])
   await cleanupVariant(codVariant, 'test-codlimit')
 })
+
+test('limited: mỗi tài khoản tối đa 2 đôi, guest + user khác không ảnh hưởng', async () => {
+  const c = await pool.connect()
+  let limVariant
+  try {
+    const { rows: [p] } = await c.query(`INSERT INTO products (slug, name, brand, tag, colors, price_vnd, description, is_active)
+      VALUES ('test-limited', 'TEST LIMITED', 'KINETIC', 'LIMITED', '["red"]', 2000000, 'test', true) RETURNING id`)
+    const { rows: [v] } = await c.query('INSERT INTO product_variants (product_id, size, stock) VALUES ($1, 41, 20) RETURNING id', [p.id])
+    limVariant = v.id
+  } finally { c.release() }
+
+  const regUser = async (tag) => {
+    const j = jar()
+    const email = `lim${tag}${Date.now()}@test.vn`
+    assert.equal((await api(j, 'POST', '/api/v1/auth/register', { email, password: 'matkhau123', name: 'Lim Tester' })).body.success, true)
+    return { j, email }
+  }
+  const buy = (j, qty, phone) => api(j, 'POST', '/api/v1/cart/items', { variantId: limVariant, qty })
+    .then(() => api(j, 'POST', '/api/v1/orders', checkoutBody(null, phone)))
+
+  // user A mua 2 đôi = chạm trần
+  const a = await regUser('a')
+  assert.equal((await buy(a.j, 2, '0987000011')).body.success, true)
+  // đôi thứ 3 → chặn
+  await api(a.j, 'POST', '/api/v1/cart/items', { variantId: limVariant, qty: 1 })
+  const blocked = await api(a.j, 'POST', '/api/v1/orders', checkoutBody(null, '0987000011'))
+  assert.equal(blocked.body.error?.code, 'LIMITED_PER_USER_CAP')
+  // user B vẫn mua được 2 đôi
+  const b = await regUser('b')
+  assert.equal((await buy(b.j, 2, '0987000012')).body.success, true)
+  // guest không định danh được → vẫn mua được
+  const g = jar()
+  await api(g, 'POST', '/api/v1/cart/items', { variantId: limVariant, qty: 3 })
+  assert.equal((await api(g, 'POST', '/api/v1/orders', checkoutBody(null, '0987000013'))).body.success, true)
+
+  for (const { email } of [a, b]) {
+    const { rows: [u] } = await pool.query('SELECT id FROM users WHERE email = $1', [email])
+    if (!u) continue
+    await pool.query('DELETE FROM coupon_usages WHERE order_id IN (SELECT id FROM orders WHERE user_id = $1)', [u.id])
+    await pool.query('DELETE FROM order_items WHERE order_id IN (SELECT id FROM orders WHERE user_id = $1)', [u.id])
+    await pool.query('DELETE FROM orders WHERE user_id = $1', [u.id])
+    await pool.query('DELETE FROM cart_items WHERE cart_id IN (SELECT id FROM carts WHERE user_id = $1)', [u.id])
+    await pool.query('DELETE FROM carts WHERE user_id = $1', [u.id])
+    await pool.query('DELETE FROM users WHERE id = $1', [u.id])
+  }
+  await cleanupVariant(limVariant, 'test-limited')
+})

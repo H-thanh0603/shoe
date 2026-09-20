@@ -25,6 +25,12 @@ Admin inventory cũng `FOR UPDATE` — không đua với checkout đang chèn.
 - `stock >= 0` CHECK.
 - Cart item + cart stock check: thêm/sửa trong giỏ không vượt stock hiện tại (409 `OUT_OF_STOCK`).
 
+## Chống bot gom hàng LIMITED
+
+`POST /orders`: sản phẩm `tag='LIMITED'` bị giới hạn `LIMITED_MAX_PER_USER` đôi/tài khoản (mặc định 2, cộng dồn các đơn chưa hủy).
+Check chạy trong transaction, SAU khi lock variant rows → 2 checkout cùng lúc của 1 user nối đuôi nhau, request sau thấy đơn trước đã commit → không lọt. Đơn `cancelled` không tính.
+Guest (không `user_id`) không định danh được → bỏ qua (chống bom hàng COD theo SĐT vẫn áp dụng). Lỗi 409 `LIMITED_PER_USER_CAP`, message hiện thẳng ở checkout.
+
 ## Khi cần thêm
 
-- Giới hạn 1 người mua quá nhiều size hot: thêm rule per-user trong checkout loop. Hiện chưa cần cho demo.
+- (đã xong) Giới hạn 1 người mua quá nhiều size hot: rule per-user trong checkout loop — xem trên.

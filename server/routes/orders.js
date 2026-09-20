@@ -90,7 +90,7 @@ router.post('/', validate(orderSchema), async (req, res) => {
 
     // items + lock tất cả variant rows của cart (§16 — 2 request cùng mua size cuối: 1 thắng)
     const { rows: items } = await client.query(
-      `SELECT ci.variant_id, ci.qty, pv.stock, pv.size, p.name, p.is_active, p.price_vnd
+      `SELECT ci.variant_id, ci.qty, pv.stock, pv.size, pv.product_id, p.name, p.is_active, p.price_vnd, p.tag
        FROM cart_items ci
        JOIN product_variants pv ON pv.id = ci.variant_id
        JOIN products p ON p.id = pv.product_id
@@ -104,6 +104,32 @@ router.post('/', validate(orderSchema), async (req, res) => {
     for (const it of items) {
       if (!it.is_active) throw Object.assign(new Error(`${it.name} đã ngừng bán`), { status: 409, code: 'PRODUCT_INACTIVE' })
       if (it.qty > it.stock) throw Object.assign(new Error(`${it.name} size ${it.size}: chỉ còn ${it.stock} đôi`), { status: 409, code: 'OUT_OF_STOCK' })
+    }
+
+    // Chống bot gom hàng LIMITED: mỗi tài khoản tối đa N đôi/sản phẩm (cộng dồn đơn cũ chưa hủy).
+    // Chạy SAU khi lock variant rows → 2 checkout cùng lúc của 1 user nối đuôi nhau,
+    // request sau thấy đơn của request trước đã commit (READ COMMITTED) → không lọt.
+    // Guest không định danh được → bỏ qua (COD phone limit vẫn chặn bom hàng).
+    const { limitedMaxPerUser } = require('../config.js')
+    if (limitedMaxPerUser > 0 && req.user) {
+      for (const it of items) {
+        if (it.tag !== 'LIMITED') continue
+        const { rows: [b] } = await client.query(
+          `SELECT COALESCE(SUM(oi.qty), 0) AS bought
+           FROM order_items oi
+           JOIN orders o ON o.id = oi.order_id
+           JOIN product_variants pv2 ON pv2.id = oi.variant_id
+           WHERE o.user_id = $1 AND pv2.product_id = $2 AND o.status <> 'cancelled'`,
+          [req.user.id, it.product_id],
+        )
+        const bought = Number(b.bought)
+        if (bought + it.qty > limitedMaxPerUser) {
+          throw Object.assign(
+            new Error(`${it.name} là hàng giới hạn: mỗi tài khoản tối đa ${limitedMaxPerUser} đôi (bạn đã mua ${bought})`),
+            { status: 409, code: 'LIMITED_PER_USER_CAP' },
+          )
+        }
+      }
     }
 
     const subtotal = items.reduce((s, i) => s + i.price_vnd * i.qty, 0)
