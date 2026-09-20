@@ -100,6 +100,8 @@ function buildApp() {
   app.use('/api/v1/admin', require('./routes/admin.js'))
   app.use('/api/v1/agent', require('./routes/agentTools.js')) // agent tools + agent page — TRƯỚC agent.js (chat)
   app.use('/api/v1/agent', require('./routes/agent.js'))
+  // MCP chuẩn (Streamable HTTP stateless) cho cùng TOOLS registry — AI client ngoài connect trực tiếp
+  app.use('/api/v1/mcp', require('./routes/mcp.js'))
   // Shopping assistant (public) — agent runtime Node qua AI provider layer
   app.use('/api/v1/assistant', require('./routes/assistant.js'))
   // Internal LLM gateway (Anthropic Messages format) — secret nội bộ, cho

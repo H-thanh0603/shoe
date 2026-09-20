@@ -68,4 +68,7 @@ jobs:
       - run: node --test test/rbac.test.js
         env:
           API_URL: http://localhost:3100
+      - run: node --test test/mcp.test.js
+        env:
+          API_URL: http://localhost:3100
       - run: node --check server.js && node --check routes/admin.js && node --check routes/orders.js

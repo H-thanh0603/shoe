@@ -890,6 +890,23 @@ const callSchema = z.object({
   sessionId: z.string().trim().max(100).optional(),
 })
 
+// rate-limit theo (tool, agent) qua cache incr — fail-open (Redis chết → vẫn cho gọi,
+// có rateLimit express ở router ngoài cùng chặn tổng).
+// Write tools (readOnly=false): key thêm IP để xoay identity không né được limit.
+// Dùng chung cho /tools/call lẫn MCP adapter (server/routes/mcp.js).
+async function checkToolRateLimit(tool, agentId, ip) {
+  try {
+    const cache = require('../services/cache.js')
+    const rlId = tool.readOnly === false ? `${agentId}|${ip}` : agentId
+    const key = `rl:agenttool:${tool.name}:${rlId}`
+    const hits = await cache.incrWithTtl(key, 60)
+    if (hits > tool.rateLimit) throw httpError(429, 'TOOL_RATE_LIMITED', `Tool "${tool.name}" giới hạn ${tool.rateLimit} lần/phút`)
+  } catch (e) {
+    if (e?.code === 'TOOL_RATE_LIMITED') throw e
+    /* cache lỗi — bỏ qua limit, request vẫn chạy */
+  }
+}
+
 // Invoke chung cho /call (JSON) và /call/stream (SSE):
 // resolve tool → agent identity → rate-limit (tool,agentId) → validate args → handler.
 // Trả { tool, agentId, result } hoặc throw httpError (stream sẽ bắt và emit event error).
@@ -900,19 +917,7 @@ async function invokeTool(req) {
   // Agent identity: header X-Agent, fallback user đã login, fallback "anonymous"
   const agentId = (req.get('X-Agent') || '').slice(0, 120) || `user:${req.user?.id ?? 'anonymous'}`
 
-  // rate-limit theo (tool, agent) qua cache incr — fail-open (Redis chết → vẫn cho gọi,
-  // có rateLimit express ở router ngoài cùng chặn tổng).
-  // Write tools (readOnly=false): key thêm IP để xoay X-Agent không né được limit.
-  try {
-    const cache = require('../services/cache.js')
-    const rlId = tool.readOnly === false ? `${agentId}|${req.ip}` : agentId
-    const key = `rl:agenttool:${tool.name}:${rlId}`
-    const hits = await cache.incrWithTtl(key, 60)
-    if (hits > tool.rateLimit) throw httpError(429, 'TOOL_RATE_LIMITED', `Tool "${tool.name}" giới hạn ${tool.rateLimit} lần/phút`)
-  } catch (e) {
-    if (e?.code === 'TOOL_RATE_LIMITED') throw e
-    /* cache lỗi — bỏ qua limit, request vẫn chạy */
-  }
+  await checkToolRateLimit(tool, agentId, req.ip)
 
   // Validate arguments theo JSON Schema của tool (zod mirror)
   const zodMirror = buildZod(tool.inputSchema)
@@ -1045,6 +1050,7 @@ router.get('/page/:slug',
 
 module.exports = router
 module.exports.TOOLS = TOOLS
+module.exports.checkToolRateLimit = checkToolRateLimit
 // agent runtime (services/agent/tools.js) validate args model gọi tool bằng
 // cùng zod mirror này — 1 nguồn validation cho cả HTTP invoke và agent loop.
 module.exports.buildZod = buildZod
