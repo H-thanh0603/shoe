@@ -42,6 +42,7 @@ jobs:
       PORT: "3100"
       JOBS_ENABLED: "false" # không cần worker nền trong test
       AUTH_RATE_LIMIT: "100" # cả bộ test chạy trên 1 IP runner — mặc định 10 sẽ 429 giữa chừng
+      CHECKOUT_RATE_LIMIT: "100" # api.test.js bắn ~12 POST /orders/run — mặc định 20/phút
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -54,10 +55,17 @@ jobs:
       - run: npm run db:seed
       # unit test không cần server: pricing, cache, jobs queue, search
       - run: node --test test/pricing.test.js test/cache.test.js test/jobs.test.js test/search.test.js
-      # API test cần server chạy trên :3100
+      # API test cần server chạy trên :3100 — chạy TỪNG FILE tuần tự:
+      # node --test *.js chạy parallel, các file dọn DB chồng nhau (LIKE '%@test.vn') → flaky
       - run: node server.js &
       - run: sleep 2
-      - run: node --test test/api.test.js test/auth.test.js test/rbac.test.js
+      - run: node --test test/api.test.js
+        env:
+          API_URL: http://localhost:3100
+      - run: node --test test/auth.test.js
+        env:
+          API_URL: http://localhost:3100
+      - run: node --test test/rbac.test.js
         env:
           API_URL: http://localhost:3100
       - run: node --check server.js && node --check routes/admin.js && node --check routes/orders.js

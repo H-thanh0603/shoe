@@ -36,4 +36,7 @@ module.exports = {
   trustProxy: process.env.TRUST_PROXY === '1' || isProd,
   // Ngưỡng rate-limit auth (login/register). CI chạy cả bộ test trên 1 IP → cần nâng.
   authRateLimit: Number(process.env.AUTH_RATE_LIMIT) || 10,
+  // Ngưỡng rate-limit checkout (/orders). Test suite bắn ~12 POST orders/run —
+  // chạy dồn nhiều run trong 1 phút sẽ 429 oan, CI nâng qua env.
+  checkoutRateLimit: Number(process.env.CHECKOUT_RATE_LIMIT) || 20,
 }

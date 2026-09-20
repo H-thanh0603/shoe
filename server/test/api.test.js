@@ -30,9 +30,9 @@ async function api(j, method, path, body, extraHeaders = {}) {
   return { status: r.status, body: await r.json() }
 }
 
-const checkoutBody = (couponCode) => ({
+const checkoutBody = (couponCode, phone = '0987654321') => ({
   customerName: 'Nguyễn Test',
-  phone: '0987654321',
+  phone,
   email: 'test@kinetic.vn',
   address: '123 Phố Test, Hà Nội',
   paymentMethod: 'cod',
@@ -49,6 +49,9 @@ before(async () => {
     for (const { vid, slug } of old) await cleanupVariant(vid, slug)
     await c.query("DELETE FROM coupons WHERE code IN ('TESTRACE10', 'TESTRACEFREE')")
     await c.query("DELETE FROM orders WHERE id NOT IN (SELECT DISTINCT order_id FROM order_items)")
+    // bộ đếm chống bom hàng COD theo SĐT — mọi test dùng chung 0987654321,
+    // không reset thì test thứ 4 trở đi dính COD_LIMITED dù code đúng
+    await c.query('DELETE FROM cod_abuse')
     // users test cũ (nếu cleanup giữa chừng không chạy do assert fail)
     await c.query("DELETE FROM reviews WHERE user_id IN (SELECT id FROM users WHERE email LIKE '%@test.vn')")
     await c.query("DELETE FROM wishlist_items WHERE user_id IN (SELECT id FROM users WHERE email LIKE '%@test.vn')")
@@ -143,9 +146,11 @@ test('race: 2 request cùng mua đôi cuối → 1 thắng, 1 OUT_OF_STOCK', asy
   await api(j1, 'POST', '/api/v1/cart/items', { variantId: raceVariant, qty: 1 })
   await api(j2, 'POST', '/api/v1/cart/items', { variantId: raceVariant, qty: 1 })
 
+  // SĐT riêng cho test này — chống bom hàng COD đếm theo phone_hash (3 đơn/24h),
+  // dùng chung SĐT với test khác sẽ dính COD_LIMITED oan
   const [r1, r2] = await Promise.all([
-    api(j1, 'POST', '/api/v1/orders', checkoutBody()),
-    api(j2, 'POST', '/api/v1/orders', checkoutBody()),
+    api(j1, 'POST', '/api/v1/orders', checkoutBody(null, '0987654322')),
+    api(j2, 'POST', '/api/v1/orders', checkoutBody(null, '0987654323')),
   ])
   const statuses = [r1, r2].map((r) => (r.body.success ? 'ok' : r.body.error?.code)).sort()
   assert.deepEqual(statuses, ['OUT_OF_STOCK', 'ok'])
@@ -168,9 +173,9 @@ test('idempotency: cùng key → trả order cũ duplicate=true', async () => {
   const j = jar()
   await api(j, 'POST', '/api/v1/cart/items', { variantId: idemVariant, qty: 1 })
   const key = 'test-idem-key-' + Date.now()
-  const r1 = await api(j, 'POST', '/api/v1/orders', checkoutBody(), { 'Idempotency-Key': key })
+  const r1 = await api(j, 'POST', '/api/v1/orders', checkoutBody(null, '0987654324'), { 'Idempotency-Key': key })
   assert.equal(r1.body.success, true)
-  const r2 = await api(j, 'POST', '/api/v1/orders', checkoutBody(), { 'Idempotency-Key': key })
+  const r2 = await api(j, 'POST', '/api/v1/orders', checkoutBody(null, '0987654324'), { 'Idempotency-Key': key })
   assert.equal(r2.body.success, true)
   assert.equal(r2.body.data.refCode, r1.body.data.refCode)
   assert.equal(r2.body.data.duplicate, true)
@@ -197,13 +202,21 @@ test('review: mua rồi → verified=true; chưa mua → verified=false', async 
 
   // mua
   await api(u, 'POST', '/api/v1/cart/items', { variantId: revVariant, qty: 1 })
-  const order = await api(u, 'POST', '/api/v1/orders', checkoutBody())
+  const order = await api(u, 'POST', '/api/v1/orders', checkoutBody(null, '0987654325'))
   assert.equal(order.body.success, true)
 
   // review sau khi mua → verified
   const rv = await api(u, 'POST', `/api/v1/products/${revSlug}/reviews`, { rating: 5, content: 'ok' })
   assert.equal(rv.body.success, true)
   assert.equal(rv.body.data.verified, true)
+
+  // chưa mua (user khác) → verified=false
+  const stranger = jar()
+  const sEmail = `revstranger${Date.now()}@test.vn`
+  assert.equal((await api(stranger, 'POST', '/api/v1/auth/register', { email: sEmail, password: 'matkhau123', name: 'Stranger' })).body.success, true)
+  const rv2 = await api(stranger, 'POST', `/api/v1/products/${revSlug}/reviews`, { rating: 4, content: 'chua mua' })
+  assert.equal(rv2.body.success, true)
+  assert.equal(rv2.body.data.verified, false)
 
   // wishlist: add product đã mua + verify không lỗi
   const wl = await api(u, 'POST', `/api/v1/wishlist/1`)
@@ -220,5 +233,39 @@ test('review: mua rồi → verified=true; chưa mua → verified=false', async 
   await pool.query('DELETE FROM cart_items WHERE cart_id IN (SELECT id FROM carts WHERE user_id = $1)', [userId])
   await pool.query('DELETE FROM carts WHERE user_id = $1', [userId])
   await pool.query('DELETE FROM users WHERE id = $1', [userId])
+  const { rows: [su] } = await pool.query('SELECT id FROM users WHERE email = $1', [sEmail])
+  if (su) {
+    await pool.query('DELETE FROM reviews WHERE user_id = $1', [su.id])
+    await pool.query('DELETE FROM wishlist_items WHERE user_id = $1', [su.id])
+    await pool.query('DELETE FROM cart_items WHERE cart_id IN (SELECT id FROM carts WHERE user_id = $1)', [su.id])
+    await pool.query('DELETE FROM carts WHERE user_id = $1', [su.id])
+    await pool.query('DELETE FROM users WHERE id = $1', [su.id])
+  }
   await cleanupVariant(revVariant, revSlug)
+})
+
+test('cod: SĐT 4 đơn COD/24h → COD_LIMITED', async () => {
+  const c = await pool.connect()
+  let codVariant
+  try {
+    const { rows: [p] } = await c.query(`INSERT INTO products (slug, name, brand, tag, colors, price_vnd, description, is_active)
+      VALUES ('test-codlimit', 'TEST CODLIMIT', 'KINETIC', 'NEW', '["white"]', 1000000, 'test', true) RETURNING id`)
+    const { rows: [v] } = await c.query('INSERT INTO product_variants (product_id, size, stock) VALUES ($1, 40, 10) RETURNING id', [p.id])
+    codVariant = v.id
+  } finally { c.release() }
+
+  const phone = '0987000001'
+  for (let i = 0; i < 3; i++) {
+    const j = jar()
+    await api(j, 'POST', '/api/v1/cart/items', { variantId: codVariant, qty: 1 })
+    const r = await api(j, 'POST', '/api/v1/orders', checkoutBody(null, phone))
+    assert.equal(r.body.success, true)
+  }
+  const j4 = jar()
+  await api(j4, 'POST', '/api/v1/cart/items', { variantId: codVariant, qty: 1 })
+  const limited = await api(j4, 'POST', '/api/v1/orders', checkoutBody(null, phone))
+  assert.equal(limited.body.error?.code, 'COD_LIMITED')
+  await pool.query('DELETE FROM cod_abuse WHERE phone_hash = $1',
+    [require('node:crypto').createHash('sha256').update(phone.replace(/\D/g, '').replace(/^84/, '0')).digest('hex')])
+  await cleanupVariant(codVariant, 'test-codlimit')
 })

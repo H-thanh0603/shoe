@@ -9,6 +9,9 @@ node --test test/api.test.js
 
 Cần PostgreSQL đang chạy + `DATABASE_URL` trong `.env`. Test tự setup + dọn dữ liệu (prefix `test-`, email `*@test.vn`).
 
+Chạy API test **từng file tuần tự** — `node --test` nhiều file chạy parallel, các file dọn DB chồng nhau (`LIKE '%@test.vn'`) → flaky. CI cũng chạy tuần tự (xem `ci.yml`).
+Chạy dồn nhiều run trong 1 phút có thể dính `RATE_LIMITED` ở `/orders` — nâng `CHECKOUT_RATE_LIMIT` (mặc định 20/phút) khi test.
+
 ## Bộ test hiện tại (api.test.js)
 
 | Test | Chặn regression gì |
@@ -19,6 +22,9 @@ Cần PostgreSQL đang chạy + `DATABASE_URL` trong `.env`. Test tự setup + d
 | Idempotency | Cùng `Idempotency-Key` → trả order cũ `duplicate:true`, không tạo đơn thứ 2 |
 | Review verified (đã mua) | User có order → review `verified: true` |
 | Review verified (chưa mua) | Không có order → `verified: false` |
+| COD_LIMITED | SĐT 4 đơn COD/24h → 429, chống bom hàng |
+| Auth rotation/revoke/logout-all/reset 1-lần-dùng (`auth.test.js`) | Refresh reuse → revoke session; reset link dùng 1 lần, đá session cũ |
+| RBAC (`rbac.test.js`) | Chưa role 403; gán/thu vai trò có hiệu lực ngay + audit log |
 
 ## Cấu trúc test
 
