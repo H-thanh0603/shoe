@@ -3,6 +3,32 @@
 Mọi thay đổi đáng chú ý của KINETIC. Format theo [Keep a Changelog](https://keepachangelog.com/),
 phiên bản theo ngày release (dự án cá nhân, tag theo YYYY-MM-DD).
 
+## 2026-09-23 — Dọn nợ documented + mở rộng catalog 66 sp + PITR drill job
+
+### Sửa
+- **Agent policy COD→VNPay** (`agents/kinetic_agents.py`): trả lời "chỉ nhận
+  COD" đã lỗi thời từ 2026-09-12 — giờ nói đúng COD + VNPay + mã đơn KIN.
+- **2 bug adapter Python** (smoke bắt được, 35/35 pass): `vnd()` thiếu định
+  nghĩa làm `get_order_issues` chết `NameError`; client không gửi
+  `X-CSRF-Token` → mọi write (PUT/PATCH/DELETE) bị middleware CSRF §45 chặn
+  từ khi CSRF được thêm vào. Sửa trong `call()` — echo cookie `csrf` cho write.
+- **`agents/README.md`**: thay hướng dẫn LiteLLM proxy bằng gateway nội bộ
+  Node (`ASSISTANT_PROVIDER=gateway` mặc định) — `run_proxy.sh` chỉ còn là
+  phương án phụ; `litellm` ra khỏi requirements (comment optional).
+
+### Thêm
+- **Test state machine đơn hàng admin** (`test/admin-transition.test.js`, 5
+  test): happy path từng bước, nhảy cóc 409, enum lạ 400, đơn lạ 404, cancel
+  hoàn stock + inventory RESTOCK, terminal state — đóng nợ "chưa cover" trong
+  `docs/TESTING.md`. Vào CI + `npm run test:admin-transition`.
+- **Catalog seed 66 sản phẩm** (trước: 26 — §79 yêu cầu ≥50): bổ sung KINETIC,
+  Nike, Adidas, New Balance, Asics, Puma + brand mới Hoka, On, Converse, Vans,
+  Reebok, Saucony, Mizuno — đủ purpose running/street/trail/court/daily.
+- **Job `pitr_drill`** (`services/jobs.js`, migration `026`): backup định kỳ
+  `pg_basebackup` (physical) với fallback tự động `pg_dump -Fc` (logical) khi
+  role thiếu REPLICATION; cron enqueue khi set `PITR_BASE_DIR`. Đã drill thật
+  trên dev (logical, restore-được — `docs/BACKUP_DRILLS.md`).
+
 ## 2026-09-15 — Agentic commerce round 2: Memory, Activity Log, draft_order
 
 ### Thêm

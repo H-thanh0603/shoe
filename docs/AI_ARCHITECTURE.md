@@ -55,10 +55,10 @@ Express:
 
 ### 1b. Python blueprint (optional — chạy thử chuyên sâu)
 
-`agents/kinetic_agents.py` hiện trỏ DeepSeek qua LiteLLM proxy. Thay bằng trỏ
-vào **internal Anthropic-format gateway** của Node server (`/api/v1/internal/llm/messages`)
-— bỏ được LiteLLM, bỏ được anthropic package phụ thuộc vendor API thật, mọi
-provider cấu hình từ `server/.env`.
+`agents/kinetic_agents.py` đã trỏ default vào **internal Anthropic-format
+gateway** của Node server (`/api/v1/internal/llm/messages`,
+`ASSISTANT_PROVIDER=gateway`) — không còn LiteLLM, mọi provider cấu hình từ
+`server/.env`; `ASSISTANT_PROVIDER=anthropic` vẫn gọi thẳng API Anthropic được.
 
 ## 2. Lớp provider abstraction (Node)
 

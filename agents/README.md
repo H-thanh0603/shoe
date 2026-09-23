@@ -17,11 +17,11 @@ uv venv ~/.venvs/kinetic-agents
 npm run db:migrate --prefix server
 PORT=3100 node server/server.js   # 3000 hay bị project khác chiếm
 
-# 3. Smoke test (29 checks, không gọi model, không tốn tiền)
+# 3. Smoke test (35 checks, không gọi model, không tốn tiền)
 set -a; source agents/.env; set +a
 ./agents/run_smoke.sh
 
-# 4. Chat demo (cần key — Anthropic hoặc proxy, xem dưới)
+# 4. Chat demo (cần provider — gateway nội bộ hoặc Anthropic, xem dưới)
 ~/.venvs/kinetic-agents/bin/python agents/run_demo.py [--merchant]
 ```
 
@@ -35,41 +35,45 @@ Biến môi trường: copy `agents/.env.example` thành `agents/.env` (không c
 | `KINETIC_ADMIN_PASSWORD` | (bắt buộc) | merchant login |
 | `BLUEPRINT_DIR` | `~/commerce-agents` | `run_smoke.sh` dựng PYTHONPATH |
 
-## Chạy agent thật — Anthropic hoặc DeepSeek
+## Chạy agent thật — gateway nội bộ hoặc Anthropic
 
-`agents/run_demo.py` dựng sẵn agent + console chat. Key và model lấy từ `.env`:
+`agents/run_demo.py` dựng sẵn agent + console chat. Provider chọn bằng 1 biến
+`ASSISTANT_PROVIDER` trong `agents/.env`:
 
-- **Anthropic trực tiếp:** `ANTHROPIC_API_KEY=sk-ant-...`, model mặc định
-  blueprint (`claude-sonnet-5` shopping / `claude-opus-5` merchant, đổi qua
-  `KINETIC_SHOPPING_MODEL` / `KINETIC_MERCHANT_MODEL` nếu cần).
-- **DeepSeek:** API DeepSeek là format OpenAI nên **không đấu thẳng** vào
-  blueprint được (nó gọi Messages API format Anthropic). Cách làm: chạy 1
-  proxy dịch (vd [LiteLLM](https://docs.litellm.ai/) —
-  `litellm --model deepseek/deepseek-chat`), rồi trỏ agent vào proxy:
-  `KINETIC_LLM_BASE_URL=http://localhost:4000/v1`,
-  `KINETIC_LLM_API_KEY=...`,
-  `KINETIC_SHOPPING_MODEL=deepseek-chat`,
-  `KINETIC_MERCHANT_MODEL=deepseek-chat`.
-  Mọi gateway tương thích Anthropic (`/v1/messages` + SSE) đều đi đường này.
-  Lưu ý: tool-use qua proxy đôi khi kém hơn API gốc — test kỹ trước khi
-  production; merchant `enable_analysis` vẫn tắt vì ta chưa có SQL backend.
+- **`gateway` (mặc định)** — đi qua Node gateway của server KINETIC
+  (`/api/v1/internal/llm/messages`, wire format Anthropic Messages đầy đủ:
+  streaming SSE, tool-use block). Provider/model thật cấu hình ở `server/.env`
+  (deepseek, openrouter, gemini, openai, … — xem `docs/AI_PROVIDERS.md`);
+  đổi provider KHÔNG đụng `agents/`. Bật bằng:
+  `INTERNAL_LLM_SECRET=<random>` trong `server/.env` và
+  `KINETIC_LLM_API_KEY=<cùng giá trị>` trong `agents/.env`
+  (gateway fail-closed khi chưa set secret).
+- **`anthropic`** — gọi API Anthropic trực tiếp: `ANTHROPIC_API_KEY=sk-ant-...`,
+  model mặc định blueprint (`claude-sonnet-5` shopping / `claude-opus-5`
+  merchant, đổi qua `KINETIC_SHOPPING_MODEL` / `KINETIC_MERCHANT_MODEL` nếu cần).
+
+Model `deepseek-reasoner` bị chặn ngay ở config vì tool-use kém (dù đi qua
+gateway hay API gốc). Cầu nối cũ qua LiteLLM proxy :4000 (`run_proxy.sh`) không
+còn cần — giữ lại chỉ làm phương án phụ.
 
 Config (`kinetic_shopping_config` / `kinetic_merchant_config`) set full field:
 caps khớp backend (cart tối đa 10/món, giá ±20%, promo ≤50%, nhập kho ≤500),
 `require_host_approval=True`, và **lexicon tiếng Việt** nối vào grounding
 terms (`đổi size`, `tra cứu`, `doanh thu`, `duyệt`...) để gate trigger đúng
 khi khách/operator nói tiếng Việt. Provider chọn bằng 1 biến
-`ASSISTANT_PROVIDER=deepseek|anthropic`; model `deepseek-reasoner` bị chặn
+`ASSISTANT_PROVIDER=gateway|anthropic`; model `deepseek-reasoner` bị chặn
 ngay ở config vì tool-use kém. HTTP client retry GET 429/5xx (không retry
 POST/PATCH/DELETE để tránh tạo đơn trùng).
 
-## Ngưỡng tốt nghiệp khỏi LiteLLM
+## Ngưỡng tốt nghiệp khỏi gateway nội bộ
 
-LiteLLM ở đây chỉ là lớp dịch protocol + retry, đủ cho pilot vì loop ta gọi
-tuần tự, không ảnh, không billing. Migrate khi gặp 1 trong các dấu hiệu:
-parallel tool calls bị serialize sai, cần streaming token-level về UI,
-cần ảnh đầu vào, hoặc cần usage/billing chính xác — lúc đó thay đúng lớp
-dịch, giữ nguyên adapters, configs và toàn bộ method backend.
+Gateway Node đã thay LiteLLM proxy (từ 2026-09-14 — `run_proxy.sh` giờ chỉ là
+phương án phụ). Đường `gateway` đủ cho pilot: streaming token-level, tool-use,
+retry + fallback đa provider đều nằm trong Node (`docs/AI_ARCHITECTURE.md`).
+Cân nhắc rời gateway chỉ khi: agent cần wire format không phải Anthropic, cần
+gọi model ở mạng ngoài mà server không reach được, hoặc cần tách agent thành
+tiến trình riêng với SLA riêng — lúc đó thay đúng lớp client HTTP, giữ nguyên
+adapters, configs và toàn bộ method backend.
 
 ## Ánh xạ & giới hạn đã biết
 

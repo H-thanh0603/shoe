@@ -5,7 +5,7 @@
 const pool = require('../db.js')
 const mailer = require('./mailer.js')
 
-const TYPES = ['order_confirmation', 'events_cleanup', 'low_stock_scan', 'vnpay_refund', 'analytics_rollup', 'cart_purge', 'watchlist_scan']
+const TYPES = ['order_confirmation', 'events_cleanup', 'low_stock_scan', 'vnpay_refund', 'analytics_rollup', 'cart_purge', 'watchlist_scan', 'watchlist_alert', 'pitr_drill']
 const POLL_MS = 2000
 
 async function enqueue(type, payload = {}, opts = {}) {
@@ -177,6 +177,52 @@ const handlers = {
       [o.id, result.ok ? 'refunded' : 'refund_failed', `${result.ok ? 'OK' : 'FAIL'} ${result.responseCode || ''} ${result.message}`.slice(0, 300)])
     if (!result.ok) throw new Error(`Refund thất bại: ${result.message}`)
     return 'refunded'
+  },
+  // PITR drill định kỳ: physical basebackup vào PITR_BASE_DIR (mount/host path —
+  // container postgres chạy cùng image có pg_basebackup; worker host chỉ orchestrator,
+  // không cần client). Role thiếu REPLICATION (dev native / managed PG) → fallback
+  // pg_dump custom format — vẫn restore-được, chỉ mất khả năng PITR về thời điểm giữa
+  // 2 base. Lấp nợ "chưa drill PITR" trong docs/BACKUP_DRILLS.md. Throw → retry backoff.
+  async pitr_drill({ dest } = {}) {
+    const { execFile } = require('node:child_process')
+    const fs = require('node:fs')
+    const path = require('node:path')
+    const base = dest || process.env.PITR_BASE_DIR
+    if (!base) throw new Error('Thiếu PITR_BASE_DIR (hoặc payload.dest) — không biết backup vào đâu')
+    const conn = process.env.DATABASE_URL || ''
+    let host = process.env.PGHOST || '127.0.0.1', port = process.env.PGPORT || '5432', user = process.env.PGUSER || 'kinetic', db = 'kinetic'
+    try { const u = new URL(conn); host = process.env.PGHOST || u.hostname; port = process.env.PGPORT || u.port; user = process.env.PGUSER || u.username; db = u.pathname.slice(1) } catch {}
+    const stamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19)
+    const dir = path.join(base, `base-${stamp}-${process.pid}${Math.random().toString(36).slice(2, 5)}`)
+    fs.mkdirSync(dir, { recursive: true })
+    const run = (cmd, args) => new Promise((resolve, reject) => {
+      const t0 = Date.now()
+      execFile(cmd, args, { env: { ...process.env, PGPASSWORD: process.env.PGPASSWORD || '' }, timeout: 15 * 60 * 1000 },
+        (err) => (err ? reject(err) : resolve(Date.now() - t0)))
+    })
+    let mode = 'physical'
+    let durMs
+    try {
+      durMs = await run('pg_basebackup',
+        ['-h', host, '-p', port, '-U', user, '-D', dir, '-Fp', '-Xs', '-P', '-c', 'fast'])
+    } catch (e) {
+      // Không có quyền REPLICATION (native dev, managed PG) → logical dump cùng vị trí.
+      if (!/WAL sender|replication/i.test(String(e.message))) throw e
+      mode = 'logical'
+      fs.rmSync(dir, { recursive: true, force: true })
+      fs.mkdirSync(dir, { recursive: true })
+      durMs = await run('pg_dump', ['-h', host, '-p', port, '-U', user, '-Fc', '-f', path.join(dir, `${db}.dump`), db])
+      fs.writeFileSync(path.join(dir, 'MODE'), 'logical (pg_dump — thiếu REPLICATION, không PITR điểm giữa được)\n')
+    }
+    let bytes = 0
+    const walk = (d) => { for (const f of fs.readdirSync(d, { withFileTypes: true })) {
+      const p = path.join(d, f.name)
+      if (f.isDirectory()) walk(p)
+      else bytes += fs.statSync(p).size
+    } }
+    walk(dir)
+    console.log(`[job] pitr_drill ok (${mode}): ${dir} — ${(bytes / 1048576).toFixed(1)}MB, ${(durMs / 1000).toFixed(0)}s, db=${db}`)
+    return { dir, bytes, durMs, mode }
   },
 }
 

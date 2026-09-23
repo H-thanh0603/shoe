@@ -17,4 +17,7 @@ fi
 VENV="${AGENTS_VENV:-$HOME/.venvs/kinetic-agents}"
 VENV=$(eval echo "${VENV}")
 # bind loopback: proxy giữ DeepSeek key, không lộ ra LAN
+# DEPRECATED cho KINETIC: ASSISTANT_PROVIDER=gateway (mặc định) đi thẳng Node
+# gateway /api/v1/internal/llm/messages — KHÔNG cần LiteLLM proxy :4000 nữa.
+# File giữ lại làm phương án phụ (xem agents/README.md "Ngưỡng tốt nghiệp").
 exec "$VENV/bin/litellm" --config "$HERE/litellm.yaml" --host 127.0.0.1 --port 4000

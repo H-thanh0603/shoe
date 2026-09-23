@@ -15,6 +15,7 @@
     "test:jobs": "node --test test/jobs.test.js",
     "test:search": "node --test test/search.test.js",
     "test:rbac": "node --test test/rbac.test.js",
+    "test:admin-transition": "node --test test/admin-transition.test.js",
     "test:agent-tools": "node --test test/agent-tools.test.js",
     "test:agent-prompt": "node --test test/agent-prompt.test.js",
     "test:agent-memory": "node --test test/agent-memory.test.js",

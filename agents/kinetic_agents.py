@@ -270,6 +270,15 @@ class KineticClient:
         self._admin = False
 
     def call(self, method: str, path: str, **kw):
+        # CSRF double-submit (server §45): echo cookie `csrf` qua header X-CSRF-Token
+        # trên mọi write request. Chưa có cookie (login lần đầu) → bỏ qua — server
+        # fail-open ở bước bootstrap; các request sau đều mang theo được.
+        if method.upper() not in ("GET", "HEAD"):
+            csrf = self.session.cookies.get("csrf")
+            if csrf:
+                headers = dict(kw.pop("headers", None) or {})
+                headers.setdefault("X-CSRF-Token", csrf)
+                kw["headers"] = headers
         r = self.session.request(method, self.base + path, timeout=20, **kw)
         try:
             body = r.json()
@@ -341,6 +350,11 @@ def _variant_of(family_slug: str, item: dict, variant: dict) -> Product:
     )
 
 
+def vnd(n) -> str:
+    """2.500.000₫ — format tiền VND cho summary/log (blueprint không kèm util này)."""
+    return f"{int(n):,}".replace(",", ".") + "₫"
+
+
 def _split_variant(product_id: str) -> tuple[str, str | None]:
     if "::" in product_id:
         slug, size = product_id.split("::", 1)
@@ -358,7 +372,7 @@ KINETIC_POLICIES = [
     ("returns", "Đổi size 30 ngày", "returns",
      "Đổi size miễn phí trong 30 ngày nếu giày chưa mang ra ngoài. Hoàn tiền 200% nếu phát hiện hàng fake."),
     ("payment", "Thanh toán", "payment",
-     "Thanh toán khi nhận hàng (COD). VNPay đang tích hợp — hiện checkout chỉ nhận COD."),
+     "COD (tiền mặt khi nhận hàng) hoặc VNPay (cổng thanh toán online, đơn đã trả trước khi giao). Mỗi đơn có mã KIN-XXXXXX — tra trạng thái thanh toán ở trang Tra cứu đơn."),
     ("tracking", "Tra cứu đơn hàng", "orders",
      "Mỗi đơn có mã dạng KIN-XXXXXX. Nhập mã tại trang Tra cứu đơn để xem trạng thái và chi tiết."),
     ("coupons", "Mã giảm giá", "pricing",

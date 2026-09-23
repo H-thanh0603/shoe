@@ -7,4 +7,6 @@ anthropic>=0.91
 pyyaml>=6
 fastapi>=0.100
 uvicorn>=0.20
-litellm[proxy]>=1.0
+# LiteLLM proxy đã thay bằng gateway nội bộ Node (docs/AI_PROVIDERS.md).
+# Phương án phụ — chỉ cài nếu muốn chạy lại agents/run_proxy.sh:
+# litellm[proxy]>=1.0

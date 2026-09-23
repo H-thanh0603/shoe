@@ -25,6 +25,7 @@ Chạy dồn nhiều run trong 1 phút có thể dính `RATE_LIMITED` ở `/orde
 | COD_LIMITED | SĐT 4 đơn COD/24h → 429, chống bom hàng |
 | Auth rotation/revoke/logout-all/reset 1-lần-dùng (`auth.test.js`) | Refresh reuse → revoke session; reset link dùng 1 lần, đá session cũ |
 | RBAC (`rbac.test.js`) | Chưa role 403; gán/thu vai trò có hiệu lực ngay + audit log |
+| Admin order transition (`admin-transition.test.js`) | State machine §70: happy path từng bước, nhảy cóc 409, enum lạ 400, đơn lạ 404, cancel hoàn stock + `inventory_transactions` RESTOCK, terminal state |
 
 ## Cấu trúc test
 
@@ -53,9 +54,15 @@ curl -b /tmp/j.txt -X POST localhost:3000/api/v1/orders \
 
 ## Chưa cover
 
-- Admin transition state machine (đã test thủ công curl khi viết, chưa vào file test).
+- ~~Admin transition state machine~~ — đã có `admin-transition.test.js` (cần server chạy + seed admin, giống `rbac.test.js`).
 - Rate limit (thời gian chờ 15 phút — không hợp test tự động).
 - Frontend (không có test UI — demo nhỏ, thử bằng tay qua `npm run dev`).
+
+Lưu ý môi trường local: test process đọc `JWT_SECRET` từ env export (CI set sẵn);
+chạy tay trên máy dev cần `export $(grep -E '^(DATABASE_URL|JWT_SECRET)=' server/.env)`
+trước khi chạy file test API (dotenv 17 không export vào `process.env` cho process con
+require trực tiếp). Counter COD (`cod_abuse`) sống theo SĐT — chạy test lặp nhiều
+lần trong 24h có thể dính `COD_LIMITED` oan; xóa bảng `cod_abuse` giữa các lần chạy dồn.
 
 ## Benchmark API (mục tiêu performance — có số liệu thật)
 

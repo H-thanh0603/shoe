@@ -46,6 +46,69 @@ const PRODS = [
   ['deviate-nitro-3', 'PUMA DEVIATE NITRO 3', 'PUMA', 'NITRO Elite carbon plate — giá tốt nhất trong nhóm giày plate tốc độ.', 4490000, '["#0a0a0a","#d43a2a","#e8e6e1"]', null, 'tall', 1, 'running', 96, 78, 74, 75, 62, '["breathable"]'],
   ['suede-classic', 'PUMA SUEDE CLASSIC', 'PUMA', 'Suede 1968: biểu tượng breakdance, dáng mỏng gọn, màu bão hòa.', 1890000, '["#d43a2a","#e8e6e1","#0a0a0a"]', 'SALE', null, 3, 'street', 40, 68, 90, 80, 87, '[]'],
   ['mb-lo', 'PUMA MB.01 LOW', 'PUMA', 'Chữ ký LaMelo Ball: nhẹ featherweight, đế explosive, style sáng sân.', 3090000, '["#d9a441","#1a5fb4","#e8e6e1"]', null, null, 4, 'court', 88, 72, 92, 78, 50, '[]'],
+
+  // --- Sau đợt mở rộng catalog (2026-09-23): tổng 66 sản phẩm (§79 catalog ≥50) ---
+  // --- KINETIC bổ sung (4) — brand nhà phủ đủ purpose ---
+  ['kinetic-cloudline', 'KINETIC CLOUDLINE', 'KINETIC', 'Đệm hai lớp cho người đứng nhiều ca 8 tiếng: upperKNIT thoáng, đế lưới chống trượt sàn.', 2450000, '["#e8e6e1","#8a8a8f"]', null, null, 3, 'daily', 48, 90, 78, 82, 94, '["breathable"]'],
+  ['kinetic-trailstone', 'KINETIC TRAILSTONE', 'KINETIC', 'Trail dưới 3 triệu: đế multi-directional, mũi reinforced, upper ripstop cán nhiệt.', 2890000, '["#4a5d3a","#0a0a0a"]', null, 'wide', 2, 'trail', 84, 80, 66, 90, 62, '["water-resistant"]'],
+  ['kinetic-court-classic', 'KINETIC COURT CLASSIC', 'KINETIC', 'Court-suite tối giản: da hành lý, đế herringbone, logo kim tuyến nhỏ ở gót.', 2690000, '["#e8e6e1","#d9a441"]', null, null, 4, 'court', 76, 72, 89, 86, 78, '[]'],
+  ['kinetic-dusk-runner', 'KINETIC DUSK RUNNER', 'KINETIC', 'Chạy bình minh: upper phản tia UV, sợi 3M dọc thân, đệm nitrogen thế hệ mới.', 3590000, '["#d43a2a","#0a0a0a","#e8e6e1"]', 'NEW', 'tall', 1, 'running', 89, 85, 76, 79, 74, '["reflective","breathable"]'],
+
+  // --- Nike bổ sung (4) ---
+  ['invincible-3', 'NIKE INVINCIBLE 3', 'NIKE', 'ZoomX dày nhất đơn, gót rộng cân bằng — đôi êm nhất để đi bộ km dài.', 4990000, '["#e8e6e1","#0a0a0a"]', null, 'tall', 1, 'running', 78, 99, 68, 76, 82, '["breathable"]'],
+  ['dunk-low-retro', 'NIKE DUNK LOW RETRO', 'NIKE', 'Dunk từ sân bóng rổ 1985 ra phố: da, đế gum, phối màu trường học cũ.', 2790000, '["#e8e6e1","#0a0a0a","#d9a441"]', null, null, 3, 'street', 52, 70, 95, 88, 90, '[]'],
+  ['air-force-1-07', "NIKE AIR FORCE 1 '07", 'NIKE', 'Icon 1982: da bóng, đế Air gót, trắng tinh phối với mọi thứ trong tủ.', 2890000, '["#e8e6e1"]', null, 'wide', 3, 'daily', 50, 76, 92, 91, 95, '[]'],
+  ['gt-cut-3', 'NIKE GT CUT 3', 'NIKE', 'Cắt hướng nhanh nhất sân: Zoom Turbo, upper mỏng ôm, bounce tức thì.', 4390000, '["#0a0a0a","#d43a2a"]', 'NEW', null, 4, 'court', 94, 78, 82, 74, 56, '[]'],
+
+  // --- Adidas bổ sung (4) ---
+  ['adizero-boston-13', 'ADIDAS ADIZERO BOSTON 13', 'ADIDAS', 'Tempo trainer Lightstrike Pro: nhẹ hơn Boston 12, plate nhịp bước đều.', 4190000, '["#d43a2a","#e8e6e1"]', null, 'tall', 1, 'running', 93, 74, 72, 74, 64, '["breathable"]'],
+  ['campus-00s', 'ADIDAS CAMPUS 00S', 'ADIDAS', 'Suede stadium 2000s: mũi tròn, đế dày, bảng màu campus cổ điển.', 2390000, '["#0a0a0a","#e8e6e1","#d43a2a"]', null, null, 3, 'street', 46, 72, 94, 85, 89, '[]'],
+  ['forum-low', 'ADIDAS FORUM LOW', 'ADIDAS', 'Court 1984 với dây buộc X-strap: da bền, phom rộng đi cả ngày.', 2590000, '["#e8e6e1","#1a5fb4"]', 'SALE', null, 4, 'court', 72, 74, 90, 88, 86, '[]'],
+  ['supernova-rise', 'ADIDAS SUPERNOVA RISE', 'ADIDAS', 'Chạy mỗi ngày không nghĩ ngợi: Dreamstrike+ êm đều, thanh giữ nhịp giữa bàn chân.', 3290000, '["#1a5fb4","#e8e6e1","#0a0a0a"]', null, null, 1, 'running', 85, 90, 74, 82, 86, '["breathable"]'],
+
+  // --- New Balance bổ sung (4) ---
+  ['1080v14', 'NEW BALANCE 1080V14', 'NEW BALANCE', 'Fresh Foam X mềm nhất dòng 1080: ôm bàn chân, chuyển động mượt cho km nặng.', 4690000, '["#e8e6e1","#8a8a8f"]', 'NEW', null, 1, 'running', 86, 97, 76, 84, 88, '["breathable"]'],
+  ['9060', 'NEW BALANCE 9060', 'NEW BALANCE', 'Silhouette future-retro: sóng đế lõi xoắn, suede mesh phủ lớp, chunky có chủ đích.', 3590000, '["#8a8a8f","#e8e6e1","#d9a441"]', null, null, 3, 'street', 48, 80, 93, 84, 88, '[]'],
+  ['sc-elite-v4', 'NEW BALANCE SC ELITE V4', 'NEW BALANCE', 'Marathon supershoe: plate carbon + FuelCell, midsole dày tối đa luật cho phép.', 5690000, '["#d43a2a","#e8e6e1"]', null, 'tall', 1, 'running', 96, 74, 70, 68, 52, '[]'],
+  ['fresh-foam-roav', 'NB FRESH FOAM ROAV', 'NEW BALANCE', 'Dòng chạy-giá-êm: Fresh Foam toàn đế, upper mesh vừa khít, nhẹ dưới 250g.', 2190000, '["#0a0a0a","#8a8a8f"]', 'SALE', null, 3, 'daily', 58, 88, 74, 78, 90, '[]'],
+
+  // --- Asics bổ sung (4) ---
+  ['novablast-5', 'ASICS NOVABLAST 5', 'ASICS', 'FF BLAST TURBO nảy như lò xo: upper engineered jacquard, trung tính dễ chạy.', 3990000, '["#e8e6e1","#d43a2a"]', null, 'tall', 1, 'running', 91, 86, 78, 78, 72, '["breathable"]'],
+  ['gel-1130', 'ASICS GEL-1130', 'ASICS', 'Silhouette 2008 được hồi sinh: vòm silver, đế dày Y2K, êm bất ngờ cho giá này.', 2190000, '["#e8e6e1","#8a8a8f"]', 'SALE', null, 3, 'street', 54, 82, 92, 84, 88, '[]'],
+  ['metaspeed-sky-paris', 'ASICS METASPEED SKY PARIS', 'ASICS', 'Supershoe cho runner nhảy đất: FF TURBO+, đế carbon cong — lên đích nhanh.', 5490000, '["#d43a2a","#1a5fb4"]', 'LIMITED', 'tall', 1, 'running', 98, 70, 66, 70, 50, '[]'],
+  ['gel-venture-10', 'ASICS GEL-VENTURE 10', 'ASICS', 'Trail phổ thông: GEL gót, đế bám đất mờm, upper mesh chặn mảnh vụn.', 1890000, '["#4a5d3a","#0a0a0a"]', null, 'wide', 2, 'trail', 78, 84, 62, 82, 68, '[]'],
+
+  // --- Puma bổ sung (3) ---
+  ['velocity-nitro-3', 'PUMA VELOCITY NITRO 3', 'PUMA', 'NITRO foam êm bất ngờ ở tầm giá dễ tiếp cận: đệm cân cho weekly mileage, đế PUMAGRIP.', 2990000, '["#1a5fb4","#e8e6e1"]', null, null, 1, 'running', 87, 89, 72, 80, 84, '["breathable"]'],
+  ['palermo-leather', 'PUMA PALERMO LEATHER', 'PUMA', 'Terrace 1980 của Palermo: T-toe da, đế gum, hơi hướng terrace culture Anh.', 2290000, '["#e8e6e1","#0a0a0a","#1a5fb4"]', null, null, 3, 'street', 44, 70, 93, 86, 88, '[]'],
+  ['stewie-1-matrix', 'PUMA STEWIE 1 MATRIX', 'PUMA', 'Chữ ký Breanna Stewart: hoisting nhẹ, đế multidirectional cho cầu thủ toàn năng.', 3190000, '["#d43a2a","#0a0a0a","#e8e6e1"]', null, 'wide', 4, 'court', 90, 76, 86, 80, 54, '[]'],
+
+  // --- Hoka (4) — max cushion + trail ---
+  ['clifton-10', 'HOKA CLIFTON 10', 'HOKA', 'Cushion-max nhẹ như mây: midsole CMEVA dày, rocker lăn bước, giảm tải khớp gối.', 3890000, '["#e8e6e1","#1a5fb4"]', 'NEW', 'tall', 1, 'running', 82, 96, 74, 80, 86, '["breathable"]'],
+  ['bondi-9', 'HOKA BONDI 9', 'HOKA', 'Êm nhất dòng HOKA cho đường phẳng: midsole dày nhất series, upper bọc cổ chân êm.', 4390000, '["#8a8a8f","#e8e6e1"]', null, 'wide', 1, 'running', 76, 98, 70, 84, 90, '[]'],
+  ['speedgoat-6', 'HOKA SPEEDGOAT 6', 'HOKA', 'Huyền thoại trail Ultramaraton: đế VIBRAM MEGAGRIP bám mọi bề mặt ướt.', 4290000, '["#d9a441","#4a5d3a"]', null, null, 2, 'trail', 90, 82, 64, 95, 58, '["water-resistant"]'],
+  ['mach-6', 'HOKA MACH 6', 'HOKA', 'Tempo nhẹ cân: foa PEBA-like phản hồi nhanh nhưng vẫn êm cho daily.', 3590000, '["#d43a2a","#e8e6e1"]', null, 'tall', 1, 'running', 92, 82, 76, 74, 68, '["breathable"]'],
+
+  // --- On Running (3) ---
+  ['cloudmonster-2', 'ON CLOUDMONSTER 2', 'ON', 'Đế CloudTec khổng lồ: nảy từ đầu tới cuối, look chunky nhưng nhẹ bất ngờ.', 4990000, '["#e8e6e1","#0a0a0a"]', null, 'tall', 1, 'running', 84, 94, 82, 78, 82, '[]'],
+  ['cloud-6', 'ON CLOUD 6', 'ON', 'Biểu tượng đi phố Thuỵ Sĩ: speedboard lăn bước, buộc dây một hành động.', 3290000, '["#e8e6e1","#8a8a8f"]', null, null, 3, 'daily', 52, 82, 88, 84, 92, '[]'],
+  ['cloudultra-2', 'ON CLOUDULTRA 2', 'ON', 'Ultra trail: Missiongrip mạnh, plate rock, khoang rộng cho ngón xòe km 70.', 5290000, '["#4a5d3a","#d9a441"]', null, null, 2, 'trail', 88, 80, 62, 92, 56, '["water-resistant","gore-tex"]'],
+
+  // --- Converse + Vans (4) — lifestyle chủ lực ---
+  ['chuck-70-hi', 'CONVERSE CHUCK 70 HI', 'CONVERSE', 'Chuck cổ cao chất liệu premium: canvas dày, đế gloss, sọc đen huyền thoại.', 2190000, '["#e8e6e1","#0a0a0a"]', null, null, 3, 'street', 40, 60, 96, 82, 90, '[]'],
+  ['run-star-hike', 'CONVERSE RUN STAR HIKE', 'CONVERSE', 'Platform gót răng cưa: dáng lưng cao, tượng đài cho style kết hợp retro.', 2690000, '["#0a0a0a","#e8e6e1"]', 'NEW', null, 3, 'street', 42, 62, 95, 80, 86, '[]'],
+  ['old-skool', 'VANS OLD SKOOL', 'VANS', 'Sidestrip jazz 1977: da suede canvas, đế waffle bám ván chuẩn gốc.', 1890000, '["#0a0a0a","#e8e6e1","#d43a2a"]', null, null, 3, 'street', 38, 62, 94, 84, 92, '[]'],
+  ['sk8-hi', 'VANS SK8-HI', 'VANS', 'Cổ cao skate đầu tiên: mũi toe-cap bền, miếng chống bào gót, đế waffle.', 2190000, '["#0a0a0a","#8a8a8f"]', null, 'wide', 3, 'street', 40, 64, 92, 86, 90, '[]'],
+
+  // --- Reebok (3) ---
+  ['classic-leather', 'REEBOK CLASSIC LEATHER', 'REEBOK', '1983 chưa bao giờ già: da mềm nguyên tấm, midsole EVA vừa, phối retro hoàn hảo.', 2190000, '["#e8e6e1","#0a0a0a"]', null, null, 3, 'daily', 46, 78, 92, 88, 94, '[]'],
+  ['club-c-85', 'REEBOK CLUB C 85', 'REEBOK', 'Court tennis 1985: da trắng, chữ heat-seal nhỏ, tối giản khó lỗi mốt.', 1990000, '["#e8e6e1","#1a5fb4"]', 'SALE', null, 4, 'court', 62, 70, 90, 86, 90, '[]'],
+  ['floatride-energy-5', 'REEBOK FLOATRIDE ENERGY 5', 'REEBOK', 'Chạy budget đáng tiền: Floatride Energy foam nhẹ bền, đế cao su rắn chắc.', 2490000, '["#0a0a0a","#d43a2a"]', null, null, 1, 'running', 84, 86, 70, 82, 80, '["breathable"]'],
+
+  // --- Saucony (2) + Mizuno (1) ---
+  ['kinvara-15', 'SAUCONY KINVARA 15', 'SAUCONY', 'Tempo nhẹ 4mm drop: PWRRUN foam vừa đủ nảy, upper EVERUN mỏng gọn — 229g.', 3190000, '["#d43a2a","#e8e6e1"]', null, 'tall', 1, 'running', 90, 82, 76, 74, 66, '["breathable"]'],
+  ['triumph-22', 'SAUCONY TRIUMPH 22', 'SAUCONY', 'Neutral cushion flagship: PWRRUN+ PB nảy mềm, kháng mòn tốt cả mùa.', 4490000, '["#e8e6e1","#0a0a0a"]', null, null, 1, 'running', 86, 95, 74, 84, 86, '[]'],
+  ['wave-prophecy-13', 'MIZUNO WAVE PROPHECY 13', 'MIZUNO', 'Wave plate vô cực nhìn thấy rõ: cấu trúc hỗ trợ full-length, kiểu cách mecha.', 5290000, '["#0a0a0a","#1a5fb4"]', 'LIMITED', 'tall', 1, 'running', 88, 90, 82, 88, 78, '[]'],
 ]
 
 // Users mẫu + reviews cho social proof. verified = user có order chứa product
