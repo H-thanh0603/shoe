@@ -59,8 +59,8 @@ export default function Nav({ onQuiz, onLogoTap, secret, onSearch }) {
 
   return (
     <header className="fixed top-0 z-50 w-full border-b border-white/10 bg-ink/80 backdrop-blur-md">
-      <nav className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 md:px-8">
-        <a href="/" onClick={onLogo} className="font-display text-xl font-bold tracking-tight text-paper">
+      <nav className="mx-auto flex h-16 max-w-7xl items-center justify-between gap-2 px-4 md:px-8">
+        <a href="/" onClick={onLogo} className="shrink-0 font-display text-lg font-bold tracking-tight text-paper md:text-xl">
           KINETIC<span className="text-accent">.</span>
         </a>
 
@@ -68,7 +68,7 @@ export default function Nav({ onQuiz, onLogoTap, secret, onSearch }) {
           {Object.keys(menu).map((k) => (
             <li key={k} className="relative">
               <button
-                className="flex items-center gap-1 text-sm font-medium tracking-widest text-paper/80 transition-colors duration-200 hover:text-accent focus-visible:text-accent"
+                className="-my-2 min-h-6 inline-flex items-center gap-1 px-2 py-2 text-sm font-medium tracking-widest text-paper/80 transition-colors duration-200 hover:text-accent focus-visible:text-accent"
                 onMouseEnter={() => setOpen(k)}
                 onFocus={() => setOpen(k)}
                 onClick={() => { setOpen(null); navigate(LANDING[k]) }}
@@ -86,23 +86,27 @@ export default function Nav({ onQuiz, onLogoTap, secret, onSearch }) {
           onClick={() => setOpen(open === 'm' ? null : 'm')}
           aria-label="Mở menu"
           aria-expanded={open === 'm'}
-          className="flex h-10 w-10 flex-col items-center justify-center gap-1.5 md:hidden"
+          className="flex h-10 w-10 shrink-0 flex-col items-center justify-center gap-1.5 md:hidden"
         >
           <span className={`block h-0.5 w-5 bg-paper transition-transform ${open === 'm' ? 'translate-y-[7px] rotate-45' : ''}`} />
           <span className={`block h-0.5 w-5 bg-paper transition-opacity ${open === 'm' ? 'opacity-0' : ''}`} />
           <span className={`block h-0.5 w-5 bg-paper transition-transform ${open === 'm' ? '-translate-y-[7px] -rotate-45' : ''}`} />
         </button>
 
-        <div className="flex items-center gap-5">
+        {/* mục 8 review: hàng này trước đây rộng ~474px trong ~358px khả dụng nên
+            flex-shrink bóp hamburger còn ~20px và BAG tràn ra ~394px (đo được).
+            Giờ: logo gọn hơn, SHOE ID chỉ hiện từ md (mobile ở lại trong drawer),
+            ACCOUNT dạng icon dưới 640px, logout rút gọn, gap thu lại. */}
+        <div className="flex min-w-0 shrink-0 items-center gap-3 sm:gap-5">
           <button
             onClick={onSearch}
             aria-label="Tìm kiếm (Cmd+K)"
-            className="flex items-center gap-1.5 text-sm font-medium tracking-widest text-paper/80 transition-colors duration-200 hover:text-accent focus-visible:text-accent"
+            className="-my-2 min-h-6 min-w-6 inline-flex items-center justify-center px-2 py-2 text-sm font-medium tracking-widest text-paper/80 transition-colors duration-200 hover:text-accent focus-visible:text-accent"
           >
             SEARCH
             <span className="hidden lg:inline-block font-mono text-[9px] text-paper/40 border border-white/15 px-1 rounded">⌘K</span>
           </button>
-          <button onClick={onQuiz} className={`text-sm font-medium tracking-widest transition-colors duration-200 hover:text-accent focus-visible:text-accent ${profile ? 'text-accent' : 'text-paper/80'}`}>
+          <button onClick={onQuiz} className={`-my-2 min-h-6 hidden py-2 text-sm font-medium tracking-widest transition-colors duration-200 hover:text-accent focus-visible:text-accent md:inline ${profile ? 'text-accent' : 'text-paper/80'}`}>
             {shoeId}
           </button>
           <a href="/tra-don" className="hidden text-sm font-medium tracking-widest text-paper/80 transition-colors duration-200 hover:text-accent focus-visible:text-accent sm:inline">
@@ -125,15 +129,19 @@ export default function Nav({ onQuiz, onLogoTap, secret, onSearch }) {
             </a>
           )}
           {user ? (
-            <button onClick={logout} className="text-sm font-medium tracking-widest text-paper/80 transition-colors duration-200 hover:text-accent focus-visible:text-accent">
-              {(user.name || user.email).split('@')[0].toUpperCase()} · ĐĂNG XUẤT
+            <button onClick={logout} className="-my-2 min-h-6 whitespace-nowrap py-2 text-sm font-medium tracking-widest text-paper/80 transition-colors duration-200 hover:text-accent focus-visible:text-accent">
+              <span className="sm:hidden">ĐĂNG XUẤT</span>
+              <span className="hidden sm:inline">{(user.name || user.email).split('@')[0].toUpperCase()} · ĐĂNG XUẤT</span>
             </button>
           ) : (
-            <button onClick={() => setShowAuth(true)} className="text-sm font-medium tracking-widest text-paper/80 transition-colors duration-200 hover:text-accent focus-visible:text-accent">
-              ACCOUNT
+            <button onClick={() => setShowAuth(true)} aria-label="Tài khoản" title="Tài khoản" className="-my-2 min-h-6 min-w-6 flex items-center justify-center px-2 py-2 text-sm font-medium tracking-widest text-paper/80 transition-colors duration-200 hover:text-accent focus-visible:text-accent">
+              <svg className="h-5 w-5 shrink-0 sm:hidden" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" focusable="false">
+                <circle cx="12" cy="8" r="3.6" /><path d="M4.5 20c1.6-3.4 4.4-5 7.5-5s5.9 1.6 7.5 5" />
+              </svg>
+              <span className="hidden sm:inline">ACCOUNT</span>
             </button>
           )}
-          <button onClick={openCart} aria-label={`Giỏ hàng, ${cart.count} sản phẩm`} className="relative text-sm font-medium tracking-widest text-paper/80 transition-colors duration-200 hover:text-accent focus-visible:text-accent">
+          <button onClick={openCart} aria-label={`Giỏ hàng, ${cart.count} sản phẩm`} className="relative -my-2 min-h-6 min-w-6 inline-flex items-center justify-center shrink-0 whitespace-nowrap px-2 py-2 text-sm font-medium tracking-widest text-paper/80 transition-colors duration-200 hover:text-accent focus-visible:text-accent">
             BAG
             {cart.count > 0 && (
               <span className="absolute -top-2 -right-3 flex h-4 w-4 items-center justify-center rounded-full bg-accent text-[10px] font-bold text-ink">{cart.count}</span>
@@ -182,6 +190,8 @@ export default function Nav({ onQuiz, onLogoTap, secret, onSearch }) {
             </div>
           ))}
           <div className="flex flex-wrap gap-2 border-t border-white/10 pt-4">
+            {/* mục 8 review: SHOE ID bị ẩn khỏi header mobile → giữ lại ở đây */}
+            <button onClick={() => { setOpen(null); onQuiz?.() }} className="min-h-6 border border-white/15 px-3 py-1.5 font-mono text-xs text-paper/70">SHOE ID</button>
             <a href="/yeu-thich" onClick={() => setOpen(null)} className="border border-white/15 px-3 py-1.5 font-mono text-xs text-paper/70">YÊU THÍCH</a>
             <a href="/tra-don" onClick={() => setOpen(null)} className="border border-white/15 px-3 py-1.5 font-mono text-xs text-paper/70">TRA ĐƠN</a>
             {user && <a href="/don-cua-toi" onClick={() => setOpen(null)} className="border border-white/15 px-3 py-1.5 font-mono text-xs text-paper/70">ĐƠN CỦA TÔI</a>}
