@@ -25,11 +25,18 @@ export default function ShoppingAssistant() {
   const [busy, setBusy] = useState(false)
   const [profile, setProfile] = useState(null) // {prefs, budget} — panel 🧠
   const [showProfile, setShowProfile] = useState(false)
+  const [disclaimer, setDisclaimer] = useState('') // demo banner từ /assistant/config
   const boxRef = useRef(null)
 
   const scrollDown = () => setTimeout(() => boxRef.current?.scrollTo({ top: 999999, behavior: 'smooth' }), 60)
 
   useEffect(() => { if (open) scrollDown() }, [open, msgs.length])
+
+  useEffect(() => {
+    fetch('/api/v1/assistant/config').then((r) => r.json()).then((j) => {
+      if (j?.success && j?.data?.disclaimer) setDisclaimer(j.data.disclaimer)
+    }).catch(() => {})
+  }, [])
 
   // journey slices: giỏ/product/track mở chat với câu hỏi có sẵn
   useEffect(() => {
@@ -191,6 +198,10 @@ export default function ShoppingAssistant() {
                 QUÊN HẾT
               </button>
             </div>
+          )}
+
+          {disclaimer && (
+            <p className="border-b border-amber-500/30 bg-amber-500/10 px-4 py-2 text-[11px] leading-relaxed text-amber-200/90">{disclaimer}</p>
           )}
 
           <div ref={boxRef} className="flex-1 space-y-3 overflow-y-auto p-4">
