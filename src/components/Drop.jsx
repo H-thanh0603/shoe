@@ -34,6 +34,10 @@ export default function Drop() {
   const { h, m, s } = useCountdown(target)
   // heartbeat tồn kho drop — poll 15s, hiện badge khi còn <= 40 đôi
   const remaining = useRemaining(1)
+  // CTA phải dẫn tới đúng sản phẩm của drop. Trước đây là href="#" nên bấm
+  // không có gì xảy ra (nút mua nổi bật nhất trang chủ là link chết).
+  // /drop luôn có slug; fallback /shop khi API chưa lên.
+  const ctaHref = drop?.slug ? `/san-pham/${drop.slug}` : '/shop'
 
   useScrollReveal(ref, { threshold: 0.2 })
 
@@ -61,7 +65,7 @@ export default function Drop() {
             </p>
           )}
           <a
-            href="#"
+            href={ctaHref}
             className="mt-8 inline-flex items-center gap-2 bg-ink px-10 py-4 text-sm font-semibold tracking-widest text-[#e8e6e1] transition-transform duration-200 hover:-translate-y-0.5 focus-visible:-translate-y-0.5"
           >
             ĐẶT TRƯỚC NGAY

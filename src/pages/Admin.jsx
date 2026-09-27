@@ -1117,7 +1117,7 @@ export default function Admin() {
         <p className="font-mono text-xs tracking-widest text-accent">ADMIN //</p>
         <h1 className="display-l mt-1 text-paper">KHÔNG CÓ QUYỀN<span className="text-accent">.</span></h1>
         <p className="mt-4 text-sm text-paper/60">Tài khoản của bạn chưa được gán vai trò quản trị nào. Liên hệ admin để được phân quyền.</p>
-        <a href="#" className="mt-6 inline-block border border-accent px-6 py-2.5 font-display text-xs font-bold tracking-widest text-accent hover:bg-accent hover:text-ink">VỀ TRANG CHỦ</a>
+        <a href="/" className="mt-6 inline-block border border-accent px-6 py-2.5 font-display text-xs font-bold tracking-widest text-accent hover:bg-accent hover:text-ink">VỀ TRANG CHỦ</a>
       </main>
     )
   }

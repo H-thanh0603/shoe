@@ -60,7 +60,7 @@ export default function Nav({ onQuiz, onLogoTap, secret, onSearch }) {
   return (
     <header className="fixed top-0 z-50 w-full border-b border-white/10 bg-ink/80 backdrop-blur-md">
       <nav className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 md:px-8">
-        <a href="#" onClick={onLogo} className="font-display text-xl font-bold tracking-tight text-paper">
+        <a href="/" onClick={onLogo} className="font-display text-xl font-bold tracking-tight text-paper">
           KINETIC<span className="text-accent">.</span>
         </a>
 
