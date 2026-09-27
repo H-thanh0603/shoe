@@ -8,6 +8,7 @@ export default function Shop({ onToggleCompare, compareIds }) {
         compareIds={compareIds}
         kicker="SHOP // TẤT CẢ"
         heading="CẢ KHO GIÀY"
+        headingLevel={1}
       />
     </main>
   )

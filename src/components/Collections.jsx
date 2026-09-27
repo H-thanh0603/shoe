@@ -47,8 +47,11 @@ function CollectionCard({ c, i }) {
   )
 }
 
-export default function Collections() {
+export default function Collections({ headingLevel = 2 }) {
   const ref = useRef(null)
+  // trang /bo-suu-tap trước đây chỉ có <h2> → không có <h1> nào; trên trang chủ
+  // section này nằm dưới <h1> của Hero nên phải giữ <h2>
+  const Heading = headingLevel === 1 ? 'h1' : 'h2'
   const { data: collections, error } = useApi('/collections')
   const { profile } = useProfile()
   const { data: products } = useApi('/products?limit=100')
@@ -67,7 +70,7 @@ export default function Collections() {
   return (
     <section ref={ref} className="reveal border-t border-white/10">
       <div className="mx-auto max-w-7xl px-4 py-20 md:px-8 md:py-28">
-        <h2 data-anime className="display-l mb-10 text-paper">BỘ SƯU TẬP</h2>
+        <Heading data-anime className="display-l mb-10 text-paper">BỘ SƯU TẬP</Heading>
         {error && <p className="text-sm text-accent">Không tải được collections — kiểm tra server.</p>}
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           {sorted?.map((c, i) => (

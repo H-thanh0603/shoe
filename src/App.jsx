@@ -93,7 +93,9 @@ export default function App() {
       ) : route.name === 'new' ? (
         <NewDrops onToggleCompare={compare.toggle} compareIds={compare.ids} />
       ) : route.name === 'collections' ? (
-        <main className="pt-16"><Collections /></main>
+        // /bo-suu-tap: skip-link cần đích #main-content — trước đây main này
+        // không có id nên "TỚI NỘI DUNG" nhảy vào khoảng không.
+        <main id="main-content" className="pt-16"><Collections headingLevel={1} /></main>
       ) : route.name === 'collection' ? (
         <CollectionDetail slug={route.param} onToggleCompare={compare.toggle} compareIds={compare.ids} />
       ) : route.name === 'wishlist' ? (

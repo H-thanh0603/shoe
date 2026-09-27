@@ -11,8 +11,12 @@ import { useScrollReveal } from '../hooks/useScrollReveal.js'
 
 const PAGE_SIZES = [6, 9, 12, 18]
 
-export default function ProductGrid({ onToggleCompare, compareIds = [], preset = null, heading = null, kicker = null }) {
+export default function ProductGrid({ onToggleCompare, compareIds = [], preset = null, heading = null, kicker = null, headingLevel = 2 }) {
   const ref = useRef(null)
+  // headingLevel=1 khi grid LÀ nội dung chính của trang (/shop, /new): trang đó
+  // trước đây không có <h1> nào, dù chữ "CẢ KHO GIÀY" to nhất trang. Trên trang
+  // chủ grid nằm dưới <h1> của Hero nên vẫn phải là <h2>.
+  const Heading = headingLevel === 1 ? 'h1' : 'h2'
   const { data: products, error } = useApi('/products?limit=100')
   const { profile } = useProfile()
   const { wishlist, toggle: toggleWishlist } = useWishlist()
@@ -67,9 +71,9 @@ export default function ProductGrid({ onToggleCompare, compareIds = [], preset =
           <span className="font-mono text-xs tracking-widest text-accent uppercase">
             {kicker || 'CATALOG // SS26 ARCHIVE'}
           </span>
-          <h2 className="display-l text-paper mt-1">
+          <Heading className="display-l text-paper mt-1">
             {heading || (profile ? 'DÀNH CHO BẠN' : 'BỘ SẢN PHẨM')}
-          </h2>
+          </Heading>
         </div>
 
         <div className="flex items-center gap-4 text-xs font-mono text-paper/60">

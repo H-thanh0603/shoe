@@ -9,6 +9,7 @@ export default function NewDrops({ onToggleCompare, compareIds }) {
         preset={{ onlyNew: true, sortBy: 'new' }}
         kicker="NEW // VỪA VỀ"
         heading="HÀNG MỚI VỀ"
+        headingLevel={1}
       />
     </main>
   )
