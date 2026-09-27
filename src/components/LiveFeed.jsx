@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useApi } from '../hooks/useApi.js'
 import { SLOT_BL } from '../lib/overlay.js'
 
@@ -12,6 +12,8 @@ import { SLOT_BL } from '../lib/overlay.js'
 // được chuyển sang đây (nhớ theo session) để xoá nó không làm mất quyền điều
 // khiển của người dùng.
 const DISMISS_KEY = 'kinetic:livefeed-off'
+const ROTATE_MS = 5000
+const MAX_ROTATIONS = 6 // ~30s rồi dừng ở dòng cuối, không xoay mãi
 function ago(at) {
   const s = Math.max(0, Math.floor((Date.now() - new Date(at).getTime()) / 1000))
   if (s < 60) return 'vừa xong'
@@ -28,6 +30,10 @@ export default function LiveFeed() {
   const [off, setOff] = useState(() => {
     try { return sessionStorage.getItem(DISMISS_KEY) === '1' } catch { return false }
   })
+  // tạm dừng khi người dùng đang đọc/đang nhắm vào nút tắt — nội dung không được
+  // đổi dưới con trỏ
+  const [paused, setPaused] = useState(false)
+  const rotations = useRef(0)
 
   const dismiss = () => {
     setOff(true)
@@ -43,21 +49,35 @@ export default function LiveFeed() {
   const items = data?.items || []
 
   useEffect(() => {
-    if (items.length < 2) return undefined
-    const rot = setInterval(() => setIdx((i) => (i + 1) % items.length), 5000)
+    if (off || paused || items.length < 2) return undefined
+    if (rotations.current >= MAX_ROTATIONS) return undefined
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return undefined
+    const rot = setInterval(() => {
+      if (document.visibilityState !== 'visible') return // tab ẩn: không xoay
+      rotations.current += 1
+      if (rotations.current > MAX_ROTATIONS) { clearInterval(rot); return }
+      setIdx((i) => (i + 1) % items.length)
+    }, ROTATE_MS)
     return () => clearInterval(rot)
-  }, [items.length])
+  }, [items.length, off, paused])
 
   if (off || !items.length) return null
   const it = items[idx % items.length]
+  // aria-live="off" + KHÔNG role="status": trước đây role="status" (aria-live
+  // polite + atomic ngầm định) làm screen reader đọc lại TOÀN BỘ vùng này mỗi
+  // 5 giây, mãi mãi, trên mọi trang — nội dung vẫn nằm trong cây trợ năng để đọc
+  // khi người dùng muốn, chỉ là không tự ngắt lời họ nữa.
   return (
     <div
-      key={idx}
-      role="status"
+      aria-live="off"
+      onMouseEnter={() => setPaused(true)}
+      onMouseLeave={() => setPaused(false)}
+      onFocusCapture={() => setPaused(true)}
+      onBlurCapture={() => setPaused(false)}
       className={`${SLOT_BL} flex max-w-[calc(100vw-6.5rem)] animate-fadeIn items-center gap-2 border border-white/10 bg-charcoal/90 px-3 py-2 backdrop-blur-sm md:max-w-none`}
     >
       <span className="h-2 w-2 shrink-0 animate-pulse rounded-full bg-accent" />
-      <p className="max-w-[360px] truncate text-xs text-paper/80">{it.text}</p>
+      <p key={idx} className="max-w-[360px] animate-fadeIn truncate text-xs text-paper/80">{it.text}</p>
       <span className="shrink-0 text-[10px] text-paper/40">{ago(it.at)}</span>
       <button
         onClick={dismiss}
