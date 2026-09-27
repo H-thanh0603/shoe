@@ -10,6 +10,33 @@ export function navigate(to) {
   dispatchEvent(new PopStateEvent('popstate'))
 }
 
+// Bắt click vào <a href> nội bộ → điều hướng client-side, KHÔNG reload document.
+// Review end-user (mục 2/8): mỗi link nội bộ trước đây là 1 lần tải lại cả trang
+// — mất scroll, mất state filter, và Preloader (mount ở App) chạy lại từ đầu:
+// 2.2s cho mỗi cú click. Không đụng tới các trường hợp phải để trình duyệt lo:
+// click giữa/modifier, target khác, download, link ngoài origin, anchor #nội-trang.
+export function useClientLinkInterception() {
+  useEffect(() => {
+    const onClick = (e) => {
+      if (e.defaultPrevented || e.button !== 0) return
+      if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return
+      const a = e.target && e.target.closest ? e.target.closest('a[href]') : null
+      if (!a) return
+      if (a.target && a.target !== '_self') return
+      if (a.hasAttribute('download')) return
+      const href = a.getAttribute('href')
+      if (!href || href.startsWith('#')) return
+      let url
+      try { url = new URL(a.href, location.href) } catch { return }
+      if (url.origin !== location.origin) return
+      e.preventDefault()
+      navigate(url.pathname + url.search + url.hash)
+    }
+    document.addEventListener('click', onClick)
+    return () => document.removeEventListener('click', onClick)
+  }, [])
+}
+
 function parse(path) {
   try {
     const r = decodeURIComponent(path).split('?')[0]

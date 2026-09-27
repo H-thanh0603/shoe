@@ -1,6 +1,6 @@
 import { Suspense, lazy, useEffect, useState } from 'react'
 import { useProfile, applyAccent } from './store/profile.js'
-import { useHashRoute } from './hooks/useHashRoute.js'
+import { useHashRoute, useClientLinkInterception } from './hooks/useHashRoute.js'
 import { useDocumentTitle } from './hooks/useDocumentTitle.js'
 import { useCompare } from './hooks/useCompare.js'
 import { useSecret } from './hooks/useSecret.js'
@@ -30,6 +30,8 @@ import ShoppingAssistant from './components/ShoppingAssistant.jsx'
 
 export default function App() {
   const route = useHashRoute()
+  // mọi <a href> nội bộ đi client-side — không reload document (review mục 2/8)
+  useClientLinkInterception()
   const TITLES = {
     track: 'Tra cứu đơn hàng', myorders: 'Đơn của tôi',
     shop: 'Shop', new: 'New Drops', wishlist: 'Yêu thích', collections: 'Bộ sưu tập', collection: 'Bộ sưu tập', admin: 'Admin',
