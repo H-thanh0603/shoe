@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useProfile } from '../store/profile.js'
 import { matchScore } from '../lib/match.js'
 import { playTechClick } from '../lib/sound.js'
+import { SLOT_BR_ABOVE } from '../lib/overlay.js'
 
 function Verdict({ items }) {
   const { profile } = useProfile()
@@ -39,7 +40,7 @@ export default function CompareDrawer({ items = [], onRemove, onClear, open, set
     <>
       {/* Floating pill dock to open comparator */}
       {!open && (
-        <div className="fixed bottom-6 right-6 z-40 animate-slideUp">
+        <div className={`${SLOT_BR_ABOVE} animate-slideUp`}>
           <button
             onClick={() => {
               setOpen(true)

@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react'
 import { useApi } from '../hooks/useApi.js'
+import { SLOT_BL } from '../lib/overlay.js'
 
 // Social-proof ticker THẬT (GET /live/feed): xoay 1 dòng mỗi 5s, góc dưới trái.
-// Poll 30s bằng cách đổi url param (useApi refetch theo url). Ẩn trên mobile để
-// không đè sticky bar trang sản phẩm.
+// Poll 30s bằng cách đổi url param (useApi refetch theo url).
 //
 // Review end-user (mục 3/8): đây là NGUỒN SOCIAL PROOF DUY NHẤT. Component
 // CommunityFeed (mảng NOTIFS hardcode: "Minh T. vừa đặt…", "AIR VECTOR 01 chỉ còn
@@ -54,7 +54,7 @@ export default function LiveFeed() {
     <div
       key={idx}
       role="status"
-      className="fixed bottom-4 left-4 z-30 hidden animate-fadeIn items-center gap-2 border border-white/10 bg-charcoal/90 px-3 py-2 backdrop-blur-sm md:flex"
+      className={`${SLOT_BL} flex max-w-[calc(100vw-6.5rem)] animate-fadeIn items-center gap-2 border border-white/10 bg-charcoal/90 px-3 py-2 backdrop-blur-sm md:max-w-none`}
     >
       <span className="h-2 w-2 shrink-0 animate-pulse rounded-full bg-accent" />
       <p className="max-w-[360px] truncate text-xs text-paper/80">{it.text}</p>

@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { SLOT_BR } from '../lib/overlay.js'
 
 // Trợ lý mua giày KINETIC — chat floating, streaming SSE qua
 // POST /api/v1/assistant/chat/stream (fetch + ReadableStream — EventSource
@@ -131,7 +132,7 @@ export default function ShoppingAssistant() {
         <button
           onClick={() => setOpen(true)}
           aria-label="Trợ lý mua giày"
-          className="fixed bottom-4 right-4 z-40 flex h-12 w-12 items-center justify-center rounded-full border border-accent/60 bg-charcoal text-accent shadow-lg transition-all hover:bg-accent hover:text-ink focus-visible:outline focus-visible:outline-accent"
+          className={`${SLOT_BR} flex h-12 w-12 items-center justify-center rounded-full border border-accent/60 bg-charcoal text-accent shadow-lg transition-all hover:bg-accent hover:text-ink focus-visible:outline focus-visible:outline-accent`}
         >
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
             <path d="M21 11.5a8.38 8.38 0 0 1-8.5 8.5 8.5 8.5 0 0 1-3.9-.9L3 21l1.9-5.6a8.5 8.5 0 1 1 16.1-3.9z" />
@@ -142,7 +143,7 @@ export default function ShoppingAssistant() {
       {open && (
         <section
           aria-label="Trợ lý mua giày KINETIC"
-          className="fixed bottom-4 right-4 z-40 flex h-[70vh] max-h-[560px] w-[calc(100vw-2rem)] max-w-[380px] flex-col border border-white/10 bg-charcoal backdrop-blur-sm"
+          className={`${SLOT_BR} flex h-[70vh] max-h-[560px] w-[calc(100vw-2rem)] max-w-[380px] flex-col border border-white/10 bg-charcoal backdrop-blur-sm`}
         >
           <header className="flex items-center justify-between border-b border-white/10 px-4 py-3">
             <div>

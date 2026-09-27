@@ -414,7 +414,10 @@ export default function ProductDetail({ slug, back }) {
         </Suspense>
       )}
 
-      {/* Sticky Mobile Bar for quick add */}
+      {/* Sticky Mobile Bar for quick add.
+          80px dưới cùng của mobile là của thanh này — mọi widget nổi phải nằm
+          trên mức đó, xem quy ước ở src/lib/overlay.js (trước đây FAB trợ lý
+          đè lên chính nút MUA SIZE ở đây). */}
       <div className="fixed inset-x-0 bottom-0 z-40 border-t border-white/15 bg-charcoal/95 p-3 backdrop-blur-md md:hidden flex items-center justify-between">
         <div className="min-w-0 flex-1 pr-3">
           <p className="truncate font-display text-xs font-bold text-paper">{p.name}</p>
