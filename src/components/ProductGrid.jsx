@@ -153,7 +153,7 @@ export default function ProductGrid({ onToggleCompare, compareIds = [], preset =
                     setCurrentPage(1)
                     playTechClick()
                   }}
-                  className={`px-2 py-0.5 border text-[11px] font-mono transition-all ${
+                  className={`px-2 py-0.5 min-h-6 border text-[11px] font-mono transition-all ${
                     pageSize === size
                       ? 'border-accent bg-accent text-ink font-bold'
                       : 'border-white/15 text-paper/60 hover:text-paper'

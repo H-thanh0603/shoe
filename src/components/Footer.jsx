@@ -66,7 +66,7 @@ export default function Footer() {
                 ...POLICY_LINKS,
               ].map(([l, href]) => (
                 <li key={l}>
-                  <a href={href} className="text-paper/60 transition-colors duration-200 hover:text-accent focus-visible:text-accent">
+                  <a href={href} className="inline-block -my-1 py-1 text-paper/60 transition-colors duration-200 hover:text-accent focus-visible:text-accent">
                     {l}
                   </a>
                 </li>

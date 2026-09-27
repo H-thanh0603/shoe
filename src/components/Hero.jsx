@@ -143,7 +143,7 @@ export default function Hero({ onQuiz }) {
           {top && (
             <p data-intro className="mt-3 text-xs tracking-wide text-paper/60">
               {matchScore(profile, top)?.pct}% MATCH CHO BẠN —{' '}
-              <a href={`/san-pham/${top.slug}`} className="pointer-events-auto text-accent underline underline-offset-4 hover:text-accent-hot">
+              <a href={`/san-pham/${top.slug}`} className="pointer-events-auto inline-block min-h-6 min-w-6 -my-1 px-1 py-1 text-accent underline underline-offset-4 hover:text-accent-hot">
                 {top.name}
               </a>
             </p>
@@ -176,7 +176,7 @@ export default function Hero({ onQuiz }) {
                     onClick={() => handleColorSelect(c.hex)}
                     aria-label={`Chọn màu ${c.name}`}
                     title={c.name}
-                    className={`h-5 w-5 rounded-full border transition-all ${selectedColor === c.hex ? 'scale-125 border-white ring-2 ring-accent/60' : 'border-white/30 hover:scale-110'}`}
+                    className={`h-6 w-6 rounded-full border transition-all ${selectedColor === c.hex ? 'scale-125 border-white ring-2 ring-accent/60' : 'border-white/30 hover:scale-110'}`}
                     style={{ backgroundColor: c.hex }}
                   />
                 ))}

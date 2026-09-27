@@ -192,7 +192,8 @@ export function Card({ p, match, onWishlist, isWishlisted, onToggleCompare, isCo
         </a>
 
         {/* Color Dots with Quick Preview on Click/Hover */}
-        <div className="flex shrink-0 gap-1.5" aria-label="Màu sắc">
+        {/* WCAG 2.5.8: vùng bấm 24x24, chấm màu bên trong vẫn 12px như cũ */}
+        <div className="flex shrink-0 gap-1" aria-label="Màu sắc">
           {p.colors.map((c, i) => (
             <button
               key={c}
@@ -203,11 +204,15 @@ export function Card({ p, match, onWishlist, isWishlisted, onToggleCompare, isCo
                 playTechClick()
               }}
               aria-label={`Màu ${i + 1}`}
-              className={`h-3 w-3 rounded-full border transition-transform ${
-                activeColorIdx === i ? 'scale-125 border-accent ring-1 ring-accent' : 'border-white/30 hover:scale-110'
-              }`}
-              style={{ background: c }}
-            />
+              className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full"
+            >
+              <span
+                className={`block h-3 w-3 rounded-full border transition-transform ${
+                  activeColorIdx === i ? 'scale-125 border-accent ring-1 ring-accent' : 'border-white/30'
+                }`}
+                style={{ background: c }}
+              />
+            </button>
           ))}
         </div>
       </div>

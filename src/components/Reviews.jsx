@@ -115,7 +115,7 @@ export default function Reviews({ slug }) {
                 {r.verified && <span className="text-accent font-semibold">✓ ĐÃ MUA HÀNG</span>}
                 <button
                   onClick={() => helpful(r.id)}
-                  className={`border px-2 py-0.5 transition-colors ${r.voted ? 'border-accent bg-accent text-ink font-bold' : 'border-white/15 hover:border-accent hover:text-accent'}`}
+                  className={`min-h-6 border px-2 py-0.5 transition-colors ${r.voted ? 'border-accent bg-accent text-ink font-bold' : 'border-white/15 hover:border-accent hover:text-accent'}`}
                 >
                   HỮU ÍCH ({r.helpful_count || 0})
                 </button>
@@ -136,7 +136,7 @@ export default function Reviews({ slug }) {
               type="button"
               onClick={() => { setRating(s); playTechClick() }}
               aria-label={`${s} sao`}
-              className={`text-2xl transition-transform hover:scale-110 ${s <= rating ? 'text-accent' : 'text-paper/25'}`}
+              className={`px-1 text-2xl transition-transform hover:scale-110 ${s <= rating ? 'text-accent' : 'text-paper/25'}`}
             >
               ★
             </button>
@@ -162,13 +162,15 @@ export default function Reviews({ slug }) {
                 type="button"
                 onClick={() => setImages((prev) => prev.filter((_, j) => j !== i))}
                 aria-label="Xóa ảnh"
-                className="absolute -top-2 -right-2 flex h-5 w-5 items-center justify-center rounded-full bg-accent font-mono text-[10px] font-bold text-ink"
+                className="absolute -top-2 -right-2 flex h-7 w-7 items-center justify-center rounded-full bg-accent font-mono text-[10px] font-bold text-ink"
               >
                 ✕
               </button>
             </span>
           ))}
         </div>
+        {/* WCAG 2.5.8: nút hình ảnh xóa đính kèm phải đủ 24x24 — tăng vùng bấm từ
+            20x20 lên 28x28 (h-7 w-7), chữ vẫn cỡ cũ */}
         {msg && <p className="mt-3 font-mono text-xs text-accent" role="status">{msg}</p>}
         <button
           type="submit"

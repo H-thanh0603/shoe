@@ -115,7 +115,7 @@ export default function ProductDetail({ slug, back }) {
       {/* Back button */}
       <button
         onClick={back}
-        className="group mb-8 flex items-center gap-2 font-mono text-xs font-semibold tracking-widest text-paper/60 transition-colors duration-200 hover:text-accent"
+        className="group mb-8 flex items-center gap-2 -my-1 py-1 font-mono text-xs font-semibold tracking-widest text-paper/60 transition-colors duration-200 hover:text-accent"
       >
         <span className="transition-transform group-hover:-translate-x-1">←</span>
         TRỞ VỀ BỘ SẢN PHẨM
@@ -230,7 +230,7 @@ export default function ProductDetail({ slug, back }) {
               <button
                 type="button"
                 onClick={() => setSizeHelper(!sizeHelper)}
-                className="font-mono text-[11px] text-accent underline hover:text-accent-hot"
+                className="font-mono text-[11px] text-accent underline hover:text-accent-hot inline-block min-h-6 min-w-6 -my-1 px-1 py-1"
               >
                 {sizeHelper ? 'ẨN TƯ VẤN SIZE' : 'HƯỚNG DẪN CHỌN SIZE ?'}
               </button>

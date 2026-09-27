@@ -164,7 +164,7 @@ export default function Lookbook() {
                 <div className="mt-3 flex items-center justify-between">
                   <a
                     href={`/san-pham/${item.shoe.slug}`}
-                    className="font-mono text-xs font-semibold text-accent hover:underline flex items-center gap-1"
+                    className="font-mono text-xs font-semibold text-accent hover:underline flex items-center gap-1 -my-1 py-1"
                   >
                     MUA OUTFIT NÀY →
                   </a>

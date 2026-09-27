@@ -57,7 +57,7 @@ export function SearchBar({ value, onChange }) {
           <button
             key={chip}
             onClick={() => { onChange(chip); playTechClick() }}
-            className={`font-mono text-[11px] px-2 py-0.5 border rounded-sm transition-all ${
+            className={`font-mono text-[11px] px-2 py-0.5 min-h-6 border rounded-sm transition-all ${
               value.toUpperCase() === chip
                 ? 'border-accent bg-accent text-ink font-bold'
                 : 'border-white/10 text-paper/60 hover:border-accent hover:text-accent'
