@@ -10,7 +10,6 @@ import CartDrawer from './components/CartDrawer.jsx'
 import Quiz from './components/Quiz.jsx'
 import SearchPalette from './components/SearchPalette.jsx'
 import CompareDrawer from './components/CompareDrawer.jsx'
-import CommunityFeed from './components/CommunityFeed.jsx'
 import Home from './pages/Home.jsx'
 import ProductPage from './pages/ProductPage.jsx'
 import TrackOrder from './pages/TrackOrder.jsx'
@@ -130,7 +129,6 @@ export default function App() {
         onRemove={compare.remove}
         onClear={compare.clear}
       />
-      <CommunityFeed />
     </>
   )
 }
